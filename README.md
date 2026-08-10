@@ -129,6 +129,27 @@ Se a marca for atualizada no futuro, troque os arquivos SVG em
 `client/public/` e os valores em `theme.js` — nenhuma outra parte do
 sistema precisa mudar.
 
+## Publicando no GitHub (agromentoria)
+
+O pacote já vem com um repositório Git local e o primeiro commit pronto
+(branch `main`). Para publicar em `github.com/agromentoria`:
+
+1. No GitHub, crie um repositório vazio (sem README, sem .gitignore —
+   já temos os dois) em `https://github.com/agromentoria/NOME-DO-REPOSITORIO`.
+2. Descompacte este pacote e, dentro da pasta `talhao-platform/`, rode:
+
+```bash
+git remote add origin https://github.com/agromentoria/NOME-DO-REPOSITORIO.git
+git push -u origin main
+```
+
+Se pedir autenticação, use um Personal Access Token do GitHub no lugar da
+senha (Settings → Developer settings → Personal access tokens).
+
+**Importante:** confira com `git status` antes do push que nenhum arquivo
+`.env` real ou banco `.db` está sendo versionado — o `.gitignore` já
+bloqueia isso, mas vale o hábito de checar sempre.
+
 ## Próximos passos sugeridos
 
 - Upload de fotos do talhão/fazenda.

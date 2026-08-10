@@ -1,0 +1,168 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { ArrowLeft, MapPin, CheckCircle2, Circle } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { COLORS, GRAIN_COLORS, FASES, fmtBRL } from "../theme";
+import { grainIcon, ErrorBanner } from "../components/Shared";
+import { api } from "../api";
+import { useAuth } from "../context/AuthContext";
+
+export default function PlotDetail() {
+  const { id } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [plot, setPlot] = useState(null);
+  const [historico, setHistorico] = useState([]);
+  const [appCommission, setAppCommission] = useState(5);
+  const [cotas, setCotas] = useState(1);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [buying, setBuying] = useState(false);
+
+  function load() {
+    api.getPlot(id).then((data) => {
+      setPlot(data.plot);
+      setHistorico(data.historico.map((h) => ({ dia: FASES[h.fase_atual], v: h.progresso })));
+      setAppCommission(data.app_commission_pct);
+    }).catch((err) => setError(err.message));
+  }
+
+  useEffect(() => { load(); }, [id]);
+
+  if (error && !plot) return <div style={{ padding: 32 }}><ErrorBanner message={error} /></div>;
+  if (!plot) return <div style={{ padding: 32, color: COLORS.soilLight, fontSize: 13 }}>Carregando...</div>;
+
+  const grainColor = GRAIN_COLORS[plot.grao] || COLORS.leaf;
+  const Icon = grainIcon(plot.grao);
+  const custoTotal = cotas * plot.cota_valor;
+  const retornoBruto = custoTotal * (1 + plot.previsao_retorno / 100);
+  const lucroBruto = retornoBruto - custoTotal;
+  const comissaoFazenda = lucroBruto * (plot.commission_pct / 100);
+  const comissaoApp = lucroBruto * (appCommission / 100);
+  const lucroLiquido = lucroBruto - comissaoFazenda - comissaoApp;
+  const chartData = historico.length ? historico : FASES.map((f) => ({ dia: f, v: 0 }));
+
+  async function handleBuy() {
+    setError(""); setSuccess("");
+    if (!user) { navigate("/login"); return; }
+    if (user.role !== "investidor") {
+      setError("Apenas contas de investidor podem comprar cotas.");
+      return;
+    }
+    setBuying(true);
+    try {
+      await api.invest(plot.id, cotas);
+      setSuccess(`Cota reservada com sucesso: ${cotas} cota(s) por ${fmtBRL(custoTotal)}.`);
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBuying(false);
+    }
+  }
+
+  return (
+    <div style={{ padding: "24px 32px", maxWidth: 1000, margin: "0 auto" }}>
+      <Link to="/" style={{ display: "flex", alignItems: "center", gap: 6, color: COLORS.soilLight, fontSize: 13, textDecoration: "none", marginBottom: 18, width: "fit-content" }}>
+        <ArrowLeft size={15} /> Voltar aos talhões
+      </Link>
+
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <Icon size={20} color={grainColor} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: grainColor }}>{plot.grao}</span>
+        </div>
+        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.farm_name}</h1>
+        <p style={{ fontSize: 13, color: COLORS.soilLight, margin: "4px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
+          <MapPin size={13} /> {plot.farm_location} · {plot.area_ha} ha · safra {plot.safra}
+        </p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 14px" }}>Etapas da safra</p>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {FASES.map((f, i) => (
+                <div key={f} style={{ display: "flex", alignItems: "center", flex: i < FASES.length - 1 ? 1 : "none" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 64 }}>
+                    {i < plot.fase_atual ? <CheckCircle2 size={20} color={COLORS.leaf} /> :
+                      i === plot.fase_atual ? <Circle size={20} color={COLORS.wheat} fill={COLORS.wheat} /> :
+                      <Circle size={20} color={COLORS.line} />}
+                    <span style={{ fontSize: 11, color: i <= plot.fase_atual ? COLORS.soil : COLORS.soilLight, textAlign: "center" }}>{f}</span>
+                  </div>
+                  {i < FASES.length - 1 && <div style={{ flex: 1, height: 2, background: i < plot.fase_atual ? COLORS.leaf : COLORS.line, marginBottom: 18 }} />}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 6px" }}>Progresso da safra</p>
+            <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 10px" }}>Atualizado pela fazenda conforme o andamento em campo.</p>
+            <div style={{ height: 160 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={grainColor} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={grainColor} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="dia" tick={{ fontSize: 11, fill: COLORS.soilLight }} axisLine={{ stroke: COLORS.line }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: COLORS.soilLight }} axisLine={false} tickLine={false} width={34} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${COLORS.line}` }} formatter={(v) => [`${v}%`, "progresso"]} />
+                  <Area type="monotone" dataKey="v" stroke={grainColor} strokeWidth={2} fill="url(#g1)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 12px" }}>Como a comissão funciona</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: COLORS.soilLight }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Comissão da fazenda ({plot.farm_name})</span><span style={{ color: COLORS.soil, fontWeight: 500 }}>{plot.commission_pct}%</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Comissão do Talhão (plataforma)</span><span style={{ color: COLORS.soil, fontWeight: 500 }}>{appCommission}%</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${COLORS.line}`, paddingTop: 8 }}><span>Sua parte do lucro na venda do grão</span><span style={{ color: COLORS.leaf, fontWeight: 600 }}>{100 - plot.commission_pct - appCommission}%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, position: "sticky", top: 20 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Investir neste talhão</p>
+            <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px" }}>{plot.cotas_disponiveis} de {plot.cotas_totais} cotas disponíveis nesta fase</p>
+
+            <ErrorBanner message={error} />
+            {success && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 10 }}>{success}</p>}
+
+            <label style={{ fontSize: 12, color: COLORS.soilLight }}>Quantidade de cotas</label>
+            <input type="number" min={1} max={plot.cotas_disponiveis} value={cotas}
+              onChange={(e) => setCotas(Math.max(1, Math.min(plot.cotas_disponiveis, Number(e.target.value) || 1)))}
+              style={{ width: "100%", marginTop: 6, marginBottom: 14, padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 14 }} />
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Valor investido</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(custoTotal)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Retorno bruto estimado</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(retornoBruto)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Lucro líquido estimado</span><span style={{ fontWeight: 600, color: COLORS.leaf }}>{fmtBRL(lucroLiquido)}</span></div>
+            </div>
+
+            <button onClick={handleBuy} disabled={buying || plot.cotas_disponiveis === 0} style={{
+              width: "100%", padding: "11px 0", borderRadius: 9, border: "none",
+              background: plot.cotas_disponiveis === 0 ? COLORS.line : COLORS.leaf,
+              color: plot.cotas_disponiveis === 0 ? COLORS.soilLight : "#fff", fontSize: 14, fontWeight: 500,
+              cursor: plot.cotas_disponiveis === 0 ? "not-allowed" : "pointer",
+            }}>
+              {plot.cotas_disponiveis === 0 ? "Cotas esgotadas" : buying ? "Processando..." : `Comprar ${cotas} cota${cotas > 1 ? "s" : ""} — ${fmtBRL(custoTotal)}`}
+            </button>
+            <p style={{ fontSize: 10.5, color: COLORS.soilLight, marginTop: 10, lineHeight: 1.5 }}>
+              Valores e retornos são estimativas e variam conforme a fase da safra e o preço do grão na colheita.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

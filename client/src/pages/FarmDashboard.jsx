@@ -1,0 +1,220 @@
+import { useEffect, useState } from "react";
+import { MapPin, Percent, Plus } from "lucide-react";
+import { COLORS, GRAIN_COLORS, FASES, fmtBRL } from "../theme";
+import { grainIcon, ProgressBar, ErrorBanner } from "../components/Shared";
+import { api } from "../api";
+import { useAuth } from "../context/AuthContext";
+
+export default function FarmDashboard() {
+  const { user } = useAuth();
+  const [farm, setFarm] = useState(null);
+  const [plots, setPlots] = useState([]);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [showForm, setShowForm] = useState(false);
+
+  function load() {
+    api.getFarm(user.farm_id).then((data) => setFarm(data.farm)).catch((err) => setError(err.message));
+    api.listPlots().then((data) => setPlots(data.plots.filter((p) => p.farm_id === user.farm_id)));
+    // fallback: fazenda pendente não aparece na vitrine pública; buscamos via admin se necessário
+  }
+
+  useEffect(() => { load(); }, []);
+
+  if (!farm) return <div style={{ padding: 32 }}><ErrorBanner message={error} />{!error && <p style={{ color: COLORS.soilLight, fontSize: 13 }}>Carregando painel...</p>}</div>;
+
+  async function updateCommission(pct) {
+    try {
+      await api.setCommission(farm.id, pct);
+      setFarm((f) => ({ ...f, commission_pct: pct }));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <div style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
+      <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Painel da fazenda</h1>
+      <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "0 0 20px" }}>{farm.name} · {farm.location}</p>
+
+      <ErrorBanner message={error} />
+      {notice && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 14 }}>{notice}</p>}
+
+      {farm.status === "pendente" && (
+        <div style={{ background: "#FBF3E1", border: "1px solid #E8C97A", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: COLORS.soil, marginBottom: 20 }}>
+          Sua fazenda está em análise pela administração do Talhão. Você poderá publicar talhões assim que ela for aprovada.
+        </div>
+      )}
+
+      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 24 }}>
+        <label style={{ fontSize: 12, color: COLORS.soilLight, display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+          <Percent size={12} /> sua comissão sobre o lucro de cada colheita
+        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="range" min={0} max={30} value={farm.commission_pct} onChange={(e) => updateCommission(Number(e.target.value))} />
+          <span style={{ fontSize: 16, fontWeight: 600, color: COLORS.leaf, minWidth: 40 }}>{farm.commission_pct}%</span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: 0 }}>Seus talhões</p>
+        <button onClick={() => setShowForm((s) => !s)} disabled={farm.status !== "aprovada"} style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none",
+          background: farm.status === "aprovada" ? COLORS.leaf : COLORS.line, color: farm.status === "aprovada" ? "#fff" : COLORS.soilLight,
+          fontSize: 13, fontWeight: 500, cursor: farm.status === "aprovada" ? "pointer" : "not-allowed",
+        }}>
+          <Plus size={15} /> Novo talhão
+        </button>
+      </div>
+
+      {showForm && <NewPlotForm farmId={farm.id} onCreated={() => { setShowForm(false); load(); }} setError={setError} />}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 14 }}>
+        {plots.map((p) => (
+          <PlotAdminCard key={p.id} plot={p} onChanged={load} setNotice={setNotice} setError={setError} />
+        ))}
+        {plots.length === 0 && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum talhão cadastrado ainda.</p>}
+      </div>
+    </div>
+  );
+}
+
+function NewPlotForm({ farmId, onCreated, setError }) {
+  const [form, setForm] = useState({ nome: "", grao: "Soja", area_ha: "", safra: "", cota_valor: "", cotas_totais: "", previsao_retorno: "" });
+  const [saving, setSaving] = useState(false);
+
+  function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.createPlot({ farm_id: farmId, ...form });
+      onCreated();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <Field label="Nome do talhão" value={form.nome} onChange={(v) => update("nome", v)} required />
+      <div>
+        <label style={{ fontSize: 12, color: COLORS.soilLight }}>Grão</label>
+        <select value={form.grao} onChange={(e) => update("grao", e.target.value)} style={inputStyle}>
+          {Object.keys(GRAIN_COLORS).map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+      </div>
+      <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
+      <Field label="Safra (ex: 2026/27)" value={form.safra} onChange={(v) => update("safra", v)} required />
+      <Field label="Valor da cota (R$)" type="number" value={form.cota_valor} onChange={(v) => update("cota_valor", v)} required />
+      <Field label="Total de cotas" type="number" value={form.cotas_totais} onChange={(v) => update("cotas_totais", v)} required />
+      <Field label="Retorno estimado (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+      <div style={{ gridColumn: "1 / -1" }}>
+        <button type="submit" disabled={saving} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: COLORS.leaf, color: "#fff", fontSize: 13.5, fontWeight: 500, cursor: "pointer" }}>
+          {saving ? "Publicando..." : "Publicar talhão"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
+  const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
+  const Icon = grainIcon(plot.grao);
+  const [fase, setFase] = useState(plot.fase_atual);
+  const [progresso, setProgresso] = useState(plot.progresso);
+  const [retornoFinal, setRetornoFinal] = useState(plot.previsao_retorno);
+  const [saving, setSaving] = useState(false);
+
+  async function saveProgress() {
+    setSaving(true);
+    try {
+      await api.updateProgress(plot.id, { fase_atual: fase, progresso });
+      setNotice("Progresso da safra atualizado.");
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function finalize() {
+    if (!confirm(`Finalizar a colheita do ${plot.nome} com retorno de ${retornoFinal}%? Isso paga todos os investidores imediatamente.`)) return;
+    setSaving(true);
+    try {
+      const data = await api.finalizeHarvest(plot.id, retornoFinal);
+      setNotice(`Colheita finalizada. ${data.investidoresPagos} investidor(es) pago(s).`);
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon size={16} color={color} />
+          </div>
+          <div>
+            <p style={{ fontWeight: 500, fontSize: 14, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.grao}</p>
+            <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0" }}>
+              {plot.cotas_totais - plot.cotas_disponiveis}/{plot.cotas_totais} cotas vendidas · {fmtBRL((plot.cotas_totais - plot.cotas_disponiveis) * plot.cota_valor)} captados
+            </p>
+          </div>
+        </div>
+        <span style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 20, background: COLORS.wheatLight, color: COLORS.soil, fontWeight: 500 }}>{plot.status}</span>
+      </div>
+
+      <ProgressBar value={progresso} color={color} />
+
+      {plot.status !== "pago" ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 14, alignItems: "flex-end" }}>
+          <div>
+            <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Fase atual</label>
+            <select value={fase} onChange={(e) => setFase(Number(e.target.value))} style={{ ...inputStyle, marginTop: 4 }}>
+              {FASES.map((f, i) => <option key={f} value={i}>{f}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Progresso (%)</label>
+            <input type="number" min={0} max={100} value={progresso} onChange={(e) => setProgresso(Number(e.target.value))} style={{ ...inputStyle, marginTop: 4, width: 90 }} />
+          </div>
+          <button onClick={saveProgress} disabled={saving} style={{ padding: "9px 14px", borderRadius: 8, border: `1px solid ${COLORS.line}`, background: "#fff", fontSize: 13, cursor: "pointer" }}>
+            Salvar andamento
+          </button>
+
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "flex-end", gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Retorno final (%)</label>
+              <input type="number" value={retornoFinal} onChange={(e) => setRetornoFinal(Number(e.target.value))} style={{ ...inputStyle, marginTop: 4, width: 90 }} />
+            </div>
+            <button onClick={finalize} disabled={saving} style={{ padding: "9px 14px", borderRadius: 8, border: "none", background: COLORS.clay, color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+              Finalizar colheita e pagar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p style={{ fontSize: 12.5, color: COLORS.leaf, marginTop: 12 }}>Colheita finalizada com retorno de {plot.retorno_final}% — investidores já pagos.</p>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, type = "text", required }) {
+  return (
+    <div>
+      <label style={{ fontSize: 12, color: COLORS.soilLight }}>{label}</label>
+      <input type={type} required={required} value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, marginTop: 5 }} />
+    </div>
+  );
+}
+
+const inputStyle = { width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 13.5 };

@@ -1,0 +1,66 @@
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+
+const DEFAULT_JWT_SECRET = "troque-este-valor-por-uma-chave-secreta-forte";
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_JWT_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      "[erro] defina JWT_SECRET no .env com uma chave secreta forte antes de rodar em produção.\n" +
+        "       gere uma com: openssl rand -hex 32"
+    );
+    process.exit(1);
+  }
+  console.warn("[aviso] JWT_SECRET não definida — usando um valor de exemplo apenas para ambiente local.");
+}
+
+require("./db"); // garante que o banco e o admin inicial existam antes de subir a API
+
+const authRoutes = require("./routes/auth");
+const farmRoutes = require("./routes/farms");
+const plotRoutes = require("./routes/plots");
+const investmentRoutes = require("./routes/investments");
+const adminRoutes = require("./routes/admin");
+
+const app = express();
+
+app.use(helmet());
+app.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN || "*",
+    credentials: true,
+  })
+);
+app.use(express.json({ limit: "200kb" }));
+
+// limite geral contra abuso/força bruta na API
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(globalLimiter);
+
+app.get("/api/health", (req, res) => res.json({ ok: true }));
+
+app.use("/api/auth", authRoutes);
+app.use("/api/farms", farmRoutes);
+app.use("/api/plots", plotRoutes);
+app.use("/api/investments", investmentRoutes);
+app.use("/api/admin", adminRoutes);
+
+// captura de erros não tratados: nunca vaza detalhes internos para o cliente
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: "Erro interno. Tente novamente em instantes." });
+});
+
+app.use((req, res) => res.status(404).json({ error: "Rota não encontrada." }));
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`[talhao-server] rodando em http://localhost:${PORT}`);
+});

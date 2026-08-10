@@ -30,27 +30,51 @@ próprio ao lado do site institucional.
   `investidor`) antes de permitir a ação — um investidor não consegue, por
   exemplo, atualizar a safra de um talhão, e uma fazenda não mexe nos dados
   de outra.
-- Compra de cotas roda dentro de uma transação de banco de dados, evitando
-  overselling em compras simultâneas.
+- Compra de cotas roda dentro de uma transação com trava de linha
+  (`SELECT ... FOR UPDATE`) no banco de dados, testado com compras
+  simultâneas reais para garantir que nunca vende mais cotas do que existe.
 - Limite de tentativas de login (proteção contra força bruta) e limite geral
   de requisições por IP.
 - Cabeçalhos de segurança HTTP (Helmet) e CORS restrito ao domínio do site.
+- O servidor **se recusa a iniciar em produção** se `JWT_SECRET` ou
+  `ADMIN_PASSWORD` não forem configurados com valores reais.
 
 **Antes de publicar, você ainda precisa:**
-1. Trocar os valores em `server/.env` (veja abaixo) por segredos reais.
-2. Colocar HTTPS na frente da API (qualquer provedor moderno já entrega isso).
-3. Trocar a senha do administrador padrão no primeiro login.
-4. Se for movimentar dinheiro de verdade, integrar um gateway de pagamento
+1. Criar um banco Postgres gratuito (veja "Banco de dados" abaixo) e colocar
+   a string de conexão em `server/.env`.
+2. Trocar os demais valores em `server/.env` por segredos reais.
+3. Colocar HTTPS na frente da API (qualquer provedor moderno já entrega isso).
+4. Trocar a senha do administrador padrão no primeiro login.
+5. Se for movimentar dinheiro de verdade, integrar um gateway de pagamento
    (Pix/cartão) para o passo de "comprar cotas" — hoje o valor é registrado
    no sistema, mas a cobrança real ainda não está conectada a nenhum meio de
    pagamento. Recomendo Pix via um provedor como Mercado Pago, Pagar.me ou
    Stripe, e um fluxo equivalente para o repasse às fazendas e investidores.
 
+## Banco de dados
+
+A API usa **Postgres**. Para não precisar de cartão de crédito internacional
+nem servidor próprio, recomendamos o [Neon](https://neon.tech): banco
+Postgres gratuito de verdade (não é teste por tempo limitado), sem pedir
+cartão, com armazenamento suficiente para começar.
+
+1. Crie uma conta em https://neon.tech (dá pra entrar com GitHub).
+2. Crie um projeto — o Neon já cria um banco chamado `neondb`.
+3. Copie a "Connection string" que ele mostra (algo como
+   `postgresql://usuario:senha@ep-exemplo.sa-east-1.aws.neon.tech/neondb?sslmode=require`).
+4. Cole esse valor em `DATABASE_URL` no seu `.env` (local) ou nas variáveis
+   de ambiente do serviço de hospedagem (produção).
+
+Na primeira vez que o servidor rodar, ele cria todas as tabelas
+automaticamente — não precisa rodar nenhum script de migração à parte.
+
+
+
 ## Estrutura do projeto
 
 ```
 talhao-platform/
-├── server/     API (Node.js + Express + SQLite)
+├── server/     API (Node.js + Express + Postgres)
 └── client/     Interface web (React + Vite)
 ```
 
@@ -60,7 +84,7 @@ talhao-platform/
 
 ```bash
 cd server
-cp .env.example .env      # depois edite o .env com seus valores
+cp .env.example .env      # depois edite o .env com sua DATABASE_URL e demais valores
 npm install
 npm run seed               # opcional: cria 2 fazendas e 4 talhões de exemplo
 npm start
@@ -80,29 +104,50 @@ npm run dev
 
 A interface sobe em `http://localhost:5173` e já conversa com a API local.
 
-## Publicando de verdade
+## Publicando de verdade (sem cartão de crédito internacional)
 
-### Backend
-Qualquer serviço que rode Node.js funciona: Railway, Render, Fly.io, ou um
-VPS comum. Passos gerais:
-1. Suba a pasta `server/` para o serviço escolhido.
-2. Configure as variáveis de ambiente do `.env.example` no painel do
-   serviço (nunca envie o `.env` real para um repositório público).
-3. Rode `npm install` e `npm start` (a maioria dos serviços faz isso
-   automaticamente).
-4. Anote a URL pública da API, por exemplo `https://api.meutalhao.com.br`.
+### Backend — Render (plano gratuito) + Neon (banco gratuito)
 
-O banco de dados é um arquivo SQLite (`data/talhao.db`) — simples de
-começar. Se o volume de uso crescer bastante, é possível migrar para
-PostgreSQL trocando apenas o arquivo `server/src/db.js`.
+1. Crie o banco no Neon como descrito acima e guarde a `DATABASE_URL`.
+2. Crie uma conta em https://render.com com **Sign up with GitHub** (não
+   pede cartão para o plano gratuito).
+3. **New +** → **Web Service** → selecione o repositório
+   `agromentoria/talhao-platform`.
+4. Configure:
+   - **Root Directory**: `server`
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Instance Type**: **Free**
+5. Em **Environment Variables**, adicione todas as chaves do
+   `server/.env.example`, com valores reais — principalmente
+   `DATABASE_URL` (do Neon), `JWT_SECRET` (gere em
+   https://generate-secret.vercel.app/32), `ADMIN_EMAIL` e
+   `ADMIN_PASSWORD`. Configure também `NODE_ENV=production`.
+6. Crie o serviço. O Render te dá uma URL pública, tipo
+   `https://talhao-api.onrender.com`.
 
-### Frontend
-1. Defina a variável `VITE_API_URL` apontando para a URL pública da API
-   (ex: `https://api.meutalhao.com.br/api`).
-2. Rode `npm run build` dentro de `client/` — isso gera a pasta `dist/`
-   com arquivos estáticos prontos.
-3. Publique essa pasta em qualquer hospedagem de site estático: Netlify,
-   Vercel, Cloudflare Pages, ou o próprio servidor onde está o Joomla.
+**Sobre o plano gratuito:** o serviço "dorme" depois de alguns minutos sem
+uso e demora ~1 minuto para acordar na próxima visita — normal para começar
+sem custo. Como o banco de dados agora mora no Neon (não no disco do
+Render), os dados nunca se perdem, mesmo com o serviço dormindo e
+acordando. Quando o volume de uso justificar, basta trocar o plano do
+Render para "Starter" (elimina esse soneca) sem mexer em nada do código.
+
+### Frontend — Netlify (plano gratuito)
+
+1. Crie uma conta em https://netlify.com com **Sign up with GitHub**.
+2. **Add new site** → **Import an existing project** → escolha o
+   repositório `agromentoria/talhao-platform`.
+3. Configure:
+   - **Base directory**: `client`
+   - **Build command**: `npm run build`
+   - **Publish directory**: `client/dist`
+4. Em **Environment variables**, adicione `VITE_API_URL` com o valor
+   `https://talhao-api.onrender.com/api` (troque pela URL real do Render).
+5. **Deploy site** — você recebe uma URL tipo
+   `https://talhao-platform.netlify.app`.
+6. Volte no Render e defina `CLIENT_ORIGIN` com essa URL do Netlify, para
+   liberar o CORS entre os dois.
 
 ## Integrando com o site atual em Joomla
 
@@ -129,26 +174,15 @@ Se a marca for atualizada no futuro, troque os arquivos SVG em
 `client/public/` e os valores em `theme.js` — nenhuma outra parte do
 sistema precisa mudar.
 
-## Publicando no GitHub (agromentoria)
+## Repositório no GitHub
 
-O pacote já vem com um repositório Git local e o primeiro commit pronto
-(branch `main`). Para publicar em `github.com/agromentoria`:
+O código já está publicado em
+**https://github.com/agromentoria/talhao-platform**, branch `main`.
 
-1. No GitHub, crie um repositório vazio (sem README, sem .gitignore —
-   já temos os dois) em `https://github.com/agromentoria/NOME-DO-REPOSITORIO`.
-2. Descompacte este pacote e, dentro da pasta `talhao-platform/`, rode:
-
-```bash
-git remote add origin https://github.com/agromentoria/NOME-DO-REPOSITORIO.git
-git push -u origin main
-```
-
-Se pedir autenticação, use um Personal Access Token do GitHub no lugar da
-senha (Settings → Developer settings → Personal access tokens).
-
-**Importante:** confira com `git status` antes do push que nenhum arquivo
-`.env` real ou banco `.db` está sendo versionado — o `.gitignore` já
-bloqueia isso, mas vale o hábito de checar sempre.
+Para trazer atualizações futuras deste projeto para o seu computador, ou
+enviar novas mudanças, use o GitHub Desktop (interface visual, sem
+terminal) ou os comandos `git pull` / `git add` / `git commit` / `git push`
+de dentro da pasta `talhao-platform/`.
 
 ## Próximos passos sugeridos
 

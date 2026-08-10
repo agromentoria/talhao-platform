@@ -1,42 +1,53 @@
-const path = require("path");
-const fs = require("fs");
-const Database = require("better-sqlite3");
+const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 
-const DB_PATH = process.env.DB_PATH || "./data/talhao.db";
-const dir = path.dirname(DB_PATH);
-if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+if (!process.env.DATABASE_URL) {
+  console.error(
+    "[erro] defina DATABASE_URL no .env com a string de conexão do seu banco Postgres (ex: Neon)."
+  );
+  process.exit(1);
+}
 
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  // A maioria dos provedores gratuitos de Postgres (Neon, Supabase) exige SSL.
+  ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false },
+});
 
-db.exec(`
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS farms (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  location TEXT NOT NULL,
+  commission_pct REAL NOT NULL DEFAULT 10,
+  owner_user_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','aprovada','suspensa')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('admin','fazenda','investidor')),
-  farm_id INTEGER,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (farm_id) REFERENCES farms(id)
+  farm_id INTEGER REFERENCES farms(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS farms (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  location TEXT NOT NULL,
-  commission_pct REAL NOT NULL DEFAULT 10,
-  owner_user_id INTEGER NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','aprovada','suspensa')),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (owner_user_id) REFERENCES users(id)
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'fk_farm_owner'
+  ) THEN
+    ALTER TABLE farms ADD CONSTRAINT fk_farm_owner
+      FOREIGN KEY (owner_user_id) REFERENCES users(id);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS plots (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  farm_id INTEGER NOT NULL,
+  id SERIAL PRIMARY KEY,
+  farm_id INTEGER NOT NULL REFERENCES farms(id),
   nome TEXT NOT NULL,
   grao TEXT NOT NULL,
   area_ha REAL NOT NULL,
@@ -49,52 +60,46 @@ CREATE TABLE IF NOT EXISTS plots (
   previsao_retorno REAL NOT NULL,
   retorno_final REAL,
   status TEXT NOT NULL DEFAULT 'captacao' CHECK (status IN ('captacao','em_andamento','colhido','pago')),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (farm_id) REFERENCES farms(id)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS progress_updates (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  plot_id INTEGER NOT NULL,
+  id SERIAL PRIMARY KEY,
+  plot_id INTEGER NOT NULL REFERENCES plots(id),
   fase_atual INTEGER NOT NULL,
   progresso INTEGER NOT NULL,
   nota TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (plot_id) REFERENCES plots(id)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS investments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  plot_id INTEGER NOT NULL,
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  plot_id INTEGER NOT NULL REFERENCES plots(id),
   cotas INTEGER NOT NULL,
   valor_investido REAL NOT NULL,
   status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo','pago','cancelado')),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (plot_id) REFERENCES plots(id)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS payouts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  investment_id INTEGER NOT NULL,
+  id SERIAL PRIMARY KEY,
+  investment_id INTEGER NOT NULL REFERENCES investments(id),
   valor_bruto REAL NOT NULL,
   comissao_fazenda REAL NOT NULL,
   comissao_app REAL NOT NULL,
   valor_liquido REAL NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (investment_id) REFERENCES investments(id)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_plots_farm ON plots(farm_id);
 CREATE INDEX IF NOT EXISTS idx_investments_user ON investments(user_id);
 CREATE INDEX IF NOT EXISTS idx_investments_plot ON investments(plot_id);
-`);
+`;
 
-// garante que sempre exista um administrador da plataforma (mediador)
-function ensureAdmin() {
-  const existing = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
-  if (existing) return;
+async function ensureAdmin() {
+  const { rows } = await pool.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+  if (rows.length) return;
 
   const name = process.env.ADMIN_NAME || "Administrador Talhão";
   const email = (process.env.ADMIN_EMAIL || "admin@meutalhao.com.br").toLowerCase();
@@ -113,15 +118,18 @@ function ensureAdmin() {
   }
 
   const hash = bcrypt.hashSync(password || "mude-esta-senha-local", 10);
-
-  db.prepare(
-    "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')"
-  ).run(name, email, hash);
+  await pool.query(
+    "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'admin')",
+    [name, email, hash]
+  );
 
   console.log(`[setup] usuário administrador criado: ${email}`);
   console.log("[setup] troque a senha assim que fizer o primeiro login.");
 }
 
-ensureAdmin();
+async function initDb() {
+  await pool.query(SCHEMA);
+  await ensureAdmin();
+}
 
-module.exports = db;
+module.exports = { pool, initDb };

@@ -2,8 +2,9 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
-const db = require("../db");
+const { pool } = require("../db");
 const { requireAuth } = require("../middleware/auth");
+const asyncHandler = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
@@ -32,10 +33,7 @@ function publicUser(user) {
   return rest;
 }
 
-// Cadastro público. Só permite os papéis "investidor" e "fazenda".
-// Uma conta "fazenda" nasce vinculada a uma fazenda em status "pendente",
-// que precisa ser aprovada por um administrador antes de publicar talhões.
-router.post("/register", (req, res) => {
+router.post("/register", asyncHandler(async (req, res) => {
   const { name, email, password, role, farmName, farmLocation } = req.body || {};
 
   if (!name || !email || !password || !role) {
@@ -55,57 +53,64 @@ router.post("/register", (req, res) => {
   }
 
   const emailLower = email.toLowerCase();
-  const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(emailLower);
-  if (existing) {
+  const existing = await pool.query("SELECT id FROM users WHERE email = $1", [emailLower]);
+  if (existing.rows.length) {
     return res.status(409).json({ error: "Este e-mail já está cadastrado." });
   }
 
   const hash = bcrypt.hashSync(password, 10);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  const tx = db.transaction(() => {
-    const userInfo = db
-      .prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)")
-      .run(name, emailLower, hash, role);
-    const userId = userInfo.lastInsertRowid;
+    const userResult = await client.query(
+      "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *",
+      [name, emailLower, hash, role]
+    );
+    let user = userResult.rows[0];
 
-    let farmId = null;
     if (role === "fazenda") {
-      const farmInfo = db
-        .prepare(
-          "INSERT INTO farms (name, location, owner_user_id, status) VALUES (?, ?, ?, 'pendente')"
-        )
-        .run(farmName, farmLocation, userId);
-      farmId = farmInfo.lastInsertRowid;
-      db.prepare("UPDATE users SET farm_id = ? WHERE id = ?").run(farmId, userId);
+      const farmResult = await client.query(
+        "INSERT INTO farms (name, location, owner_user_id, status) VALUES ($1, $2, $3, 'pendente') RETURNING id",
+        [farmName, farmLocation, user.id]
+      );
+      const farmId = farmResult.rows[0].id;
+      await client.query("UPDATE users SET farm_id = $1 WHERE id = $2", [farmId, user.id]);
+      user = { ...user, farm_id: farmId };
     }
 
-    return db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
-  });
+    await client.query("COMMIT");
 
-  const user = tx();
-  const token = signToken(user);
-  res.status(201).json({ token, user: publicUser(user) });
-});
+    const token = signToken(user);
+    res.status(201).json({ token, user: publicUser(user) });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
 
-router.post("/login", loginLimiter, (req, res) => {
+router.post("/login", loginLimiter, asyncHandler(async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: "Informe e-mail e senha." });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(String(email).toLowerCase());
+  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [String(email).toLowerCase()]);
+  const user = rows[0];
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return res.status(401).json({ error: "E-mail ou senha incorretos." });
   }
 
   const token = signToken(user);
   res.json({ token, user: publicUser(user) });
-});
+}));
 
-router.get("/me", requireAuth, (req, res) => {
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
-  if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
-  res.json({ user: publicUser(user) });
-});
+router.get("/me", requireAuth, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.id]);
+  if (!rows.length) return res.status(404).json({ error: "Usuário não encontrado." });
+  res.json({ user: publicUser(rows[0]) });
+}));
 
 module.exports = router;

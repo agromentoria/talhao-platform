@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
+const { onlyDigits, validatePixKey } = require("../validators");
 
 const router = express.Router();
 
@@ -51,7 +52,9 @@ router.post("/methods", requireAuth, requireRole("investidor"), asyncHandler(asy
     return res.status(400).json({ error: "Escolha se o cartão é crédito ou débito." });
   }
   const digits = String(number || "").replace(/\D/g, "");
-  if (digits.length < 13 || digits.length > 19 || !passesLuhn(digits)) {
+  const brand = detectBrand(digits);
+  const expectedLength = brand === "American Express" ? 15 : 16;
+  if (digits.length !== expectedLength || !passesLuhn(digits)) {
     return res.status(400).json({ error: "Número de cartão inválido." });
   }
   if (!holder_name || !String(holder_name).trim()) {
@@ -66,8 +69,8 @@ router.post("/methods", requireAuth, requireRole("investidor"), asyncHandler(asy
   if (year === now.getFullYear() && month < now.getMonth() + 1) {
     return res.status(400).json({ error: "Este cartão está vencido." });
   }
-  if (!cvv || !/^\d{3,4}$/.test(String(cvv))) {
-    return res.status(400).json({ error: "Código de segurança (CVV) inválido." });
+  if (!cvv || !/^\d{3}$/.test(String(cvv))) {
+    return res.status(400).json({ error: "Código de segurança (CVV) deve ter 3 dígitos." });
   }
 
   // A PARTIR DAQUI o número completo e o CVV já cumpriram seu papel (validação)
@@ -75,7 +78,6 @@ router.post("/methods", requireAuth, requireRole("investidor"), asyncHandler(asy
   // essa etapa aconteceria inteiramente no front-end via SDK do gateway de
   // pagamento, e nosso backend receberia apenas um token; mantemos aqui a
   // validação básica só porque ainda não há gateway conectado.
-  const brand = detectBrand(digits);
   const last4 = digits.slice(-4);
   const fakeToken = `sim_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -151,13 +153,23 @@ router.put("/payout-account", requireAuth, asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Tipo de chave Pix inválido." });
   }
 
+  let chaveNormalizada = pix_chave;
+  if (temPix) {
+    const erro = validatePixKey(pix_tipo, pix_chave);
+    if (erro) return res.status(400).json({ error: erro });
+    // CPF, CNPJ e telefone ficam salvos só com os dígitos — sem pontuação
+    if (["cpf", "cnpj", "telefone"].includes(pix_tipo)) {
+      chaveNormalizada = onlyDigits(pix_chave);
+    }
+  }
+
   const { rows } = await pool.query(
     `INSERT INTO payout_accounts (user_id, pix_tipo, pix_chave, banco, agencia, conta, titular, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, now())
      ON CONFLICT (user_id) DO UPDATE SET
        pix_tipo = $2, pix_chave = $3, banco = $4, agencia = $5, conta = $6, titular = $7, updated_at = now()
      RETURNING *`,
-    [req.user.id, pix_tipo || null, pix_chave || null, banco || null, agencia || null, conta || null, String(titular).trim()]
+    [req.user.id, pix_tipo || null, chaveNormalizada || null, banco || null, agencia || null, conta || null, String(titular).trim()]
   );
   res.json({ account: rows[0] });
 }));

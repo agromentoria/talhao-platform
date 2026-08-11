@@ -5,6 +5,10 @@ import { COLORS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
+import {
+  maskCPF, isValidCPF, maskCNPJ, isValidCNPJ, maskPhone, isValidPhone,
+  isValidEmail, isValidRandomKey, onlyDigits,
+} from "../utils/validators";
 
 const MAX_AVATAR_BYTES = 1_200_000;
 
@@ -127,14 +131,39 @@ export default function Profile() {
     }
   }
 
+  function pixKeyError() {
+    if (payoutMethod !== "pix") return null;
+    if (!pixChave) return "Informe a chave Pix.";
+    if (pixTipo === "cpf" && !isValidCPF(pixChave)) return "CPF inválido. Confira os números digitados.";
+    if (pixTipo === "cnpj" && !isValidCNPJ(pixChave)) return "CNPJ inválido. Confira os números digitados.";
+    if (pixTipo === "telefone" && !isValidPhone(pixChave)) return "Telefone inválido. Informe DDD + número.";
+    if (pixTipo === "email" && !isValidEmail(pixChave)) return "E-mail inválido.";
+    if (pixTipo === "aleatoria" && !isValidRandomKey(pixChave)) return "Chave aleatória inválida — deve ter o formato gerado pelo seu banco (32 caracteres).";
+    return null;
+  }
+
+  function handlePixChaveChange(value) {
+    if (pixTipo === "cpf") setPixChave(maskCPF(value));
+    else if (pixTipo === "cnpj") setPixChave(maskCNPJ(value));
+    else if (pixTipo === "telefone") setPixChave(maskPhone(value));
+    else setPixChave(value);
+  }
+
   async function handlePayoutSubmit(e) {
     e.preventDefault();
     setPayoutError("");
     setPayoutSuccess("");
+
+    const keyError = pixKeyError();
+    if (keyError) {
+      setPayoutError(keyError);
+      return;
+    }
+
     setSavingPayout(true);
     try {
       const payload = payoutMethod === "pix"
-        ? { pix_tipo: pixTipo, pix_chave: pixChave, titular }
+        ? { pix_tipo: pixTipo, pix_chave: pixTipo === "cpf" || pixTipo === "cnpj" || pixTipo === "telefone" ? onlyDigits(pixChave) : pixChave, titular }
         : { banco, agencia, conta, titular };
       await api.savePayoutAccount(payload);
       setPayoutSuccess("Dados de recebimento salvos.");
@@ -241,7 +270,7 @@ export default function Profile() {
                 <>
                   <div>
                     <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Tipo de chave</label>
-                    <select value={pixTipo} onChange={(e) => setPixTipo(e.target.value)} style={selectStyle}>
+                    <select value={pixTipo} onChange={(e) => { setPixTipo(e.target.value); setPixChave(""); }} style={selectStyle}>
                       <option value="cpf">CPF</option>
                       <option value="cnpj">CNPJ</option>
                       <option value="email">E-mail</option>
@@ -249,7 +278,21 @@ export default function Profile() {
                       <option value="aleatoria">Chave aleatória</option>
                     </select>
                   </div>
-                  <TextField label="Chave Pix" value={pixChave} onChange={setPixChave} required />
+                  <TextField
+                    label="Chave Pix"
+                    value={pixChave}
+                    onChange={handlePixChaveChange}
+                    required
+                    type={pixTipo === "email" ? "email" : "text"}
+                    inputMode={pixTipo === "cpf" || pixTipo === "cnpj" || pixTipo === "telefone" ? "numeric" : "text"}
+                    placeholder={
+                      pixTipo === "cpf" ? "000.000.000-00" :
+                      pixTipo === "cnpj" ? "00.000.000/0000-00" :
+                      pixTipo === "telefone" ? "(00) 00000-0000" :
+                      pixTipo === "email" ? "seuemail@exemplo.com" :
+                      "00000000-0000-0000-0000-000000000000"
+                    }
+                  />
                 </>
               ) : (
                 <>
@@ -281,7 +324,7 @@ export default function Profile() {
         <form onSubmit={handleProfileSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <TextField icon={User} label="Nome completo" value={name} onChange={setName} required />
           <TextField icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} required />
-          <TextField icon={Phone} label="Telefone / WhatsApp" value={phone} onChange={setPhone} placeholder="(00) 00000-0000" />
+          <TextField icon={Phone} label="Telefone / WhatsApp" value={phone} onChange={(v) => setPhone(maskPhone(v))} placeholder="(00) 00000-0000" inputMode="numeric" />
           <button type="submit" disabled={savingProfile} style={{
             marginTop: 4, padding: "11px 0", borderRadius: 10, border: "none", background: COLORS.orange,
             color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", opacity: savingProfile ? 0.7 : 1,
@@ -311,14 +354,14 @@ export default function Profile() {
   );
 }
 
-function TextField({ icon: Icon, label, value, onChange, type = "text", required, minLength, placeholder }) {
+function TextField({ icon: Icon, label, value, onChange, type = "text", required, minLength, placeholder, inputMode }) {
   return (
     <div>
       <label style={{ fontSize: 11.5, color: COLORS.soilLight, display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
         {Icon && <Icon size={12} />} {label}
       </label>
       <input
-        type={type} required={required} minLength={minLength} value={value} placeholder={placeholder}
+        type={type} required={required} minLength={minLength} value={value} placeholder={placeholder} inputMode={inputMode}
         onChange={(e) => onChange(e.target.value)}
         style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${COLORS.line}`, fontSize: 14, background: "#fff" }}
       />

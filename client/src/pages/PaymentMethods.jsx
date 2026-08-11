@@ -3,6 +3,7 @@ import { CreditCard, Trash2, Star, Plus, ShieldCheck } from "lucide-react";
 import { COLORS } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
+import { maskCardNumber, detectCardBrand, maskExpMonth, maskExpYear, maskCVV, onlyDigits } from "../utils/validators";
 
 const BRAND_COLORS = {
   Visa: "#1A1F71",
@@ -116,13 +117,29 @@ function AddCardForm({ onDone, onCancel }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const brand = detectCardBrand(number);
+
+  function handleNumberChange(value) {
+    setNumber(maskCardNumber(value, detectCardBrand(value)));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+
+    if (Number(expMonth) < 1 || Number(expMonth) > 12) {
+      setError("Informe um mês de validade entre 01 e 12.");
+      return;
+    }
+    if (onlyDigits(cvv).length !== 3) {
+      setError("O código de segurança (CVV) deve ter 3 dígitos.");
+      return;
+    }
+
     setSaving(true);
     try {
       await api.addPaymentMethod({
-        type, number, holder_name: holderName,
+        type, number: onlyDigits(number), holder_name: holderName,
         exp_month: Number(expMonth), exp_year: Number(expYear), cvv,
       });
       onDone();
@@ -148,12 +165,16 @@ function AddCardForm({ onDone, onCancel }) {
         ))}
       </div>
 
-      <Field label="Número do cartão" value={number} onChange={setNumber} placeholder="0000 0000 0000 0000" required />
+      <Field
+        label={brand ? `Número do cartão · ${brand}` : "Número do cartão"}
+        value={number} onChange={handleNumberChange} placeholder="0000 0000 0000 0000" required
+        inputMode="numeric"
+      />
       <Field label="Nome impresso no cartão" value={holderName} onChange={setHolderName} required />
       <div style={{ display: "flex", gap: 10 }}>
-        <Field label="Mês" value={expMonth} onChange={setExpMonth} placeholder="MM" required style={{ width: 70 }} />
-        <Field label="Ano" value={expYear} onChange={setExpYear} placeholder="AAAA" required style={{ width: 90 }} />
-        <Field label="CVV" value={cvv} onChange={setCvv} placeholder="123" required type="password" style={{ width: 80 }} />
+        <Field label="Mês" value={expMonth} onChange={(v) => setExpMonth(maskExpMonth(v))} placeholder="MM" required style={{ width: 70 }} inputMode="numeric" />
+        <Field label="Ano" value={expYear} onChange={(v) => setExpYear(maskExpYear(v))} placeholder="AAAA" required style={{ width: 90 }} inputMode="numeric" />
+        <Field label="CVV" value={cvv} onChange={(v) => setCvv(maskCVV(v))} placeholder="123" required type="password" style={{ width: 80 }} inputMode="numeric" />
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
@@ -168,12 +189,12 @@ function AddCardForm({ onDone, onCancel }) {
   );
 }
 
-function Field({ label, value, onChange, type = "text", required, placeholder, style }) {
+function Field({ label, value, onChange, type = "text", required, placeholder, style, inputMode }) {
   return (
     <div style={style}>
       <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>{label}</label>
       <input
-        type={type} required={required} value={value} placeholder={placeholder}
+        type={type} required={required} value={value} placeholder={placeholder} inputMode={inputMode}
         onChange={(e) => onChange(e.target.value)}
         style={{ width: "100%", marginTop: 4, padding: "9px 12px", borderRadius: 9, border: `1px solid ${COLORS.line}`, fontSize: 13.5, background: "#fff" }}
       />

@@ -58,12 +58,17 @@ export default function PlotDetail() {
   const comissaoApp = lucroBruto * (appCommission / 100);
   const lucroLiquido = lucroBruto - comissaoFazenda - comissaoApp;
   const chartData = historico.length ? historico : FASES.map((f) => ({ dia: f, v: 0 }));
+  const colhido = plot.status === "pago" || plot.status === "colhido";
 
   async function handleBuy() {
     setError(""); setSuccess("");
     if (!user) { navigate("/login"); return; }
     if (user.role !== "investidor") {
       setError("Apenas contas de investidor podem comprar cotas.");
+      return;
+    }
+    if (colhido) {
+      setError("Este talhão já foi colhido e não está mais disponível para investimento.");
       return;
     }
     if (paymentType !== "pix" && !selectedCardId) {
@@ -163,78 +168,95 @@ export default function PlotDetail() {
 
         <div>
           <div className="invest-panel" style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, position: "sticky", top: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Investir neste talhão</p>
-            <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px" }}>{plot.cotas_disponiveis} de {plot.cotas_totais} cotas disponíveis nesta fase</p>
+            {colhido ? (
+              <>
+                <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Talhão colhido</p>
+                <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
+                  Este talhão já concluiu seu ciclo{plot.status === "pago" ? " e os investidores já foram pagos" : ""}. Não está mais disponível para novos investimentos.
+                </p>
+                {plot.retorno_final != null && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderTop: `1px solid ${COLORS.line}`, paddingTop: 12 }}>
+                    <span style={{ color: COLORS.soilLight }}>Retorno final da safra</span>
+                    <span style={{ fontWeight: 700, color: COLORS.leaf }}>{plot.retorno_final}%</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Investir neste talhão</p>
+                <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px" }}>{plot.cotas_disponiveis} de {plot.cotas_totais} cotas disponíveis nesta fase</p>
 
-            <ErrorBanner message={error} />
-            {success && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 10 }}>{success}</p>}
+                <ErrorBanner message={error} />
+                {success && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 10 }}>{success}</p>}
 
-            <label style={{ fontSize: 12, color: COLORS.soilLight }}>Quantidade de cotas</label>
-            <input type="number" min={1} max={plot.cotas_disponiveis} value={cotas}
-              onChange={(e) => setCotas(Math.max(1, Math.min(plot.cotas_disponiveis, Number(e.target.value) || 1)))}
-              style={{ width: "100%", marginTop: 6, marginBottom: 14, padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 14 }} />
+                <label style={{ fontSize: 12, color: COLORS.soilLight }}>Quantidade de cotas</label>
+                <input type="number" min={1} max={plot.cotas_disponiveis} value={cotas}
+                  onChange={(e) => setCotas(Math.max(1, Math.min(plot.cotas_disponiveis, Number(e.target.value) || 1)))}
+                  style={{ width: "100%", marginTop: 6, marginBottom: 14, padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 14 }} />
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Valor investido</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(custoTotal)}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Retorno bruto estimado</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(retornoBruto)}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Lucro líquido estimado</span><span style={{ fontWeight: 600, color: COLORS.leaf }}>{fmtBRL(lucroLiquido)}</span></div>
-            </div>
-
-            {(!user || user.role === "investidor") && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, color: COLORS.soilLight, display: "block", marginBottom: 6 }}>Forma de pagamento</label>
-                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                  <button type="button" onClick={() => setPaymentType("pix")} style={{
-                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 0",
-                    borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
-                    border: `1px solid ${paymentType === "pix" ? COLORS.leaf : COLORS.line}`,
-                    background: paymentType === "pix" ? COLORS.leaf : "#fff",
-                    color: paymentType === "pix" ? "#fff" : COLORS.soilLight,
-                  }}><QrCode size={13} /> Pix</button>
-                  <button type="button" onClick={() => { setPaymentType(cards[0] ? (cards[0].type === "credito" ? "cartao_credito" : "cartao_debito") : "cartao_credito"); setSelectedCardId(cards[0]?.id || null); }} style={{
-                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 0",
-                    borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
-                    border: `1px solid ${paymentType !== "pix" ? COLORS.leaf : COLORS.line}`,
-                    background: paymentType !== "pix" ? COLORS.leaf : "#fff",
-                    color: paymentType !== "pix" ? "#fff" : COLORS.soilLight,
-                  }}><CreditCard size={13} /> Cartão</button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Valor investido</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(custoTotal)}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Retorno bruto estimado</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(retornoBruto)}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Lucro líquido estimado</span><span style={{ fontWeight: 600, color: COLORS.leaf }}>{fmtBRL(lucroLiquido)}</span></div>
                 </div>
 
-                {paymentType === "pix" && (
-                  <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0, lineHeight: 1.4 }}>
-                    Pagamento via Pix processado na confirmação da compra.
-                  </p>
+                {(!user || user.role === "investidor") && (
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 12, color: COLORS.soilLight, display: "block", marginBottom: 6 }}>Forma de pagamento</label>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                      <button type="button" onClick={() => setPaymentType("pix")} style={{
+                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 0",
+                        borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+                        border: `1px solid ${paymentType === "pix" ? COLORS.leaf : COLORS.line}`,
+                        background: paymentType === "pix" ? COLORS.leaf : "#fff",
+                        color: paymentType === "pix" ? "#fff" : COLORS.soilLight,
+                      }}><QrCode size={13} /> Pix</button>
+                      <button type="button" onClick={() => { setPaymentType(cards[0] ? (cards[0].type === "credito" ? "cartao_credito" : "cartao_debito") : "cartao_credito"); setSelectedCardId(cards[0]?.id || null); }} style={{
+                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 0",
+                        borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+                        border: `1px solid ${paymentType !== "pix" ? COLORS.leaf : COLORS.line}`,
+                        background: paymentType !== "pix" ? COLORS.leaf : "#fff",
+                        color: paymentType !== "pix" ? "#fff" : COLORS.soilLight,
+                      }}><CreditCard size={13} /> Cartão</button>
+                    </div>
+
+                    {paymentType === "pix" && (
+                      <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0, lineHeight: 1.4 }}>
+                        Pagamento via Pix processado na confirmação da compra.
+                      </p>
+                    )}
+
+                    {paymentType !== "pix" && (
+                      cards.length > 0 ? (
+                        <select value={selectedCardId || ""} onChange={(e) => setSelectedCardId(Number(e.target.value))} style={{
+                          width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 13, fontFamily: "inherit",
+                        }}>
+                          {cards.map((c) => (
+                            <option key={c.id} value={c.id}>{c.brand} •••• {c.last4} ({c.type === "credito" ? "crédito" : "débito"})</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Link to="/pagamentos" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: COLORS.orange, fontWeight: 600, textDecoration: "none" }}>
+                          <Plus size={13} /> Adicionar um cartão para pagar
+                        </Link>
+                      )
+                    )}
+                  </div>
                 )}
 
-                {paymentType !== "pix" && (
-                  cards.length > 0 ? (
-                    <select value={selectedCardId || ""} onChange={(e) => setSelectedCardId(Number(e.target.value))} style={{
-                      width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 13, fontFamily: "inherit",
-                    }}>
-                      {cards.map((c) => (
-                        <option key={c.id} value={c.id}>{c.brand} •••• {c.last4} ({c.type === "credito" ? "crédito" : "débito"})</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Link to="/pagamentos" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: COLORS.orange, fontWeight: 600, textDecoration: "none" }}>
-                      <Plus size={13} /> Adicionar um cartão para pagar
-                    </Link>
-                  )
-                )}
-              </div>
+                <button onClick={handleBuy} disabled={buying || plot.cotas_disponiveis === 0} style={{
+                  width: "100%", padding: "11px 0", borderRadius: 9, border: "none",
+                  background: plot.cotas_disponiveis === 0 ? COLORS.line : COLORS.orange,
+                  color: plot.cotas_disponiveis === 0 ? COLORS.soilLight : "#fff", fontSize: 14, fontWeight: 500,
+                  cursor: plot.cotas_disponiveis === 0 ? "not-allowed" : "pointer",
+                }}>
+                  {plot.cotas_disponiveis === 0 ? "Cotas esgotadas" : buying ? "Processando..." : `Comprar ${cotas} cota${cotas > 1 ? "s" : ""} — ${fmtBRL(custoTotal)}`}
+                </button>
+                <p style={{ fontSize: 10.5, color: COLORS.soilLight, marginTop: 10, lineHeight: 1.5 }}>
+                  Valores e retornos são estimativas e variam conforme a fase da safra e o preço do grão na colheita.
+                </p>
+              </>
             )}
-
-            <button onClick={handleBuy} disabled={buying || plot.cotas_disponiveis === 0} style={{
-              width: "100%", padding: "11px 0", borderRadius: 9, border: "none",
-              background: plot.cotas_disponiveis === 0 ? COLORS.line : COLORS.orange,
-              color: plot.cotas_disponiveis === 0 ? COLORS.soilLight : "#fff", fontSize: 14, fontWeight: 500,
-              cursor: plot.cotas_disponiveis === 0 ? "not-allowed" : "pointer",
-            }}>
-              {plot.cotas_disponiveis === 0 ? "Cotas esgotadas" : buying ? "Processando..." : `Comprar ${cotas} cota${cotas > 1 ? "s" : ""} — ${fmtBRL(custoTotal)}`}
-            </button>
-            <p style={{ fontSize: 10.5, color: COLORS.soilLight, marginTop: 10, lineHeight: 1.5 }}>
-              Valores e retornos são estimativas e variam conforme a fase da safra e o preço do grão na colheita.
-            </p>
 
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${COLORS.line}` }}>
               <ShareButton

@@ -50,6 +50,9 @@ export const api = {
   listPlots: (grao) => request(`/plots${grao ? `?grao=${encodeURIComponent(grao)}` : ""}`, { auth: false }),
   getPlot: (id) => request(`/plots/${id}`, { auth: false }),
   createPlot: (payload) => request("/plots", { method: "POST", body: payload }),
+  myFarmPlots: () => request("/plots/farm/mine"),
+  deletePlot: (id) => request(`/plots/${id}`, { method: "DELETE" }),
+  restartPlot: (id, payload) => request(`/plots/${id}/restart`, { method: "PATCH", body: payload }),
   updateProgress: (id, payload) => request(`/plots/${id}/progress`, { method: "PATCH", body: payload }),
   finalizeHarvest: (id, retorno_final) => request(`/plots/${id}/finalize`, { method: "POST", body: { retorno_final } }),
 

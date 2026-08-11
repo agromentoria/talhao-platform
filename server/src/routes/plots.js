@@ -32,7 +32,7 @@ router.get("/", asyncHandler(async (req, res) => {
     SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct
     FROM plots p
     JOIN farms f ON f.id = p.farm_id
-    WHERE f.status = 'aprovada'
+    WHERE f.status = 'aprovada' AND p.status NOT IN ('pago', 'arquivado')
   `;
   const params = [];
   if (grao) {
@@ -41,6 +41,19 @@ router.get("/", asyncHandler(async (req, res) => {
   }
   sql += " ORDER BY p.created_at DESC";
   const { rows } = await pool.query(sql, params);
+  res.json({ plots: rows, app_commission_pct: APP_COMMISSION_PCT });
+}));
+
+// fazenda: todos os seus talhões, em qualquer status (inclusive já colhidos/pagos),
+// para gestão — diferente da vitrine pública, que esconde os já colhidos
+router.get("/farm/mine", requireAuth, requireRole("fazenda"), asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct
+     FROM plots p JOIN farms f ON f.id = p.farm_id
+     WHERE p.farm_id = $1 AND p.status != 'arquivado'
+     ORDER BY p.created_at DESC`,
+    [req.user.farm_id]
+  );
   res.json({ plots: rows, app_commission_pct: APP_COMMISSION_PCT });
 }));
 
@@ -302,6 +315,90 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
 
   const { rows } = await pool.query("SELECT * FROM plots WHERE id = $1", [plot.id]);
   res.json({ ok: true, investidoresPagos, plot: rows[0] });
+}));
+
+// exclui um talhão. Se ele nunca teve cota vendida, remove de verdade.
+// Se já foi colhido e pago, "excluir" arquiva o talhão (some da gestão
+// ativa da fazenda) sem apagar o registro — o investidor precisa
+// continuar vendo o talhão que teve e o quanto recebeu.
+router.delete("/:id", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
+  const plot = existing.rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+
+  const owned = await getFarmOwned(plot.farm_id, req.user);
+  if (owned.error) return res.status(403).json({ error: owned.error });
+
+  const nuncaVendido = plot.cotas_disponiveis === plot.cotas_totais;
+  if (plot.status !== "pago" && !nuncaVendido) {
+    return res.status(409).json({ error: "Só é possível excluir um talhão sem cotas vendidas ou que já tenha sido pago aos investidores." });
+  }
+
+  if (plot.status === "pago") {
+    // arquiva em vez de apagar — preserva o histórico do investidor
+    await pool.query("UPDATE plots SET status = 'arquivado' WHERE id = $1", [plot.id]);
+    return res.json({ ok: true, arquivado: true });
+  }
+
+  // nunca vendido: nenhum investimento/pagamento depende deste talhão,
+  // então é seguro remover de verdade
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM progress_updates WHERE plot_id = $1", [plot.id]);
+    await client.query("UPDATE notifications SET plot_id = NULL WHERE plot_id = $1", [plot.id]);
+    await client.query("DELETE FROM plots WHERE id = $1", [plot.id]);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  res.json({ ok: true, arquivado: false });
+}));
+
+// reinicia um talhão já colhido/pago para um novo ciclo, com uma nova
+// commodity — reaproveita o mesmo talhão físico em vez de criar um novo,
+// mantendo o histórico de pagamento anterior intacto para o investidor
+router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const { nome, grao, area_ha, safra, cota_valor, cotas_totais, previsao_retorno } = req.body || {};
+
+  const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
+  const plot = existing.rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+
+  const owned = await getFarmOwned(plot.farm_id, req.user);
+  if (owned.error) return res.status(403).json({ error: owned.error });
+
+  if (plot.status !== "pago") {
+    return res.status(409).json({ error: "Só é possível reiniciar um talhão que já foi colhido e pago aos investidores." });
+  }
+
+  if (!nome || !grao || !area_ha || !safra || !cota_valor || !cotas_totais || previsao_retorno == null) {
+    return res.status(400).json({ error: "Preencha todos os campos do novo ciclo do talhão." });
+  }
+
+  const cotas = Number(cotas_totais);
+  const valor = Number(cota_valor);
+  const area = Number(area_ha);
+  const retorno = Number(previsao_retorno);
+  if ([cotas, valor, area, retorno].some((n) => Number.isNaN(n)) || cotas <= 0 || valor <= 0 || area <= 0) {
+    return res.status(400).json({ error: "Valores numéricos inválidos." });
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE plots SET
+       nome = $1, grao = $2, area_ha = $3, safra = $4, cota_valor = $5,
+       cotas_totais = $6, cotas_disponiveis = $6, previsao_retorno = $7,
+       retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao'
+     WHERE id = $8
+     RETURNING *`,
+    [nome, grao, area, safra, valor, cotas, retorno, plot.id]
+  );
+
+  res.json({ plot: rows[0] });
 }));
 
 module.exports = router;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { MapPin, Percent, Plus } from "lucide-react";
-import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
+import { Percent, Plus, Trash2, RotateCcw } from "lucide-react";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, fmtBRL } from "../theme";
 import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -15,8 +15,7 @@ export default function FarmDashboard() {
 
   function load() {
     api.getFarm(user.farm_id).then((data) => setFarm(data.farm)).catch((err) => setError(err.message));
-    api.listPlots().then((data) => setPlots(data.plots.filter((p) => p.farm_id === user.farm_id)));
-    // fallback: fazenda pendente não aparece na vitrine pública; buscamos via admin se necessário
+    api.myFarmPlots().then((data) => setPlots(data.plots)).catch((err) => setError(err.message));
   }
 
   useEffect(() => { load(); }, []);
@@ -127,12 +126,23 @@ function NewPlotForm({ farmId, onCreated, setError }) {
   );
 }
 
+const STATUS_LABEL = {
+  captacao: "captação",
+  em_andamento: "em andamento",
+  colhido: "colhido",
+  pago: "colhido e pago",
+};
+
 function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
   const [fase, setFase] = useState(plot.fase_atual);
   const [progresso, setProgresso] = useState(plot.progresso);
   const [retornoFinal, setRetornoFinal] = useState(plot.previsao_retorno);
   const [saving, setSaving] = useState(false);
+  const [showRestart, setShowRestart] = useState(false);
+
+  const nuncaVendido = plot.cotas_disponiveis === plot.cotas_totais;
+  const podeExcluir = plot.status === "pago" || nuncaVendido;
 
   async function saveProgress() {
     setSaving(true);
@@ -161,6 +171,23 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
     }
   }
 
+  async function handleDelete() {
+    const aviso = plot.status === "pago"
+      ? `Excluir ${plot.nome}? O histórico de pagamento dos investidores continua preservado, mas o talhão sai da sua lista de gestão.`
+      : `Excluir ${plot.nome}? Como nenhuma cota foi vendida, ele será removido definitivamente.`;
+    if (!confirm(aviso)) return;
+    setSaving(true);
+    try {
+      await api.deletePlot(plot.id);
+      setNotice("Talhão excluído.");
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
@@ -175,7 +202,21 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
             </p>
           </div>
         </div>
-        <span style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 20, background: COLORS.wheatLight, color: COLORS.soil, fontWeight: 500 }}>{plot.status}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 20, background: plot.status === "pago" ? "#E1F0DE" : COLORS.wheatLight, color: plot.status === "pago" ? COLORS.leafDark : COLORS.soil, fontWeight: 500 }}>
+            {STATUS_LABEL[plot.status] || plot.status}
+          </span>
+          {plot.status === "pago" && (
+            <button onClick={() => setShowRestart((s) => !s)} title="Reiniciar com nova commodity" disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.leaf, display: "flex" }}>
+              <RotateCcw size={16} />
+            </button>
+          )}
+          {podeExcluir && (
+            <button onClick={handleDelete} title="Excluir talhão" disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.danger, display: "flex" }}>
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       <ProgressBar value={progresso} color={color} />
@@ -207,9 +248,64 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
           </div>
         </div>
       ) : (
-        <p style={{ fontSize: 12.5, color: COLORS.leaf, marginTop: 12 }}>Colheita finalizada com retorno de {plot.retorno_final}% — investidores já pagos.</p>
+        <>
+          <p style={{ fontSize: 12.5, color: COLORS.leaf, marginTop: 12 }}>
+            Colheita finalizada com retorno de {plot.retorno_final}% — investidores já pagos. Este talhão não aparece mais para venda.
+          </p>
+          {showRestart && (
+            <RestartPlotForm plot={plot} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function RestartPlotForm({ plot, onDone, setError }) {
+  const [form, setForm] = useState({
+    nome: plot.nome, grao: plot.grao, area_ha: plot.area_ha, safra: "",
+    cota_valor: plot.cota_valor, cotas_totais: plot.cotas_totais, previsao_retorno: plot.previsao_retorno,
+  });
+  const [saving, setSaving] = useState(false);
+
+  function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.restartPlot(plot.id, form);
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${COLORS.line}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <p style={{ gridColumn: "1 / -1", fontSize: 12.5, color: COLORS.soilLight, margin: 0 }}>
+        Reiniciar este talhão para um novo ciclo de investimento, com uma nova commodity se quiser.
+      </p>
+      <Field label="Nome do talhão" value={form.nome} onChange={(v) => update("nome", v)} required />
+      <div>
+        <label style={{ fontSize: 12, color: COLORS.soilLight }}>Grão</label>
+        <select value={form.grao} onChange={(e) => update("grao", e.target.value)} style={inputStyle}>
+          {Object.keys(GRAIN_COLORS).map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+      </div>
+      <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
+      <Field label="Nova safra (ex: 2027/28)" value={form.safra} onChange={(v) => update("safra", v)} required />
+      <Field label="Valor da cota (R$)" type="number" value={form.cota_valor} onChange={(v) => update("cota_valor", v)} required />
+      <Field label="Total de cotas" type="number" value={form.cotas_totais} onChange={(v) => update("cotas_totais", v)} required />
+      <Field label="Retorno estimado (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+      <div style={{ gridColumn: "1 / -1" }}>
+        <button type="submit" disabled={saving} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: COLORS.leaf, color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+          {saving ? "Reiniciando..." : "Reiniciar talhão com esses dados"}
+        </button>
+      </div>
+    </form>
   );
 }
 

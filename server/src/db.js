@@ -64,9 +64,15 @@ CREATE TABLE IF NOT EXISTS plots (
   cotas_disponiveis INTEGER NOT NULL,
   previsao_retorno REAL NOT NULL,
   retorno_final REAL,
-  status TEXT NOT NULL DEFAULT 'captacao' CHECK (status IN ('captacao','em_andamento','colhido','pago')),
+  status TEXT NOT NULL DEFAULT 'captacao',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- em versões anteriores "status" tinha uma lista fixa (captacao/em_andamento/
+-- colhido/pago); removemos a checagem para permitir o status "arquivado"
+-- (talhão pago que a fazenda excluiu, mas cujo histórico o investidor
+-- ainda precisa ver) sem exigir migração toda vez. Validado na aplicação.
+ALTER TABLE plots DROP CONSTRAINT IF EXISTS plots_status_check;
 
 CREATE TABLE IF NOT EXISTS progress_updates (
   id SERIAL PRIMARY KEY,

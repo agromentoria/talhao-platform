@@ -44,13 +44,14 @@ router.get("/", asyncHandler(async (req, res) => {
   res.json({ plots: rows, app_commission_pct: APP_COMMISSION_PCT });
 }));
 
-// fazenda: todos os seus talhões, em qualquer status (inclusive já colhidos/pagos),
-// para gestão — diferente da vitrine pública, que esconde os já colhidos
+// fazenda: todos os seus talhões, em qualquer status (inclusive já colhidos,
+// pagos e arquivados), para gestão — diferente da vitrine pública, que
+// esconde os já colhidos
 router.get("/farm/mine", requireAuth, requireRole("fazenda"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
     `SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct
      FROM plots p JOIN farms f ON f.id = p.farm_id
-     WHERE p.farm_id = $1 AND p.status != 'arquivado'
+     WHERE p.farm_id = $1
      ORDER BY p.created_at DESC`,
     [req.user.farm_id]
   );
@@ -359,9 +360,10 @@ router.delete("/:id", requireAuth, requireRole("fazenda", "admin"), asyncHandler
   res.json({ ok: true, arquivado: false });
 }));
 
-// reinicia um talhão já colhido/pago para um novo ciclo, com uma nova
-// commodity — reaproveita o mesmo talhão físico em vez de criar um novo,
-// mantendo o histórico de pagamento anterior intacto para o investidor
+// reinicia um talhão já colhido/pago (ou arquivado) para um novo ciclo,
+// com uma nova commodity — reaproveita o mesmo talhão físico em vez de
+// criar um novo, mantendo o histórico de pagamento anterior intacto
+// para o investidor, e volta a aparecer na vitrine para investimento
 router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
   const { nome, grao, area_ha, safra, cota_valor, cotas_totais, previsao_retorno } = req.body || {};
 
@@ -372,7 +374,7 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
   const owned = await getFarmOwned(plot.farm_id, req.user);
   if (owned.error) return res.status(403).json({ error: owned.error });
 
-  if (plot.status !== "pago") {
+  if (!["pago", "arquivado"].includes(plot.status)) {
     return res.status(409).json({ error: "Só é possível reiniciar um talhão que já foi colhido e pago aos investidores." });
   }
 
@@ -396,6 +398,42 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
      WHERE id = $8
      RETURNING *`,
     [nome, grao, area, safra, valor, cotas, retorno, plot.id]
+  );
+
+  res.json({ plot: rows[0] });
+}));
+
+// edita informações de um talhão já colhido/pago ou arquivado, sem
+// reabri-lo para investimento — útil para corrigir nome, área, safra
+// ou a previsão de retorno exibida no histórico, sem mexer nas cotas
+// já vendidas nem no valor que os investidores já receberam
+router.patch("/:id", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const { nome, grao, area_ha, safra, previsao_retorno } = req.body || {};
+
+  const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
+  const plot = existing.rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+
+  const owned = await getFarmOwned(plot.farm_id, req.user);
+  if (owned.error) return res.status(403).json({ error: owned.error });
+
+  if (!["pago", "arquivado"].includes(plot.status)) {
+    return res.status(409).json({ error: "Só é possível editar um talhão já colhido/pago ou arquivado. Talhões em captação usam a atualização de safra." });
+  }
+
+  if (!nome || !grao || !area_ha || !safra) {
+    return res.status(400).json({ error: "Preencha nome, grão, área e safra." });
+  }
+
+  const area = Number(area_ha);
+  const retorno = previsao_retorno != null ? Number(previsao_retorno) : plot.previsao_retorno;
+  if (Number.isNaN(area) || area <= 0 || Number.isNaN(retorno)) {
+    return res.status(400).json({ error: "Valores numéricos inválidos." });
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE plots SET nome = $1, grao = $2, area_ha = $3, safra = $4, previsao_retorno = $5 WHERE id = $6 RETURNING *`,
+    [nome, grao, area, safra, retorno, plot.id]
   );
 
   res.json({ plot: rows[0] });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Percent, Plus, Trash2, RotateCcw } from "lucide-react";
+import { Percent, Plus, Trash2, RotateCcw, Pencil } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, fmtBRL } from "../theme";
 import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
@@ -131,6 +131,7 @@ const STATUS_LABEL = {
   em_andamento: "em andamento",
   colhido: "colhido",
   pago: "colhido e pago",
+  arquivado: "arquivado",
 };
 
 function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
@@ -140,9 +141,11 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
   const [retornoFinal, setRetornoFinal] = useState(plot.previsao_retorno);
   const [saving, setSaving] = useState(false);
   const [showRestart, setShowRestart] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const nuncaVendido = plot.cotas_disponiveis === plot.cotas_totais;
   const podeExcluir = plot.status === "pago" || nuncaVendido;
+  const finalizado = plot.status === "pago" || plot.status === "arquivado";
 
   async function saveProgress() {
     setSaving(true);
@@ -203,10 +206,15 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 20, background: plot.status === "pago" ? "#E1F0DE" : COLORS.wheatLight, color: plot.status === "pago" ? COLORS.leafDark : COLORS.soil, fontWeight: 500 }}>
+          <span style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 20, background: plot.status === "arquivado" ? COLORS.line : plot.status === "pago" ? "#E1F0DE" : COLORS.wheatLight, color: plot.status === "pago" ? COLORS.leafDark : COLORS.soil, fontWeight: 500 }}>
             {STATUS_LABEL[plot.status] || plot.status}
           </span>
-          {plot.status === "pago" && (
+          {finalizado && (
+            <button onClick={() => setShowEdit((s) => !s)} title="Editar informações" disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.soilLight, display: "flex" }}>
+              <Pencil size={16} />
+            </button>
+          )}
+          {finalizado && (
             <button onClick={() => setShowRestart((s) => !s)} title="Reiniciar com nova commodity" disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.leaf, display: "flex" }}>
               <RotateCcw size={16} />
             </button>
@@ -221,7 +229,7 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
 
       <ProgressBar value={progresso} color={color} />
 
-      {plot.status !== "pago" ? (
+      {!finalizado ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 14, alignItems: "flex-end" }}>
           <div>
             <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Fase atual</label>
@@ -249,15 +257,63 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
         </div>
       ) : (
         <>
-          <p style={{ fontSize: 12.5, color: COLORS.leaf, marginTop: 12 }}>
-            Colheita finalizada com retorno de {plot.retorno_final}% — investidores já pagos. Este talhão não aparece mais para venda.
+          <p style={{ fontSize: 12.5, color: plot.status === "arquivado" ? COLORS.soilLight : COLORS.leaf, marginTop: 12 }}>
+            {plot.status === "arquivado"
+              ? "Talhão arquivado — não aparece mais na vitrine. O histórico dos investidores continua preservado."
+              : `Colheita finalizada com retorno de ${plot.retorno_final}% — investidores já pagos. Este talhão não aparece mais para venda.`}
           </p>
+          {showEdit && (
+            <EditPlotForm plot={plot} onDone={() => { setShowEdit(false); onChanged(); }} setError={setError} />
+          )}
           {showRestart && (
             <RestartPlotForm plot={plot} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
           )}
         </>
       )}
     </div>
+  );
+}
+
+function EditPlotForm({ plot, onDone, setError }) {
+  const [form, setForm] = useState({ nome: plot.nome, grao: plot.grao, area_ha: plot.area_ha, safra: plot.safra, previsao_retorno: plot.previsao_retorno });
+  const [saving, setSaving] = useState(false);
+
+  function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.editPlot(plot.id, form);
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${COLORS.line}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <p style={{ gridColumn: "1 / -1", fontSize: 12.5, color: COLORS.soilLight, margin: 0 }}>
+        Corrigir informações deste talhão, sem reabrir para novos investimentos.
+      </p>
+      <Field label="Nome do talhão" value={form.nome} onChange={(v) => update("nome", v)} required />
+      <div>
+        <label style={{ fontSize: 12, color: COLORS.soilLight }}>Grão</label>
+        <select value={form.grao} onChange={(e) => update("grao", e.target.value)} style={inputStyle}>
+          {Object.keys(GRAIN_COLORS).map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+      </div>
+      <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
+      <Field label="Safra" value={form.safra} onChange={(v) => update("safra", v)} required />
+      <Field label="Retorno estimado (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+      <div style={{ gridColumn: "1 / -1" }}>
+        <button type="submit" disabled={saving} style={{ padding: "10px 16px", borderRadius: 8, border: `1px solid ${COLORS.line}`, background: "#fff", color: COLORS.soil, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+          {saving ? "Salvando..." : "Salvar alterações"}
+        </button>
+      </div>
+    </form>
   );
 }
 

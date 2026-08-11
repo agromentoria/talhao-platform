@@ -53,6 +53,7 @@ export const api = {
   myFarmPlots: () => request("/plots/farm/mine"),
   deletePlot: (id) => request(`/plots/${id}`, { method: "DELETE" }),
   restartPlot: (id, payload) => request(`/plots/${id}/restart`, { method: "PATCH", body: payload }),
+  editPlot: (id, payload) => request(`/plots/${id}`, { method: "PATCH", body: payload }),
   updateProgress: (id, payload) => request(`/plots/${id}/progress`, { method: "PATCH", body: payload }),
   finalizeHarvest: (id, retorno_final) => request(`/plots/${id}/finalize`, { method: "POST", body: { retorno_final } }),
 

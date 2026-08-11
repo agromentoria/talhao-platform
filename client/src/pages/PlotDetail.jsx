@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft, MapPin, QrCode, CreditCard, Plus } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
 import { ErrorBanner, ShareButton } from "../components/Shared";
@@ -20,6 +20,10 @@ export default function PlotDetail() {
   const [success, setSuccess] = useState("");
   const [buying, setBuying] = useState(false);
 
+  const [cards, setCards] = useState([]);
+  const [paymentType, setPaymentType] = useState("pix");
+  const [selectedCardId, setSelectedCardId] = useState(null);
+
   function load() {
     api.getPlot(id).then((data) => {
       setPlot(data.plot);
@@ -29,6 +33,19 @@ export default function PlotDetail() {
   }
 
   useEffect(() => { load(); }, [id]);
+
+  useEffect(() => {
+    if (user?.role === "investidor") {
+      api.paymentMethods().then((data) => {
+        setCards(data.methods);
+        const defaultCard = data.methods.find((m) => m.is_default);
+        if (defaultCard) {
+          setPaymentType(defaultCard.type === "credito" ? "cartao_credito" : "cartao_debito");
+          setSelectedCardId(defaultCard.id);
+        }
+      }).catch(() => {});
+    }
+  }, [user]);
 
   if (error && !plot) return <div style={{ padding: 32 }}><ErrorBanner message={error} /></div>;
   if (!plot) return <div style={{ padding: 32, color: COLORS.soilLight, fontSize: 13 }}>Carregando...</div>;
@@ -49,10 +66,14 @@ export default function PlotDetail() {
       setError("Apenas contas de investidor podem comprar cotas.");
       return;
     }
+    if (paymentType !== "pix" && !selectedCardId) {
+      setError("Selecione um cartão ou adicione um novo para continuar.");
+      return;
+    }
     setBuying(true);
     try {
-      await api.invest(plot.id, cotas);
-      setSuccess(`Cota reservada com sucesso: ${cotas} cota(s) por ${fmtBRL(custoTotal)}.`);
+      await api.invest(plot.id, cotas, paymentType, paymentType === "pix" ? null : selectedCardId);
+      setSuccess(`Compra confirmada: ${cotas} cota(s) por ${fmtBRL(custoTotal)}.`);
       load();
     } catch (err) {
       setError(err.message);
@@ -158,6 +179,50 @@ export default function PlotDetail() {
               <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Retorno bruto estimado</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(retornoBruto)}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Lucro líquido estimado</span><span style={{ fontWeight: 600, color: COLORS.leaf }}>{fmtBRL(lucroLiquido)}</span></div>
             </div>
+
+            {(!user || user.role === "investidor") && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, color: COLORS.soilLight, display: "block", marginBottom: 6 }}>Forma de pagamento</label>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  <button type="button" onClick={() => setPaymentType("pix")} style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 0",
+                    borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+                    border: `1px solid ${paymentType === "pix" ? COLORS.leaf : COLORS.line}`,
+                    background: paymentType === "pix" ? COLORS.leaf : "#fff",
+                    color: paymentType === "pix" ? "#fff" : COLORS.soilLight,
+                  }}><QrCode size={13} /> Pix</button>
+                  <button type="button" onClick={() => { setPaymentType(cards[0] ? (cards[0].type === "credito" ? "cartao_credito" : "cartao_debito") : "cartao_credito"); setSelectedCardId(cards[0]?.id || null); }} style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 0",
+                    borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+                    border: `1px solid ${paymentType !== "pix" ? COLORS.leaf : COLORS.line}`,
+                    background: paymentType !== "pix" ? COLORS.leaf : "#fff",
+                    color: paymentType !== "pix" ? "#fff" : COLORS.soilLight,
+                  }}><CreditCard size={13} /> Cartão</button>
+                </div>
+
+                {paymentType === "pix" && (
+                  <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0, lineHeight: 1.4 }}>
+                    Pagamento via Pix processado na confirmação da compra.
+                  </p>
+                )}
+
+                {paymentType !== "pix" && (
+                  cards.length > 0 ? (
+                    <select value={selectedCardId || ""} onChange={(e) => setSelectedCardId(Number(e.target.value))} style={{
+                      width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 13, fontFamily: "inherit",
+                    }}>
+                      {cards.map((c) => (
+                        <option key={c.id} value={c.id}>{c.brand} •••• {c.last4} ({c.type === "credito" ? "crédito" : "débito"})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Link to="/pagamentos" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: COLORS.orange, fontWeight: 600, textDecoration: "none" }}>
+                      <Plus size={13} /> Adicionar um cartão para pagar
+                    </Link>
+                  )
+                )}
+              </div>
+            )}
 
             <button onClick={handleBuy} disabled={buying || plot.cotas_disponiveis === 0} style={{
               width: "100%", padding: "11px 0", borderRadius: 9, border: "none",

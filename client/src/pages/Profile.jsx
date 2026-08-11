@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Camera, User, Mail, Phone, Lock, Building2 } from "lucide-react";
+import { Camera, User, Mail, Phone, Lock, Building2, CreditCard, Landmark, QrCode } from "lucide-react";
 import { COLORS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 import { ErrorBanner } from "../components/Shared";
@@ -27,6 +27,40 @@ export default function Profile() {
   const [avatarError, setAvatarError] = useState("");
   const [savingAvatar, setSavingAvatar] = useState(false);
   const fileInputRef = useRef(null);
+
+  const [payoutMethod, setPayoutMethod] = useState("pix");
+  const [pixTipo, setPixTipo] = useState("cpf");
+  const [pixChave, setPixChave] = useState("");
+  const [banco, setBanco] = useState("");
+  const [agencia, setAgencia] = useState("");
+  const [conta, setConta] = useState("");
+  const [titular, setTitular] = useState("");
+  const [payoutError, setPayoutError] = useState("");
+  const [payoutSuccess, setPayoutSuccess] = useState("");
+  const [savingPayout, setSavingPayout] = useState(false);
+  const [loadingPayout, setLoadingPayout] = useState(true);
+
+  useEffect(() => {
+    api.getPayoutAccount()
+      .then((data) => {
+        if (data.account) {
+          const acc = data.account;
+          setTitular(acc.titular || "");
+          if (acc.pix_chave) {
+            setPayoutMethod("pix");
+            setPixTipo(acc.pix_tipo || "cpf");
+            setPixChave(acc.pix_chave || "");
+          } else if (acc.banco) {
+            setPayoutMethod("banco");
+            setBanco(acc.banco || "");
+            setAgencia(acc.agencia || "");
+            setConta(acc.conta || "");
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingPayout(false));
+  }, []);
 
   if (!user) return null;
 
@@ -93,6 +127,24 @@ export default function Profile() {
     }
   }
 
+  async function handlePayoutSubmit(e) {
+    e.preventDefault();
+    setPayoutError("");
+    setPayoutSuccess("");
+    setSavingPayout(true);
+    try {
+      const payload = payoutMethod === "pix"
+        ? { pix_tipo: pixTipo, pix_chave: pixChave, titular }
+        : { banco, agencia, conta, titular };
+      await api.savePayoutAccount(payload);
+      setPayoutSuccess("Dados de recebimento salvos.");
+    } catch (err) {
+      setPayoutError(err.message);
+    } finally {
+      setSavingPayout(false);
+    }
+  }
+
   const roleLabel = { admin: "Administrador", fazenda: "Fazenda", investidor: "Investidor" }[user.role];
 
   return (
@@ -138,11 +190,88 @@ export default function Profile() {
       {user.role === "fazenda" && (
         <Link to="/fazenda" style={{
           display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-          borderRadius: 12, padding: "12px 16px", marginBottom: 24, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
+          borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
         }}>
           <Building2 size={16} /> Ir para o painel da fazenda
         </Link>
       )}
+
+      {user.role === "investidor" && (
+        <Link to="/pagamentos" style={{
+          display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
+          borderRadius: 12, padding: "12px 16px", marginBottom: 24, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
+        }}>
+          <CreditCard size={16} /> Gerenciar cartões salvos para compras
+        </Link>
+      )}
+
+      {/* Dados para recebimento */}
+      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Dados para recebimento</p>
+        <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
+          {user.role === "investidor" && "Conta onde você recebe o lucro das suas colheitas."}
+          {user.role === "fazenda" && "Conta onde sua fazenda recebe a comissão sobre as colheitas."}
+          {user.role === "admin" && "Conta onde a administração recebe a comissão da plataforma."}
+        </p>
+
+        {!loadingPayout && (
+          <>
+            <ErrorBanner message={payoutError} />
+            {payoutSuccess && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 12 }}>{payoutSuccess}</p>}
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              <button type="button" onClick={() => setPayoutMethod("pix")} style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0",
+                borderRadius: 10, fontSize: 13, cursor: "pointer", fontWeight: 600,
+                border: `1px solid ${payoutMethod === "pix" ? COLORS.leaf : COLORS.line}`,
+                background: payoutMethod === "pix" ? COLORS.leaf : "#fff",
+                color: payoutMethod === "pix" ? "#fff" : COLORS.soilLight,
+              }}><QrCode size={14} /> Pix</button>
+              <button type="button" onClick={() => setPayoutMethod("banco")} style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0",
+                borderRadius: 10, fontSize: 13, cursor: "pointer", fontWeight: 600,
+                border: `1px solid ${payoutMethod === "banco" ? COLORS.leaf : COLORS.line}`,
+                background: payoutMethod === "banco" ? COLORS.leaf : "#fff",
+                color: payoutMethod === "banco" ? "#fff" : COLORS.soilLight,
+              }}><Landmark size={14} /> Conta bancária</button>
+            </div>
+
+            <form onSubmit={handlePayoutSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {payoutMethod === "pix" ? (
+                <>
+                  <div>
+                    <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Tipo de chave</label>
+                    <select value={pixTipo} onChange={(e) => setPixTipo(e.target.value)} style={selectStyle}>
+                      <option value="cpf">CPF</option>
+                      <option value="cnpj">CNPJ</option>
+                      <option value="email">E-mail</option>
+                      <option value="telefone">Telefone</option>
+                      <option value="aleatoria">Chave aleatória</option>
+                    </select>
+                  </div>
+                  <TextField label="Chave Pix" value={pixChave} onChange={setPixChave} required />
+                </>
+              ) : (
+                <>
+                  <TextField label="Banco" value={banco} onChange={setBanco} required />
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <TextField label="Agência" value={agencia} onChange={setAgencia} required />
+                    <TextField label="Conta" value={conta} onChange={setConta} required />
+                  </div>
+                </>
+              )}
+              <TextField label="Nome do titular da conta" value={titular} onChange={setTitular} required />
+
+              <button type="submit" disabled={savingPayout} style={{
+                marginTop: 4, padding: "11px 0", borderRadius: 10, border: "none", background: COLORS.orange,
+                color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", opacity: savingPayout ? 0.7 : 1,
+              }}>
+                {savingPayout ? "Salvando..." : "Salvar dados de recebimento"}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
 
       {/* Dados de contato */}
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
@@ -186,7 +315,7 @@ function TextField({ icon: Icon, label, value, onChange, type = "text", required
   return (
     <div>
       <label style={{ fontSize: 11.5, color: COLORS.soilLight, display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
-        <Icon size={12} /> {label}
+        {Icon && <Icon size={12} />} {label}
       </label>
       <input
         type={type} required={required} minLength={minLength} value={value} placeholder={placeholder}
@@ -196,3 +325,5 @@ function TextField({ icon: Icon, label, value, onChange, type = "text", required
     </div>
   );
 }
+
+const selectStyle = { width: "100%", marginTop: 4, padding: "10px 12px", borderRadius: 10, border: `1px solid ${COLORS.line}`, fontSize: 14, background: "#fff", fontFamily: "inherit" };

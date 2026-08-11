@@ -28,6 +28,7 @@ async function start() {
   const adminRoutes = require("./routes/admin");
   const notificationRoutes = require("./routes/notifications");
   const conversationRoutes = require("./routes/conversations");
+  const paymentRoutes = require("./routes/payments");
 
   const app = express();
 
@@ -57,6 +58,7 @@ async function start() {
   app.use("/api/admin", adminRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/conversations", conversationRoutes);
+  app.use("/api/payments", paymentRoutes);
 
   app.use((err, req, res, next) => {
     console.error(err);

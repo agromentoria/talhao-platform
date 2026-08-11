@@ -37,4 +37,35 @@ router.get("/plots", asyncHandler(async (req, res) => {
   res.json({ plots: rows });
 }));
 
+router.get("/transactions", asyncHandler(async (req, res) => {
+  const { type } = req.query;
+  let sql = `
+    SELECT t.*, u.name as user_name, f.name as farm_name, p.nome as plot_nome
+    FROM transactions t
+    LEFT JOIN users u ON u.id = t.user_id
+    LEFT JOIN farms f ON f.id = t.farm_id
+    LEFT JOIN plots p ON p.id = t.plot_id
+  `;
+  const params = [];
+  if (type) {
+    params.push(type);
+    sql += ` WHERE t.type = $${params.length}`;
+  }
+  sql += " ORDER BY t.created_at DESC LIMIT 300";
+
+  const { rows } = await pool.query(sql, params);
+
+  const totals = await pool.query(
+    `SELECT type, COUNT(*) as n, COALESCE(SUM(amount), 0) as total FROM transactions GROUP BY type`
+  );
+
+  res.json({
+    transactions: rows,
+    totals: totals.rows.reduce((acc, r) => {
+      acc[r.type] = { count: Number(r.n), total: Number(r.total) };
+      return acc;
+    }, {}),
+  });
+}));
+
 module.exports = router;

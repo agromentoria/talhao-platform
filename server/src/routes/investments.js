@@ -2,6 +2,8 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
+const { notifyUsers } = require("../notify");
+const { recordTransaction } = require("../ledger");
 
 const router = express.Router();
 
@@ -13,11 +15,27 @@ class AppError extends Error {
 }
 
 router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req, res) => {
-  const { plot_id, cotas } = req.body || {};
+  const { plot_id, cotas, payment_method_type, payment_method_id } = req.body || {};
   const qtd = Number(cotas);
 
   if (!plot_id || Number.isNaN(qtd) || qtd <= 0 || !Number.isInteger(qtd)) {
     return res.status(400).json({ error: "Informe uma quantidade válida de cotas." });
+  }
+  if (!["pix", "cartao_credito", "cartao_debito"].includes(payment_method_type)) {
+    return res.status(400).json({ error: "Escolha uma forma de pagamento." });
+  }
+
+  let paymentMethod = null;
+  if (payment_method_type !== "pix") {
+    if (!payment_method_id) {
+      return res.status(400).json({ error: "Selecione o cartão que deseja usar." });
+    }
+    const { rows } = await pool.query(
+      "SELECT * FROM payment_methods WHERE id = $1 AND user_id = $2",
+      [payment_method_id, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Cartão não encontrado." });
+    paymentMethod = rows[0];
   }
 
   const client = await pool.connect();
@@ -56,9 +74,62 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
       "INSERT INTO investments (user_id, plot_id, cotas, valor_investido) VALUES ($1, $2, $3, $4) RETURNING *",
       [req.user.id, plot.id, qtd, valorInvestido]
     );
+    const investment = invRows[0];
+
+    // Pagamento SIMULADO: sem gateway conectado ainda, toda cobrança é
+    // aprovada automaticamente. Quando um gateway real for integrado, essa
+    // etapa passa a chamar a API dele antes de confirmar a compra.
+    await recordTransaction(client, {
+      type: "compra_cota",
+      status: "aprovado",
+      userId: req.user.id,
+      farmId: plot.farm_id,
+      plotId: plot.id,
+      investmentId: investment.id,
+      amount: valorInvestido,
+      paymentMethodType: payment_method_type,
+      paymentMethodId: paymentMethod ? paymentMethod.id : null,
+      description: `Compra de ${qtd} cota(s) em ${plot.nome}`,
+    });
 
     await client.query("COMMIT");
-    res.status(201).json({ investment: invRows[0] });
+
+    // notificações (fora da transação — não devem derrubar a compra se falharem)
+    try {
+      await notifyUsers(pool, [req.user.id], {
+        senderRole: "sistema",
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        type: "compra_confirmada",
+        title: "Compra confirmada",
+        body: `Sua compra de ${qtd} cota(s) em ${plot.nome} foi confirmada. Valor: R$ ${valorInvestido.toFixed(2)}.`,
+      });
+
+      if (farm.owner_user_id) {
+        await notifyUsers(pool, [farm.owner_user_id], {
+          senderRole: "sistema",
+          farmId: plot.farm_id,
+          plotId: plot.id,
+          type: "novo_investimento",
+          title: "Novo investimento recebido",
+          body: `${req.user.name} comprou ${qtd} cota(s) em ${plot.nome} (R$ ${valorInvestido.toFixed(2)}).`,
+        });
+      }
+
+      const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+      await notifyUsers(pool, admins.map((a) => a.id), {
+        senderRole: "sistema",
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        type: "transacao_admin",
+        title: "Nova compra de cotas",
+        body: `${req.user.name} investiu R$ ${valorInvestido.toFixed(2)} em ${plot.nome} (${farm.name}).`,
+      });
+    } catch (notifyErr) {
+      console.error("[aviso] falha ao enviar notificações de compra:", notifyErr);
+    }
+
+    res.status(201).json({ investment });
   } catch (err) {
     await client.query("ROLLBACK");
     if (err instanceof AppError) return res.status(err.status).json({ error: err.message });

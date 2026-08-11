@@ -107,13 +107,18 @@ CREATE TABLE IF NOT EXISTS notifications (
   sender_role TEXT NOT NULL CHECK (sender_role IN ('sistema','fazenda','admin')),
   farm_id INTEGER REFERENCES farms(id),
   plot_id INTEGER REFERENCES plots(id),
-  type TEXT NOT NULL CHECK (type IN ('novo_talhao','atualizacao_safra','aviso_fazenda','aviso_admin')),
+  type TEXT NOT NULL,
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   read_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_user_id, created_at DESC);
+
+-- em versões anteriores "type" tinha uma lista fixa de valores permitidos;
+-- removemos a checagem para poder adicionar novos tipos de aviso (ex: pagamentos)
+-- sem precisar de migração toda vez. A validação agora é feita na aplicação.
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 
 CREATE TABLE IF NOT EXISTS conversations (
   id SERIAL PRIMARY KEY,
@@ -131,6 +136,56 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
+
+-- Cartões salvos pelo investidor para compras futuras.
+-- IMPORTANTE: nunca armazenamos número completo do cartão nem CVV — apenas
+-- os 4 últimos dígitos, bandeira e validade, para exibição. A cobrança real
+-- (quando integrada a um gateway de verdade) usa um token gerado pelo
+-- próprio gateway, nunca o número do cartão guardado aqui.
+CREATE TABLE IF NOT EXISTS payment_methods (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL CHECK (type IN ('credito','debito')),
+  brand TEXT NOT NULL,
+  last4 TEXT NOT NULL,
+  holder_name TEXT NOT NULL,
+  exp_month INTEGER NOT NULL,
+  exp_year INTEGER NOT NULL,
+  gateway_token TEXT,
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_payment_methods_user ON payment_methods(user_id);
+
+-- Dados de recebimento: investidor (lucros), fazenda (repasse da comissão)
+-- e administração (comissão da plataforma) usam a mesma estrutura.
+CREATE TABLE IF NOT EXISTS payout_accounts (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  pix_tipo TEXT CHECK (pix_tipo IN ('cpf','cnpj','email','telefone','aleatoria')),
+  pix_chave TEXT,
+  banco TEXT,
+  agencia TEXT,
+  conta TEXT,
+  titular TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Livro-razão de todas as movimentações financeiras da plataforma.
+CREATE TABLE IF NOT EXISTS transactions (
+  id SERIAL PRIMARY KEY,
+  type TEXT NOT NULL, -- compra_cota | pagamento_investidor | repasse_fazenda | comissao_plataforma
+  status TEXT NOT NULL DEFAULT 'aprovado', -- pendente | aprovado | recusado
+  user_id INTEGER REFERENCES users(id),
+  farm_id INTEGER REFERENCES farms(id),
+  plot_id INTEGER REFERENCES plots(id),
+  investment_id INTEGER REFERENCES investments(id),
+  amount REAL NOT NULL,
+  payment_method_type TEXT, -- pix | cartao_credito | cartao_debito
+  payment_method_id INTEGER REFERENCES payment_methods(id),
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id, created_at DESC);
 `;
 
 async function ensureAdmin() {

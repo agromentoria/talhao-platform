@@ -3,6 +3,7 @@ const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers, getFarmInvestorIds, getPlotInvestorIds } = require("../notify");
+const { recordTransaction } = require("../ledger");
 
 const router = express.Router();
 
@@ -178,6 +179,10 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
 
   const client = await pool.connect();
   let investidoresPagos = 0;
+  let totalComissaoFazenda = 0;
+  let totalComissaoApp = 0;
+  const investorNotifications = []; // { userId, valorLiquido }
+
   try {
     await client.query("BEGIN");
 
@@ -199,8 +204,51 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
         [inv.id, valorBruto, comissaoFazenda, comissaoApp, valorLiquido]
       );
       await client.query("UPDATE investments SET status = 'pago' WHERE id = $1", [inv.id]);
+
+      // pagamento SIMULADO ao investidor — sem gateway conectado ainda,
+      // o valor é registrado no livro-razão como aprovado automaticamente
+      await recordTransaction(client, {
+        type: "pagamento_investidor",
+        status: "aprovado",
+        userId: inv.user_id,
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        investmentId: inv.id,
+        amount: valorLiquido,
+        description: `Pagamento da colheita de ${plot.nome} (retorno de ${retorno}%)`,
+      });
+
+      totalComissaoFazenda += comissaoFazenda;
+      totalComissaoApp += comissaoApp;
+      investorNotifications.push({ userId: inv.user_id, valorLiquido });
     }
     investidoresPagos = investments.length;
+
+    // repasse da comissão para a fazenda
+    if (farm.owner_user_id && totalComissaoFazenda > 0) {
+      await recordTransaction(client, {
+        type: "repasse_fazenda",
+        status: "aprovado",
+        userId: farm.owner_user_id,
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        amount: totalComissaoFazenda,
+        description: `Comissão da colheita de ${plot.nome} (${farm.commission_pct}%)`,
+      });
+    }
+
+    // comissão da plataforma (registrada sem um usuário específico — receita da Meu Talhão)
+    if (totalComissaoApp > 0) {
+      await recordTransaction(client, {
+        type: "comissao_plataforma",
+        status: "aprovado",
+        userId: null,
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        amount: totalComissaoApp,
+        description: `Comissão da plataforma sobre a colheita de ${plot.nome}`,
+      });
+    }
 
     await client.query(
       "UPDATE plots SET status = 'pago', retorno_final = $1, fase_atual = 5, progresso = 100 WHERE id = $2",
@@ -213,6 +261,43 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
     throw err;
   } finally {
     client.release();
+  }
+
+  // notificações (fora da transação)
+  try {
+    for (const n of investorNotifications) {
+      await notifyUsers(pool, [n.userId], {
+        senderRole: "sistema",
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        type: "pagamento_recebido",
+        title: "Você recebeu um pagamento",
+        body: `A colheita de ${plot.nome} foi paga. Você recebeu R$ ${n.valorLiquido.toFixed(2)}.`,
+      });
+    }
+
+    if (farm.owner_user_id && totalComissaoFazenda > 0) {
+      await notifyUsers(pool, [farm.owner_user_id], {
+        senderRole: "sistema",
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        type: "repasse_recebido",
+        title: "Repasse de comissão recebido",
+        body: `Você recebeu R$ ${totalComissaoFazenda.toFixed(2)} de comissão pela colheita de ${plot.nome}.`,
+      });
+    }
+
+    const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+    await notifyUsers(pool, admins.map((a) => a.id), {
+      senderRole: "sistema",
+      farmId: plot.farm_id,
+      plotId: plot.id,
+      type: "transacao_admin",
+      title: "Colheita paga",
+      body: `${plot.nome} (${farm.name}) foi paga: ${investidoresPagos} investidor(es), comissão da plataforma de R$ ${totalComissaoApp.toFixed(2)}.`,
+    });
+  } catch (notifyErr) {
+    console.error("[aviso] falha ao enviar notificações de pagamento:", notifyErr);
   }
 
   const { rows } = await pool.query("SELECT * FROM plots WHERE id = $1", [plot.id]);

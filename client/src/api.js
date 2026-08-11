@@ -54,7 +54,8 @@ export const api = {
   finalizeHarvest: (id, retorno_final) => request(`/plots/${id}/finalize`, { method: "POST", body: { retorno_final } }),
 
   // investments
-  invest: (plot_id, cotas) => request("/investments", { method: "POST", body: { plot_id, cotas } }),
+  invest: (plot_id, cotas, payment_method_type, payment_method_id) =>
+    request("/investments", { method: "POST", body: { plot_id, cotas, payment_method_type, payment_method_id } }),
   myInvestments: () => request("/investments/me"),
   plotInvestors: (plotId) => request(`/investments/plot/${plotId}`),
 
@@ -70,7 +71,15 @@ export const api = {
   farmBroadcast: (payload) => request("/notifications/farm-broadcast", { method: "POST", body: payload }),
   adminBroadcast: (payload) => request("/notifications/admin-broadcast", { method: "POST", body: payload }),
 
-  // conversations
+  // payments
+  paymentMethods: () => request("/payments/methods"),
+  addPaymentMethod: (payload) => request("/payments/methods", { method: "POST", body: payload }),
+  removePaymentMethod: (id) => request(`/payments/methods/${id}`, { method: "DELETE" }),
+  setDefaultPaymentMethod: (id) => request(`/payments/methods/${id}/default`, { method: "PATCH" }),
+  getPayoutAccount: () => request("/payments/payout-account"),
+  savePayoutAccount: (payload) => request("/payments/payout-account", { method: "PUT", body: payload }),
+  myTransactions: () => request("/payments/transactions/me"),
+  adminTransactions: (type) => request(`/admin/transactions${type ? `?type=${type}` : ""}`),
   myConversations: () => request("/conversations/me"),
   startConversation: (farm_id) => request("/conversations", { method: "POST", body: { farm_id } }),
   conversationMessages: (id) => request(`/conversations/${id}/messages`),

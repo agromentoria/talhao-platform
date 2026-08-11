@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, Megaphone } from "lucide-react";
+import { ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt } from "lucide-react";
 import { COLORS, ICONS, GRAIN_ICONS } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
@@ -9,6 +9,11 @@ import { useAuth } from "../context/AuthContext";
 const TYPE_ICON = {
   aviso_fazenda: ICONS.fazendas,
   aviso_admin: ShieldCheck,
+  compra_confirmada: CheckCircle2,
+  novo_investimento: TrendingUp,
+  pagamento_recebido: Wallet,
+  repasse_recebido: Wallet,
+  transacao_admin: Receipt,
 };
 
 function timeAgo(dateStr) {

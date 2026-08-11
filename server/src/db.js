@@ -120,12 +120,37 @@ CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipien
 -- sem precisar de migração toda vez. A validação agora é feita na aplicação.
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 
+-- Modelo de conversas generalizado: qualquer par de usuários autorizado
+-- (investidor↔fazenda, admin↔fazenda, admin↔investidor). Migra o formato
+-- antigo (investor_user_id + farm_id) para participant_a_id/participant_b_id
+-- caso o banco já tenha sido criado com o esquema anterior.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'conversations' AND column_name = 'investor_user_id'
+  ) THEN
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS participant_a_id INTEGER;
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS participant_b_id INTEGER;
+    UPDATE conversations c SET
+      participant_a_id = LEAST(c.investor_user_id, f.owner_user_id),
+      participant_b_id = GREATEST(c.investor_user_id, f.owner_user_id)
+    FROM farms f
+    WHERE f.id = c.farm_id AND c.participant_a_id IS NULL AND f.owner_user_id IS NOT NULL;
+    DELETE FROM conversations WHERE participant_a_id IS NULL;
+    ALTER TABLE conversations ALTER COLUMN participant_a_id SET NOT NULL;
+    ALTER TABLE conversations ALTER COLUMN participant_b_id SET NOT NULL;
+    ALTER TABLE conversations DROP COLUMN investor_user_id;
+    ALTER TABLE conversations DROP COLUMN farm_id;
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS conversations (
   id SERIAL PRIMARY KEY,
-  investor_user_id INTEGER NOT NULL REFERENCES users(id),
-  farm_id INTEGER NOT NULL REFERENCES farms(id),
+  participant_a_id INTEGER NOT NULL REFERENCES users(id),
+  participant_b_id INTEGER NOT NULL REFERENCES users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(investor_user_id, farm_id)
+  UNIQUE(participant_a_id, participant_b_id)
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -136,6 +161,14 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
+
+-- controla até quando cada participante já leu a conversa, para contar não lidas
+CREATE TABLE IF NOT EXISTS conversation_reads (
+  conversation_id INTEGER NOT NULL REFERENCES conversations(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  last_read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (conversation_id, user_id)
+);
 
 -- Cartões salvos pelo investidor para compras futuras.
 -- IMPORTANTE: nunca armazenamos número completo do cartão nem CVV — apenas

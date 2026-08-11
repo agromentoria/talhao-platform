@@ -4,7 +4,7 @@ import { COLORS, BACKGROUNDS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 
 export default function TopNav() {
-  const { user, logout, unreadCount } = useAuth();
+  const { user, logout, unreadCount, unreadMessages } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -12,7 +12,7 @@ export default function TopNav() {
   if (user?.role === "investidor") items.push({ to: "/carteira", label: "Meus investimentos", icon: Wallet });
   if (user?.role === "fazenda") items.push({ to: "/fazenda", label: "Painel da fazenda", icon: Settings });
   if (user?.role === "admin") items.push({ to: "/admin", label: "Administração", icon: ShieldCheck });
-  if (user?.role === "investidor" || user?.role === "fazenda") items.push({ to: "/conversas", label: "Conversas", icon: MessageCircle });
+  if (user) items.push({ to: "/conversas", label: "Conversas", icon: MessageCircle, badge: unreadMessages });
 
   return (
     <div style={{
@@ -31,11 +31,18 @@ export default function TopNav() {
             const active = location.pathname === it.to;
             return (
               <Link key={it.to} to={it.to} style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 20,
+                position: "relative", display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 20,
                 background: active ? COLORS.orange : "rgba(255,255,255,0.12)",
                 color: "#fff", fontSize: 13.5, fontWeight: 500, textDecoration: "none",
               }}>
                 <Icon size={15} /> {it.label}
+                {it.badge > 0 && (
+                  <span style={{
+                    position: "absolute", top: -5, right: -5, minWidth: 15, height: 15, borderRadius: 8,
+                    background: COLORS.danger, color: "#fff", fontSize: 9.5, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
+                  }}>{it.badge > 9 ? "9+" : it.badge}</span>
+                )}
               </Link>
             );
           })}

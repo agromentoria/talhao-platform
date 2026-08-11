@@ -4,7 +4,7 @@ import { COLORS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 
 export default function BottomNav() {
-  const { user, unreadCount } = useAuth();
+  const { user, unreadCount, unreadMessages } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -12,7 +12,7 @@ export default function BottomNav() {
   if (user?.role === "investidor") items.push({ to: "/carteira", label: "carteira", icon: Wallet });
   if (user?.role === "fazenda") items.push({ to: "/fazenda", label: "fazenda", icon: Settings });
   if (user?.role === "admin") items.push({ to: "/admin", label: "admin", icon: ShieldCheck });
-  if (user?.role === "investidor" || user?.role === "fazenda") items.push({ to: "/conversas", label: "conversas", icon: MessageCircle });
+  if (user) items.push({ to: "/conversas", label: "conversas", icon: MessageCircle, badge: unreadMessages });
   items.push({ to: user ? "/avisos" : "/login", label: user ? "avisos" : "entrar", icon: Bell, badge: user ? unreadCount : 0 });
   items.push({ to: user ? "/perfil" : "/login", label: user ? "perfil" : "entrar", icon: User });
 

@@ -81,9 +81,10 @@ export const api = {
   myTransactions: () => request("/payments/transactions/me"),
   adminTransactions: (type) => request(`/admin/transactions${type ? `?type=${type}` : ""}`),
   myConversations: () => request("/conversations/me"),
-  startConversation: (farm_id) => request("/conversations", { method: "POST", body: { farm_id } }),
+  startConversation: (user_id) => request("/conversations", { method: "POST", body: { user_id } }),
   conversationMessages: (id) => request(`/conversations/${id}/messages`),
   sendMessage: (id, body) => request(`/conversations/${id}/messages`, { method: "POST", body: { body } }),
+  unreadMessagesCount: () => request("/conversations/unread-count"),
 };
 
 export function saveToken(token) {

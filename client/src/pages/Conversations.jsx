@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { ArrowLeft, Send, User } from "lucide-react";
+import { ArrowLeft, Send, User, Plus, X } from "lucide-react";
 import { COLORS, ICONS, GRAIN_ICONS } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
@@ -11,96 +11,203 @@ function timeShort(dateStr) {
 }
 
 export default function Conversations() {
-  const { user } = useAuth();
-  const [list, setList] = useState([]);
+  const { user, refreshUnreadMessages } = useAuth();
+  const [conversations, setConversations] = useState([]);
+  const [startable, setStartable] = useState([]);
   const [active, setActive] = useState(null);
+  const [showNew, setShowNew] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   function load() {
     api.myConversations()
-      .then((data) => setList(data.conversations))
+      .then((data) => { setConversations(data.conversations); setStartable(data.startable); })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }
 
   useEffect(() => { load(); }, []);
 
-  async function openConversation(item) {
+  async function openConversation(conversationId, name) {
+    setActive({ id: conversationId, name });
+  }
+
+  async function startWith(contact) {
     setError("");
-    if (item.conversation_id) {
-      setActive({ id: item.conversation_id, name: item.farm_name || item.investor_name });
-      return;
-    }
     try {
-      const data = await api.startConversation(item.farm_id);
-      setActive({ id: data.conversation.id, name: item.farm_name });
+      const data = await api.startConversation(contact.user_id);
+      setShowNew(false);
+      setActive({ id: data.conversation.id, name: contact.name });
       load();
     } catch (err) {
       setError(err.message);
     }
   }
 
-  if (active) {
-    return <ChatView conversationId={active.id} name={active.name} onBack={() => setActive(null)} />;
+  function handleCloseChat() {
+    setActive(null);
+    load();
+    refreshUnreadMessages?.();
   }
+
+  if (active) {
+    return <ChatView conversationId={active.id} name={active.name} onBack={handleCloseChat} />;
+  }
+
+  const emptyLabel = {
+    investidor: "Invista em um talhão para poder conversar com a fazenda.",
+    fazenda: "Nenhum investidor iniciou conversa ainda — você também pode começar uma.",
+    admin: "Nenhuma conversa iniciada ainda.",
+  }[user?.role];
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 640, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Conversas</h1>
-      <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "0 0 20px" }}>
-        {user?.role === "fazenda" ? "Fale com seus investidores." : "Fale diretamente com as fazendas onde você investiu."}
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 4 }}>
+        <div>
+          <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Conversas</h1>
+          <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: 0 }}>
+            {user?.role === "fazenda" && "Fale com seus investidores."}
+            {user?.role === "investidor" && "Fale diretamente com as fazendas onde você investiu."}
+            {user?.role === "admin" && "Fale com fazendas e investidores da plataforma."}
+          </p>
+        </div>
+        {startable.length > 0 && (
+          <button onClick={() => setShowNew(true)} style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, border: "none",
+            background: COLORS.orange, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+          }}>
+            <Plus size={15} /> Nova
+          </button>
+        )}
+      </div>
 
-      <ErrorBanner message={error} />
-      {loading && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>}
-      {!loading && list.length === 0 && (
-        <p style={{ fontSize: 13, color: COLORS.soilLight }}>
-          {user?.role === "fazenda" ? "Nenhum investidor iniciou conversa ainda." : "Invista em um talhão para poder conversar com a fazenda."}
-        </p>
-      )}
+      <div style={{ marginTop: 20 }}>
+        <ErrorBanner message={error} />
+        {loading && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>}
+        {!loading && conversations.length === 0 && (
+          <p style={{ fontSize: 13, color: COLORS.soilLight }}>{emptyLabel}</p>
+        )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {list.map((item, i) => {
-          const name = item.farm_name || item.investor_name;
-          const subtitle = item.farm_location || null;
-          const graos = (item.graos || []).filter(Boolean);
-          return (
-            <button key={i} onClick={() => openConversation(item)} style={{
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {conversations.map((c) => (
+            <button key={c.conversation_id} onClick={() => openConversation(c.conversation_id, c.other_name)} style={{
               display: "flex", alignItems: "center", gap: 12, textAlign: "left", background: COLORS.bgCard,
-              border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "14px 16px", cursor: "pointer",
+              border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "14px 16px", cursor: "pointer", width: "100%",
             }}>
-              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
-                {item.farm_name ? (
-                  <img src={ICONS.fazendas} alt="" style={{ width: 30, height: 30, objectFit: "contain" }} />
-                ) : item.investor_avatar ? (
-                  <img src={item.investor_avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <User size={17} color={COLORS.leaf} />
-                )}
-              </div>
+              <ContactAvatar contact={{ role: c.other_role, avatar: c.other_avatar }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{name}</p>
+                <p style={{ fontSize: 14, fontWeight: c.nao_lidas > 0 ? 700 : 600, color: COLORS.soil, margin: 0 }}>{c.other_name}</p>
                 <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {item.ultima_mensagem || subtitle || "Toque para iniciar a conversa"}
+                  {c.ultima_mensagem || c.farm_location || "Toque para conversar"}
                 </p>
               </div>
-              {graos.length > 0 && (
-                <div style={{ display: "flex", flexShrink: 0 }}>
-                  {graos.slice(0, 3).map((g, gi) => (
-                    <div key={g} title={g} style={{
-                      width: 24, height: 24, borderRadius: "50%", background: "#fff", display: "flex",
-                      alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(58,46,34,0.12)",
-                      marginLeft: gi > 0 ? -8 : 0, border: `1px solid ${COLORS.line}`,
-                    }}>
-                      <img src={GRAIN_ICONS[g]} alt={g} style={{ width: 15, height: 15, objectFit: "contain" }} />
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                {(c.graos || []).slice(0, 2).map((g, gi) => (
+                  <div key={g} title={g} style={{
+                    width: 22, height: 22, borderRadius: "50%", background: "#fff", display: "flex",
+                    alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(58,46,34,0.12)",
+                    marginLeft: gi > 0 ? -8 : 0, border: `1px solid ${COLORS.line}`,
+                  }}>
+                    <img src={GRAIN_ICONS[g]} alt={g} style={{ width: 14, height: 14, objectFit: "contain" }} />
+                  </div>
+                ))}
+                {c.nao_lidas > 0 && (
+                  <span style={{
+                    minWidth: 20, height: 20, borderRadius: 10, background: COLORS.danger, color: "#fff",
+                    fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px",
+                  }}>{c.nao_lidas > 9 ? "9+" : c.nao_lidas}</span>
+                )}
+              </div>
             </button>
-          );
-        })}
+          ))}
+        </div>
+      </div>
+
+      {showNew && (
+        <NewConversationModal
+          contacts={startable}
+          onSelect={startWith}
+          onClose={() => setShowNew(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ContactAvatar({ contact }) {
+  return (
+    <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+      {contact.role === "fazenda" ? (
+        <img src={ICONS.fazendas} alt="" style={{ width: 30, height: 30, objectFit: "contain" }} />
+      ) : contact.avatar ? (
+        <img src={contact.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        <User size={17} color={COLORS.leaf} />
+      )}
+    </div>
+  );
+}
+
+function NewConversationModal({ contacts, onSelect, onClose }) {
+  const farms = contacts.filter((c) => c.role === "fazenda");
+  const investors = contacts.filter((c) => c.role === "investidor");
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(52,37,25,0.4)", zIndex: 100,
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: "20px 20px 0 0", padding: 20, width: "100%", maxWidth: 480,
+        maxHeight: "70vh", overflowY: "auto",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 18, color: COLORS.soil, margin: 0 }}>Iniciar conversa</p>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.soilLight, display: "flex" }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {farms.length > 0 && (
+          <>
+            <p style={{ fontSize: 11.5, fontWeight: 700, color: COLORS.soilLight, textTransform: "uppercase", margin: "0 0 8px" }}>Fazendas</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              {farms.map((c) => (
+                <button key={c.user_id} onClick={() => onSelect(c)} style={{
+                  display: "flex", alignItems: "center", gap: 12, textAlign: "left", background: COLORS.bg,
+                  border: "none", borderRadius: 10, padding: "10px 12px", cursor: "pointer",
+                }}>
+                  <ContactAvatar contact={c} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13.5, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{c.name}</p>
+                    <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "1px 0 0" }}>{c.farm_location}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {investors.length > 0 && (
+          <>
+            <p style={{ fontSize: 11.5, fontWeight: 700, color: COLORS.soilLight, textTransform: "uppercase", margin: "0 0 8px" }}>Investidores</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {investors.map((c) => (
+                <button key={c.user_id} onClick={() => onSelect(c)} style={{
+                  display: "flex", alignItems: "center", gap: 12, textAlign: "left", background: COLORS.bg,
+                  border: "none", borderRadius: 10, padding: "10px 12px", cursor: "pointer",
+                }}>
+                  <ContactAvatar contact={c} />
+                  <p style={{ fontSize: 13.5, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{c.name}</p>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {farms.length === 0 && investors.length === 0 && (
+          <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum contato disponível no momento.</p>
+        )}
       </div>
     </div>
   );
@@ -147,13 +254,6 @@ function ChatView({ conversationId, name, onBack }) {
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.soilLight, display: "flex" }}>
           <ArrowLeft size={18} />
         </button>
-        <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(58,46,34,0.1)" }}>
-          {user.role === "investidor" ? (
-            <img src={ICONS.fazendas} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
-          ) : (
-            <User size={16} color={COLORS.leaf} />
-          )}
-        </div>
         <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 18, color: COLORS.soil, margin: 0 }}>{name}</p>
       </div>
 

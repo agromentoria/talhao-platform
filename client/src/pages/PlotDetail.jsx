@@ -52,10 +52,14 @@ export default function PlotDetail() {
 
   const grainColor = GRAIN_COLORS[plot.grao] || COLORS.leaf;
   const custoTotal = cotas * plot.cota_valor;
-  const retornoBruto = custoTotal * (1 + plot.previsao_retorno / 100);
+  // preço estimado de venda ajustado pelo retorno médio esperado da safra —
+  // usado só como estimativa exibida ao investidor antes da compra; o valor
+  // real na colheita depende do retorno_final que a fazenda informar
+  const precoVendaProjetado = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
+  const retornoBruto = cotas * precoVendaProjetado;
   const lucroBruto = retornoBruto - custoTotal;
-  const comissaoFazenda = lucroBruto * (plot.commission_pct / 100);
-  const comissaoApp = lucroBruto * (appCommission / 100);
+  const comissaoFazenda = Math.max(0, lucroBruto) * (plot.commission_pct / 100);
+  const comissaoApp = Math.max(0, lucroBruto) * (appCommission / 100);
   const lucroLiquido = lucroBruto - comissaoFazenda - comissaoApp;
   const chartData = historico.length ? historico : FASES.map((f) => ({ dia: f, v: 0 }));
   const colhido = plot.status === "pago" || plot.status === "colhido";
@@ -132,6 +136,29 @@ export default function PlotDetail() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Preço sobe conforme a safra avança</p>
+            <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
+              Quem investe mais cedo paga menos por {UNIT_LABEL[plot.unidade]} e tem mais espaço de lucro. Quem investe mais perto da colheita paga um preço mais próximo do valor estimado de venda — corre menos risco, mas o potencial de lucro é menor.
+            </p>
+            <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+              <div>
+                <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>Preço atual (fase: {FASES[plot.fase_atual]})</p>
+                <p style={{ fontSize: 20, fontWeight: 700, color: COLORS.orange, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{fmtBRL(plot.cota_valor)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>Preço estimado de venda na colheita</p>
+                <p style={{ fontSize: 20, fontWeight: 700, color: COLORS.soil, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{fmtBRL(plot.preco_venda_estimado)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>Margem bruta potencial hoje</p>
+                <p style={{ fontSize: 20, fontWeight: 700, color: COLORS.leaf, margin: 0, fontFamily: "'Baloo 2', cursive" }}>
+                  {fmtBRL(plot.preco_venda_estimado - plot.cota_valor)}
+                </p>
+              </div>
             </div>
           </div>
 

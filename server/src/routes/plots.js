@@ -4,7 +4,7 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers, getFarmInvestorIds, getPlotInvestorIds } = require("../notify");
 const { recordTransaction } = require("../ledger");
-const { getAppCommissionPct } = require("../settings");
+const { getAppCommissionPct, getFaseMultiplier } = require("../settings");
 
 const router = express.Router();
 
@@ -80,7 +80,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
 
 router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
   const { farm_id, nome, grao, area_ha, safra, previsao_retorno } = req.body || {};
-  let { cota_valor, cotas_totais, unidade } = req.body || {};
+  let { preco_venda_estimado, cotas_totais, unidade } = req.body || {};
 
   if (!farm_id || !nome || !grao || !area_ha || !safra || previsao_retorno == null) {
     return res.status(400).json({ error: "Preencha todos os campos do talhão." });
@@ -98,33 +98,38 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
     return res.status(400).json({ error: "Valores numéricos inválidos." });
   }
 
-  // se o preço por unidade, a quantidade de unidades, ou a unidade em si
-  // não vierem preenchidos, usa a referência de mercado do grão (preço
-  // aproximado × produtividade média estimada × hectares do talhão)
-  if (!cota_valor || !cotas_totais || !unidade) {
+  // se o preço de venda estimado, a quantidade de unidades, ou a unidade
+  // em si não vierem preenchidos, usa a referência de mercado do grão
+  // (preço aproximado × produtividade média estimada × hectares do talhão)
+  if (!preco_venda_estimado || !cotas_totais || !unidade) {
     const refResult = await pool.query("SELECT * FROM commodity_references WHERE grao = $1", [grao]);
     const ref = refResult.rows[0];
     if (!ref) {
       return res.status(400).json({ error: "Não há referência de mercado cadastrada para este grão. Informe preço e quantidade manualmente ou peça à administração para cadastrar." });
     }
     unidade = unidade || ref.unidade;
-    cota_valor = cota_valor || ref.preco_unidade;
+    preco_venda_estimado = preco_venda_estimado || ref.preco_unidade;
     cotas_totais = cotas_totais || Math.round(area * ref.produtividade_ha);
   }
 
   const cotas = Number(cotas_totais);
-  const valor = Number(cota_valor);
-  if (Number.isNaN(cotas) || cotas <= 0 || Number.isNaN(valor) || valor <= 0) {
+  const precoVenda = Number(preco_venda_estimado);
+  if (Number.isNaN(cotas) || cotas <= 0 || Number.isNaN(precoVenda) || precoVenda <= 0) {
     return res.status(400).json({ error: "Valores numéricos inválidos." });
   }
   if (!["saca", "fardo", "arroba"].includes(unidade)) {
     return res.status(400).json({ error: "Unidade inválida. Use saca, fardo ou arroba." });
   }
 
+  // preço inicial da cota (fase 0, "Preparo do solo") — o mais barato,
+  // sobe automaticamente conforme a fase avança
+  const multiplicadorFase0 = await getFaseMultiplier(0);
+  const cotaValorInicial = precoVenda * multiplicadorFase0;
+
   const { rows } = await pool.query(
-    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9) RETURNING *`,
-    [farm_id, nome, grao, area, safra, valor, cotas, retorno, unidade]
+    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10) RETURNING *`,
+    [farm_id, nome, grao, area, safra, cotaValorInicial, cotas, retorno, unidade, precoVenda]
   );
   const plot = rows[0];
 
@@ -164,9 +169,15 @@ router.patch("/:id/progress", requireAuth, requireRole("fazenda", "admin"), asyn
   try {
     await client.query("BEGIN");
     const novoStatus = plot.status === "captacao" ? "em_andamento" : plot.status;
+
+    // o preço da cota sobe conforme a fase avança, aproximando-se do
+    // preço de venda estimado — quem compra mais cedo paga menos
+    const multiplicador = await getFaseMultiplier(fase);
+    const novoCotaValor = plot.preco_venda_estimado * multiplicador;
+
     await client.query(
-      "UPDATE plots SET fase_atual = $1, progresso = $2, status = $3 WHERE id = $4",
-      [fase, prog, novoStatus, plot.id]
+      "UPDATE plots SET fase_atual = $1, progresso = $2, status = $3, cota_valor = $4 WHERE id = $5",
+      [fase, prog, novoStatus, novoCotaValor, plot.id]
     );
     await client.query(
       "INSERT INTO progress_updates (plot_id, fase_atual, progresso, nota) VALUES ($1, $2, $3, $4)",
@@ -235,8 +246,18 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
       [plot.id]
     );
 
+    // preço real de venda por unidade na colheita: o preço estimado
+    // ajustado pelo desempenho real do mercado (retorno_final). É o
+    // mesmo para todos os investidores do talhão — o que muda entre
+    // eles é o preço que cada um pagou por unidade (preco_unitario),
+    // que ficou registrado no momento da compra. Isso é o que faz quem
+    // comprou mais cedo (preço mais baixo) lucrar mais do que quem
+    // comprou mais perto da colheita (preço mais alto).
+    const precoVendaReal = plot.preco_venda_estimado * (1 + retorno / 100);
+
     for (const inv of investments) {
-      const valorBruto = inv.valor_investido * (1 + retorno / 100);
+      const precoUnitario = inv.preco_unitario || (inv.valor_investido / inv.cotas);
+      const valorBruto = inv.cotas * precoVendaReal;
       const lucroBruto = valorBruto - inv.valor_investido;
       const comissaoFazenda = Math.max(0, lucroBruto) * (farm.commission_pct / 100);
       const comissaoApp = Math.max(0, lucroBruto) * (appCommissionPct / 100);
@@ -259,7 +280,7 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
         plotId: plot.id,
         investmentId: inv.id,
         amount: valorLiquido,
-        description: `Pagamento da colheita de ${plot.nome} (retorno de ${retorno}%)`,
+        description: `Pagamento da colheita de ${plot.nome} (comprou a R$ ${precoUnitario.toFixed(2)}, vendido a R$ ${precoVendaReal.toFixed(2)} por unidade)`,
       });
 
       totalComissaoFazenda += comissaoFazenda;
@@ -396,7 +417,7 @@ router.delete("/:id", requireAuth, requireRole("fazenda", "admin"), asyncHandler
 // para o investidor, e volta a aparecer na vitrine para investimento
 router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
   const { nome, grao, area_ha, safra, previsao_retorno } = req.body || {};
-  let { cota_valor, cotas_totais, unidade } = req.body || {};
+  let { preco_venda_estimado, cotas_totais, unidade } = req.body || {};
 
   const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
   const plot = existing.rows[0];
@@ -419,34 +440,38 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
     return res.status(400).json({ error: "Valores numéricos inválidos." });
   }
 
-  if (!cota_valor || !cotas_totais || !unidade) {
+  if (!preco_venda_estimado || !cotas_totais || !unidade) {
     const refResult = await pool.query("SELECT * FROM commodity_references WHERE grao = $1", [grao]);
     const ref = refResult.rows[0];
     if (!ref) {
       return res.status(400).json({ error: "Não há referência de mercado cadastrada para este grão. Informe preço e quantidade manualmente." });
     }
     unidade = unidade || ref.unidade;
-    cota_valor = cota_valor || ref.preco_unidade;
+    preco_venda_estimado = preco_venda_estimado || ref.preco_unidade;
     cotas_totais = cotas_totais || Math.round(area * ref.produtividade_ha);
   }
 
   const cotas = Number(cotas_totais);
-  const valor = Number(cota_valor);
-  if (Number.isNaN(cotas) || cotas <= 0 || Number.isNaN(valor) || valor <= 0) {
+  const precoVenda = Number(preco_venda_estimado);
+  if (Number.isNaN(cotas) || cotas <= 0 || Number.isNaN(precoVenda) || precoVenda <= 0) {
     return res.status(400).json({ error: "Valores numéricos inválidos." });
   }
   if (!["saca", "fardo", "arroba"].includes(unidade)) {
     return res.status(400).json({ error: "Unidade inválida. Use saca, fardo ou arroba." });
   }
 
+  const multiplicadorFase0 = await getFaseMultiplier(0);
+  const cotaValorInicial = precoVenda * multiplicadorFase0;
+
   const { rows } = await pool.query(
     `UPDATE plots SET
        nome = $1, grao = $2, area_ha = $3, safra = $4, cota_valor = $5,
        cotas_totais = $6, cotas_disponiveis = $6, previsao_retorno = $7,
-       retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao', unidade = $8
-     WHERE id = $9
+       retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao', unidade = $8,
+       preco_venda_estimado = $9
+     WHERE id = $10
      RETURNING *`,
-    [nome, grao, area, safra, valor, cotas, retorno, unidade, plot.id]
+    [nome, grao, area, safra, cotaValorInicial, cotas, retorno, unidade, precoVenda, plot.id]
   );
 
   res.json({ plot: rows[0] });

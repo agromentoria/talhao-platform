@@ -74,6 +74,13 @@ CREATE TABLE IF NOT EXISTS plots (
 -- ainda precisa ver) sem exigir migração toda vez. Validado na aplicação.
 ALTER TABLE plots DROP CONSTRAINT IF EXISTS plots_status_check;
 
+-- preço estimado de venda por unidade na colheita (o "alvo"). O preço da
+-- cota (cota_valor) sobe conforme a fase avança, aproximando-se deste
+-- valor — isso é o que faz o investidor que compra cedo pagar menos e
+-- ter mais espaço de lucro do que quem compra mais perto da colheita.
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS preco_venda_estimado REAL;
+UPDATE plots SET preco_venda_estimado = cota_valor WHERE preco_venda_estimado IS NULL;
+
 CREATE TABLE IF NOT EXISTS progress_updates (
   id SERIAL PRIMARY KEY,
   plot_id INTEGER NOT NULL REFERENCES plots(id),
@@ -91,6 +98,20 @@ CREATE TABLE IF NOT EXISTS investments (
   valor_investido REAL NOT NULL,
   status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo','pago','cancelado')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- preço unitário efetivamente pago naquela compra (registro histórico —
+-- não muda mesmo que o preço do talhão suba depois em fases seguintes)
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS preco_unitario REAL;
+UPDATE investments SET preco_unitario = valor_investido / NULLIF(cotas, 0) WHERE preco_unitario IS NULL;
+
+-- Multiplicador de preço por fase da safra (0 = Preparo do solo, mais
+-- barato; 4 = Ponto de colheita, mais caro e mais perto do preço de
+-- venda estimado). A fase 5 (Colheita) não é vendável. Editável pela
+-- administração.
+CREATE TABLE IF NOT EXISTS fase_pricing (
+  fase INTEGER PRIMARY KEY,
+  multiplicador REAL NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS payouts (
@@ -279,6 +300,31 @@ async function ensurePlatformSettings() {
   );
 }
 
+// preço sobe conforme a safra avança: quem compra na fase 0 paga o preço
+// mais baixo (mais risco, mais espaço de lucro); quem compra na fase 4
+// (ponto de colheita) paga mais perto do preço de venda estimado.
+// Calibrado para que, num cenário normal de colheita (retorno_final na
+// faixa do previsao_retorno cadastrado, tipicamente 10-20%), TODAS as
+// fases ainda dêem lucro ao investidor — só que menor quanto mais tarde
+// a compra. Ajuste com cautela: multiplicadores altos demais na última
+// fase podem deixar quem compra por último sempre no prejuízo.
+const FASE_PRICING_DEFAULTS = [
+  [0, 1.00], // Preparo do solo
+  [1, 1.03], // Plantio
+  [2, 1.06], // Germinação
+  [3, 1.10], // Manejo e combate a pragas
+  [4, 1.15], // Ponto de colheita
+];
+
+async function ensureFasePricing() {
+  for (const [fase, multiplicador] of FASE_PRICING_DEFAULTS) {
+    await pool.query(
+      `INSERT INTO fase_pricing (fase, multiplicador) VALUES ($1, $2) ON CONFLICT (fase) DO NOTHING`,
+      [fase, multiplicador]
+    );
+  }
+}
+
 async function ensureAdmin() {
   const { rows } = await pool.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
   if (rows.length) return;
@@ -314,6 +360,7 @@ async function initDb() {
   await ensureAdmin();
   await ensureCommodityReferences();
   await ensurePlatformSettings();
+  await ensureFasePricing();
 }
 
 module.exports = { pool, initDb };

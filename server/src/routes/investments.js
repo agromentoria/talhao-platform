@@ -71,8 +71,8 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     );
 
     const { rows: invRows } = await client.query(
-      "INSERT INTO investments (user_id, plot_id, cotas, valor_investido) VALUES ($1, $2, $3, $4) RETURNING *",
-      [req.user.id, plot.id, qtd, valorInvestido]
+      "INSERT INTO investments (user_id, plot_id, cotas, valor_investido, preco_unitario) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [req.user.id, plot.id, qtd, valorInvestido, plot.cota_valor]
     );
     const investment = invRows[0];
 
@@ -141,7 +141,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
 
 router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT i.*, p.nome as plot_nome, p.grao, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade,
+    `SELECT i.*, p.nome as plot_nome, p.grao, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado,
             f.name as farm_name,
             po.valor_bruto, po.comissao_fazenda, po.comissao_app, po.valor_liquido
      FROM investments i

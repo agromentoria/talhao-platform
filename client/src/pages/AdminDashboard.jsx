@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, Settings2 } from "lucide-react";
-import { COLORS, GRAIN_ICONS, UNIT_LABEL, fmtBRL } from "../theme";
+import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, Settings2, TrendingUp } from "lucide-react";
+import { COLORS, GRAIN_ICONS, UNIT_LABEL, FASES, fmtBRL } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 
@@ -19,6 +19,7 @@ export default function AdminDashboard() {
   const [typeFilter, setTypeFilter] = useState("");
   const [appCommission, setAppCommission] = useState(null);
   const [references, setReferences] = useState([]);
+  const [fasePricing, setFasePricing] = useState({});
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -27,6 +28,7 @@ export default function AdminDashboard() {
     api.adminFarms().then((data) => setFarms(data.farms)).catch((err) => setError(err.message));
     api.platformSettings().then((data) => setAppCommission(data.app_commission_pct)).catch((err) => setError(err.message));
     api.commodityReferences().then((data) => setReferences(data.references)).catch((err) => setError(err.message));
+    api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch((err) => setError(err.message));
   }
 
   function loadTransactions() {
@@ -62,6 +64,16 @@ export default function AdminDashboard() {
       const data = await api.updateCommodityReference(grao, payload);
       setReferences((refs) => refs.map((r) => (r.grao === grao ? data.reference : r)));
       setNotice(`Referência de ${grao} atualizada.`);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function saveFaseMultiplier(fase, multiplicador) {
+    try {
+      await api.updateFasePricing(fase, multiplicador);
+      setFasePricing((f) => ({ ...f, [fase]: multiplicador }));
+      setNotice(`Multiplicador da fase "${FASES[fase]}" atualizado.`);
     } catch (err) {
       setError(err.message);
     }
@@ -113,6 +125,20 @@ export default function AdminDashboard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {references.map((ref) => (
             <CommodityReferenceRow key={ref.grao} reference={ref} onSave={saveReference} />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 30 }}>
+        <p style={{ fontSize: 12.5, color: COLORS.soil, fontWeight: 600, margin: "0 0 4px", display: "flex", alignItems: "center", gap: 6 }}>
+          <TrendingUp size={14} /> Preço por fase da safra
+        </p>
+        <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
+          Multiplicador aplicado sobre o preço estimado de venda conforme a fase atual do talhão. 1.00 = preço cheio de venda; valores menores dão desconto a quem compra mais cedo. Cuidado: multiplicadores muito altos na última fase podem deixar quem compra por último no prejuízo mesmo em colheitas normais.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[0, 1, 2, 3, 4].map((fase) => (
+            <FasePricingRow key={fase} fase={fase} label={FASES[fase]} multiplicador={fasePricing[fase]} onSave={saveFaseMultiplier} />
           ))}
         </div>
       </div>
@@ -182,6 +208,43 @@ export default function AdminDashboard() {
         })}
         {transactions.length === 0 && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhuma transação registrada ainda.</p>}
       </div>
+    </div>
+  );
+}
+
+function FasePricingRow({ fase, label, multiplicador, onSave }) {
+  const [value, setValue] = useState(String(multiplicador ?? 1));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setValue(String(multiplicador ?? 1)); }, [multiplicador]);
+
+  const dirty = value !== String(multiplicador ?? 1);
+  const percentual = value ? Math.round((Number(value) - 1) * 100) : 0;
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave(fase, Number(value));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${COLORS.line}` }}>
+      <span style={{ fontSize: 12.5, color: COLORS.soil, minWidth: 190 }}>{label}</span>
+      <input type="number" step="0.01" min="1" max="3" value={value} onChange={(e) => setValue(e.target.value)} style={{
+        width: 90, padding: "6px 8px", borderRadius: 7, border: `1px solid ${COLORS.line}`, fontSize: 12.5, fontFamily: "inherit",
+      }} />
+      <span style={{ fontSize: 11.5, color: COLORS.soilLight, minWidth: 70 }}>
+        {percentual >= 0 ? `+${percentual}%` : `${percentual}%`} sobre a base
+      </span>
+      <button onClick={save} disabled={!dirty || saving} style={{
+        marginLeft: "auto", padding: "6px 12px", borderRadius: 7, border: "none", fontSize: 12, fontWeight: 600,
+        cursor: dirty ? "pointer" : "default", background: dirty ? COLORS.orange : COLORS.line, color: dirty ? "#fff" : COLORS.soilLight,
+      }}>
+        {saving ? "Salvando..." : "Salvar"}
+      </button>
     </div>
   );
 }

@@ -34,14 +34,19 @@ async function upsertPlot(farmId, nome, grao, area, safra, retorno) {
   const refResult = await pool.query("SELECT * FROM commodity_references WHERE grao = $1", [grao]);
   const ref = refResult.rows[0];
   const unidade = ref.unidade;
-  const cotaValor = ref.preco_unidade;
+  const precoVendaEstimado = ref.preco_unidade;
+
+  const pricingResult = await pool.query("SELECT multiplicador FROM fase_pricing WHERE fase = 0");
+  const multiplicadorFase0 = pricingResult.rows[0] ? Number(pricingResult.rows[0].multiplicador) : 1;
+  const cotaValor = precoVendaEstimado * multiplicadorFase0;
+
   const cotasTotais = Math.round(area * ref.produtividade_ha);
   const disponiveis = Math.round(cotasTotais * 0.7);
 
   const { rows } = await pool.query(
-    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-    [farmId, nome, grao, area, safra, cotaValor, cotasTotais, disponiveis, retorno, unidade]
+    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+    [farmId, nome, grao, area, safra, cotaValor, cotasTotais, disponiveis, retorno, unidade, precoVendaEstimado]
   );
   return rows[0];
 }

@@ -10,6 +10,7 @@ export default function FarmDashboard() {
   const [farm, setFarm] = useState(null);
   const [plots, setPlots] = useState([]);
   const [references, setReferences] = useState([]);
+  const [fasePricing, setFasePricing] = useState({});
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -18,6 +19,7 @@ export default function FarmDashboard() {
     api.getFarm(user.farm_id).then((data) => setFarm(data.farm)).catch((err) => setError(err.message));
     api.myFarmPlots().then((data) => setPlots(data.plots)).catch((err) => setError(err.message));
     api.commodityReferences().then((data) => setReferences(data.references)).catch(() => {});
+    api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch(() => {});
   }
 
   useEffect(() => { load(); }, []);
@@ -77,7 +79,7 @@ export default function FarmDashboard() {
         </button>
       </div>
 
-      {showForm && <NewPlotForm farmId={farm.id} references={references} onCreated={() => { setShowForm(false); load(); }} setError={setError} />}
+      {showForm && <NewPlotForm farmId={farm.id} references={references} fasePricing={fasePricing} onCreated={() => { setShowForm(false); load(); }} setError={setError} />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 14 }}>
         {plots.map((p) => (
@@ -89,21 +91,23 @@ export default function FarmDashboard() {
   );
 }
 
-function NewPlotForm({ farmId, references, onCreated, setError }) {
+function NewPlotForm({ farmId, references, fasePricing, onCreated, setError }) {
   const [form, setForm] = useState({ nome: "", grao: "Soja", area_ha: "", safra: "", previsao_retorno: "" });
-  const [cotaValor, setCotaValor] = useState("");
+  const [precoVenda, setPrecoVenda] = useState("");
   const [cotasTotais, setCotasTotais] = useState("");
   const [manual, setManual] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const ref = references.find((r) => r.grao === form.grao);
   const unidade = ref?.unidade || "saca";
+  const multiplicadorFase0 = fasePricing?.[0] ?? 1;
+  const precoInicial = precoVenda ? Number(precoVenda) * multiplicadorFase0 : 0;
 
   useEffect(() => {
     if (manual || !ref || !form.area_ha) return;
     const area = Number(form.area_ha);
     if (Number.isNaN(area) || area <= 0) return;
-    setCotaValor(String(ref.preco_unidade));
+    setPrecoVenda(String(ref.preco_unidade));
     setCotasTotais(String(Math.round(area * ref.produtividade_ha)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.grao, form.area_ha, references]);
@@ -114,7 +118,7 @@ function NewPlotForm({ farmId, references, onCreated, setError }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.createPlot({ farm_id: farmId, ...form, cota_valor: cotaValor, cotas_totais: cotasTotais, unidade });
+      await api.createPlot({ farm_id: farmId, ...form, preco_venda_estimado: precoVenda, cotas_totais: cotasTotais, unidade });
       onCreated();
     } catch (err) {
       setError(err.message);
@@ -124,7 +128,7 @@ function NewPlotForm({ farmId, references, onCreated, setError }) {
   }
 
   const producaoTotal = cotasTotais ? Number(cotasTotais) : 0;
-  const captacaoTotal = cotaValor && cotasTotais ? Number(cotaValor) * Number(cotasTotais) : 0;
+  const captacaoTotal = precoInicial && cotasTotais ? precoInicial * Number(cotasTotais) : 0;
 
   return (
     <form onSubmit={submit} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -149,9 +153,9 @@ function NewPlotForm({ farmId, references, onCreated, setError }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field
-            label={`Preço por ${UNIT_LABEL[unidade]} (R$)`}
-            type="number" value={cotaValor}
-            onChange={setCotaValor}
+            label={`Preço estimado de venda por ${UNIT_LABEL[unidade]} na colheita (R$)`}
+            type="number" value={precoVenda}
+            onChange={setPrecoVenda}
             required
             readOnly={!manual}
             style={manual ? {} : { opacity: 0.75, background: COLORS.line }}
@@ -167,7 +171,7 @@ function NewPlotForm({ farmId, references, onCreated, setError }) {
         </div>
         {producaoTotal > 0 && (
           <p style={{ fontSize: 12, color: COLORS.soil, margin: 0 }}>
-            Produção estimada: <strong>{producaoTotal.toLocaleString("pt-BR")} {unitPlural(unidade, producaoTotal)}</strong> · Captação total: <strong>{fmtBRL(captacaoTotal)}</strong>
+            Produção estimada: <strong>{producaoTotal.toLocaleString("pt-BR")} {unitPlural(unidade, producaoTotal)}</strong> · Preço inicial (fase 0): <strong>{fmtBRL(precoInicial)}</strong>/{UNIT_LABEL[unidade]} · Captação inicial: <strong>{fmtBRL(captacaoTotal)}</strong>
           </p>
         )}
       </div>
@@ -392,7 +396,7 @@ function EditPlotForm({ plot, onDone, setError }) {
 
 function RestartPlotForm({ plot, references, onDone, setError }) {
   const [form, setForm] = useState({ nome: plot.nome, grao: plot.grao, area_ha: plot.area_ha, safra: "", previsao_retorno: plot.previsao_retorno });
-  const [cotaValor, setCotaValor] = useState(String(plot.cota_valor));
+  const [precoVenda, setPrecoVenda] = useState(String(plot.preco_venda_estimado || plot.cota_valor));
   const [cotasTotais, setCotasTotais] = useState(String(plot.cotas_totais));
   const [manual, setManual] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -404,7 +408,7 @@ function RestartPlotForm({ plot, references, onDone, setError }) {
     if (manual || !ref || !form.area_ha) return;
     const area = Number(form.area_ha);
     if (Number.isNaN(area) || area <= 0) return;
-    setCotaValor(String(ref.preco_unidade));
+    setPrecoVenda(String(ref.preco_unidade));
     setCotasTotais(String(Math.round(area * ref.produtividade_ha)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.grao, form.area_ha, references]);
@@ -415,7 +419,7 @@ function RestartPlotForm({ plot, references, onDone, setError }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.restartPlot(plot.id, { ...form, cota_valor: cotaValor, cotas_totais: cotasTotais, unidade });
+      await api.restartPlot(plot.id, { ...form, preco_venda_estimado: precoVenda, cotas_totais: cotasTotais, unidade });
       onDone();
     } catch (err) {
       setError(err.message);
@@ -447,7 +451,7 @@ function RestartPlotForm({ plot, references, onDone, setError }) {
           </button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label={`Preço por ${UNIT_LABEL[unidade]} (R$)`} type="number" value={cotaValor} onChange={setCotaValor} required readOnly={!manual} style={manual ? {} : { opacity: 0.75, background: COLORS.line }} />
+          <Field label={`Preço estimado de venda por ${UNIT_LABEL[unidade]} na colheita (R$)`} type="number" value={precoVenda} onChange={setPrecoVenda} required readOnly={!manual} style={manual ? {} : { opacity: 0.75, background: COLORS.line }} />
           <Field label={`Total de ${unitPlural(unidade, 2)} previstas`} type="number" value={cotasTotais} onChange={setCotasTotais} required readOnly={!manual} style={manual ? {} : { opacity: 0.75, background: COLORS.line }} />
         </div>
       </div>

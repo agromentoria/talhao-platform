@@ -1,10 +1,19 @@
 .bottom-nav { display: none; }
 .desktop-nav-links { display: flex; }
 
+.plot-detail-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+.invest-panel { position: sticky; top: 20px; }
+
 @media (max-width: 768px) {
   .bottom-nav { display: flex; }
   .desktop-nav-links { display: none; }
   .page-content { padding-bottom: 92px !important; }
+  .plot-detail-grid { grid-template-columns: 1fr; gap: 16px; }
+  .invest-panel { position: static; }
+  .plot-detail-container { padding: 16px 14px !important; }
+  .fase-stepper { padding: 16px 14px !important; }
+  .fase-stepper-track { gap: 2px; }
+  .fase-step { min-width: 58px !important; }
 }
 
 button, input, select { font-family: inherit; }

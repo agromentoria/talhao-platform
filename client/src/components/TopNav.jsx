@@ -44,14 +44,16 @@ export default function TopNav() {
           {user ? (
             <>
               <Bell size={18} color="#fff" />
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: COLORS.orange, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                {user.avatar_data ? (
-                  <img src={user.avatar_data} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <User size={15} color="#fff" />
-                )}
-              </div>
-              <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{user.name.split(" ")[0]}</span>
+              <Link to="/perfil" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }} title="Seu perfil">
+                <div style={{ width: 30, height: 30, borderRadius: "50%", background: COLORS.orange, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {user.avatar_data ? (
+                    <img src={user.avatar_data} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <User size={15} color="#fff" />
+                  )}
+                </div>
+                <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{user.name.split(" ")[0]}</span>
+              </Link>
               <button onClick={() => { logout(); navigate("/"); }} title="Sair" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}>
                 <LogOut size={17} />
               </button>

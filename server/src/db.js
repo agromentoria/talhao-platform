@@ -33,10 +33,12 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL CHECK (role IN ('admin','fazenda','investidor')),
   farm_id INTEGER REFERENCES farms(id),
   avatar_data TEXT,
+  phone TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_data TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
 
 DO $$
 BEGIN

@@ -62,7 +62,7 @@ export default function PlotDetail() {
   }
 
   return (
-    <div style={{ padding: "24px 32px", maxWidth: 1000, margin: "0 auto" }}>
+    <div className="plot-detail-container" style={{ padding: "24px 32px", maxWidth: 1000, margin: "0 auto" }}>
       <Link to="/" style={{ display: "flex", alignItems: "center", gap: 6, color: COLORS.soilLight, fontSize: 13, textDecoration: "none", marginBottom: 18, width: "fit-content" }}>
         <ArrowLeft size={15} /> Voltar aos talhões
       </Link>
@@ -80,18 +80,18 @@ export default function PlotDetail() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20 }}>
+      <div className="plot-detail-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+          <div className="fase-stepper" style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
             <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 16px" }}>Etapas da safra</p>
-            <div style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", gap: 0 }}>
+            <div className="fase-stepper-track" style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", gap: 0 }}>
               {FASES.map((f, i) => {
                 const done = i < plot.fase_atual;
                 const current = i === plot.fase_atual;
                 return (
                   <div key={f} style={{ display: "flex", alignItems: "flex-start", flex: i < FASES.length - 1 ? 1 : "none", minWidth: 0 }}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 76 }}>
+                    <div className="fase-step" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 76 }}>
                       <div style={{
                         width: 46, height: 46, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
                         background: current ? "#fff" : done ? `${COLORS.leaf}22` : COLORS.bg,
@@ -141,7 +141,7 @@ export default function PlotDetail() {
         </div>
 
         <div>
-          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, position: "sticky", top: 20 }}>
+          <div className="invest-panel" style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, position: "sticky", top: 20 }}>
             <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Investir neste talhão</p>
             <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px" }}>{plot.cotas_disponiveis} de {plot.cotas_totais} cotas disponíveis nesta fase</p>
 

@@ -8,6 +8,7 @@ import Register from "./pages/Register";
 import Portfolio from "./pages/Portfolio";
 import FarmDashboard from "./pages/FarmDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import Profile from "./pages/Profile";
 import { useAuth } from "./context/AuthContext";
 import { COLORS } from "./theme";
 
@@ -16,6 +17,13 @@ function RequireRole({ role, children }) {
   if (loading) return <div style={{ padding: 32, color: COLORS.soilLight, fontSize: 13 }}>Carregando...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== role) return <Navigate to="/" replace />;
+  return children;
+}
+
+function RequireAuth({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div style={{ padding: 32, color: COLORS.soilLight, fontSize: 13 }}>Carregando...</div>;
+  if (!user) return <Navigate to="/login" replace />;
   return children;
 }
 
@@ -32,6 +40,7 @@ export default function App() {
           <Route path="/carteira" element={<RequireRole role="investidor"><Portfolio /></RequireRole>} />
           <Route path="/fazenda" element={<RequireRole role="fazenda"><FarmDashboard /></RequireRole>} />
           <Route path="/admin" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
+          <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

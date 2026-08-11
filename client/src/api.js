@@ -36,6 +36,8 @@ export const api = {
   register: (payload) => request("/auth/register", { method: "POST", body: payload, auth: false }),
   me: () => request("/auth/me"),
   updateAvatar: (avatar) => request("/auth/avatar", { method: "PATCH", body: { avatar } }),
+  updateProfile: (payload) => request("/auth/profile", { method: "PATCH", body: payload }),
+  updatePassword: (currentPassword, newPassword) => request("/auth/password", { method: "PATCH", body: { currentPassword, newPassword } }),
 
   // farms
   listFarms: () => request("/farms", { auth: false }),

@@ -138,4 +138,53 @@ router.patch("/avatar", requireAuth, asyncHandler(async (req, res) => {
   res.json({ user: publicUser(rows[0]) });
 }));
 
+router.patch("/profile", requireAuth, asyncHandler(async (req, res) => {
+  const { name, email, phone } = req.body || {};
+
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ error: "Informe seu nome." });
+  }
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ error: "Informe um e-mail válido." });
+  }
+
+  const emailLower = email.toLowerCase();
+  const existing = await pool.query(
+    "SELECT id FROM users WHERE email = $1 AND id != $2",
+    [emailLower, req.user.id]
+  );
+  if (existing.rows.length) {
+    return res.status(409).json({ error: "Este e-mail já está em uso por outra conta." });
+  }
+
+  const { rows } = await pool.query(
+    "UPDATE users SET name = $1, email = $2, phone = $3 WHERE id = $4 RETURNING *",
+    [String(name).trim(), emailLower, phone || null, req.user.id]
+  );
+
+  const token = signToken(rows[0]);
+  res.json({ token, user: publicUser(rows[0]) });
+}));
+
+router.patch("/password", requireAuth, asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Informe a senha atual e a nova senha." });
+  }
+  if (String(newPassword).length < 8) {
+    return res.status(400).json({ error: "A nova senha precisa ter pelo menos 8 caracteres." });
+  }
+
+  const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.id]);
+  const user = rows[0];
+  if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
+    return res.status(401).json({ error: "Senha atual incorreta." });
+  }
+
+  const hash = bcrypt.hashSync(newPassword, 10);
+  await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [hash, user.id]);
+  res.json({ ok: true });
+}));
+
 module.exports = router;

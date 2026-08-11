@@ -13,7 +13,7 @@ export default function BottomNav() {
   if (user?.role === "fazenda") items.push({ to: "/fazenda", label: "fazenda", icon: Settings });
   if (user?.role === "admin") items.push({ to: "/admin", label: "admin", icon: ShieldCheck });
   items.push({ to: null, label: "avisos", icon: Bell });
-  items.push({ to: user ? null : "/login", label: user ? user.name.split(" ")[0] : "entrar", icon: User });
+  items.push({ to: user ? "/perfil" : "/login", label: user ? "perfil" : "entrar", icon: User });
 
   return (
     <div className="bottom-nav" style={{

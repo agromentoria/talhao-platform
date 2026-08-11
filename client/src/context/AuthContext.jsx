@@ -39,8 +39,14 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  // usado pela página de perfil após trocar avatar/dados/senha
+  function updateSession(data) {
+    if (data.token) saveToken(data.token);
+    if (data.user) setUser(data.user);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateSession }}>
       {children}
     </AuthContext.Provider>
   );

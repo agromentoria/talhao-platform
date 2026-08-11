@@ -3,7 +3,7 @@ import { CreditCard, Trash2, Star, Plus, ShieldCheck } from "lucide-react";
 import { COLORS } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
-import { maskCardNumber, detectCardBrand, maskExpMonth, maskExpYear, maskCVV, onlyDigits } from "../utils/validators";
+import { maskCardNumber, detectCardBrand, maskCVV, onlyDigits, cardExpiryYearOptions, CARD_EXPIRY_MONTHS } from "../utils/validators";
 
 const BRAND_COLORS = {
   Visa: "#1A1F71",
@@ -118,6 +118,7 @@ function AddCardForm({ onDone, onCancel }) {
   const [saving, setSaving] = useState(false);
 
   const brand = detectCardBrand(number);
+  const yearOptions = cardExpiryYearOptions();
 
   function handleNumberChange(value) {
     setNumber(maskCardNumber(value, detectCardBrand(value)));
@@ -127,8 +128,8 @@ function AddCardForm({ onDone, onCancel }) {
     e.preventDefault();
     setError("");
 
-    if (Number(expMonth) < 1 || Number(expMonth) > 12) {
-      setError("Informe um mês de validade entre 01 e 12.");
+    if (!expMonth || !expYear) {
+      setError("Selecione o mês e o ano de validade do cartão.");
       return;
     }
     if (onlyDigits(cvv).length !== 3) {
@@ -172,8 +173,20 @@ function AddCardForm({ onDone, onCancel }) {
       />
       <Field label="Nome impresso no cartão" value={holderName} onChange={setHolderName} required />
       <div style={{ display: "flex", gap: 10 }}>
-        <Field label="Mês" value={expMonth} onChange={(v) => setExpMonth(maskExpMonth(v))} placeholder="MM" required style={{ width: 70 }} inputMode="numeric" />
-        <Field label="Ano" value={expYear} onChange={(v) => setExpYear(maskExpYear(v))} placeholder="AAAA" required style={{ width: 90 }} inputMode="numeric" />
+        <div style={{ width: 90 }}>
+          <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Mês</label>
+          <select value={expMonth} onChange={(e) => setExpMonth(e.target.value)} required style={selectStyle}>
+            <option value="">MM</option>
+            {CARD_EXPIRY_MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        <div style={{ width: 100 }}>
+          <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Ano</label>
+          <select value={expYear} onChange={(e) => setExpYear(e.target.value)} required style={selectStyle}>
+            <option value="">AAAA</option>
+            {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
         <Field label="CVV" value={cvv} onChange={(v) => setCvv(maskCVV(v))} placeholder="123" required type="password" style={{ width: 80 }} inputMode="numeric" />
       </div>
 
@@ -201,3 +214,5 @@ function Field({ label, value, onChange, type = "text", required, placeholder, s
     </div>
   );
 }
+
+const selectStyle = { width: "100%", marginTop: 4, padding: "9px 10px", borderRadius: 9, border: "1px solid " + COLORS.line, fontSize: 13.5, background: "#fff", fontFamily: "inherit" };

@@ -124,3 +124,62 @@ export function isValidEmail(value) {
 export function isValidRandomKey(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "").trim());
 }
+
+// ---------- conta bancária ----------
+
+export const BRAZILIAN_BANKS = [
+  { code: "001", name: "Banco do Brasil" },
+  { code: "033", name: "Santander" },
+  { code: "041", name: "Banrisul" },
+  { code: "070", name: "BRB - Banco de Brasília" },
+  { code: "077", name: "Banco Inter" },
+  { code: "085", name: "Sicoob" },
+  { code: "104", name: "Caixa Econômica Federal" },
+  { code: "212", name: "Banco Original" },
+  { code: "218", name: "Banco BS2" },
+  { code: "237", name: "Bradesco" },
+  { code: "260", name: "Nu Pagamentos (Nubank)" },
+  { code: "290", name: "PagBank (PagSeguro)" },
+  { code: "336", name: "C6 Bank" },
+  { code: "341", name: "Itaú Unibanco" },
+  { code: "380", name: "PicPay" },
+  { code: "403", name: "Cora" },
+  { code: "422", name: "Banco Safra" },
+  { code: "637", name: "Banco Sofisa" },
+  { code: "735", name: "Banco Neon" },
+  { code: "748", name: "Sicredi" },
+  { code: "756", name: "Sicoob (Bancoob)" },
+  { code: "999", name: "Outro banco" },
+];
+
+export function maskAgencia(value) {
+  const d = onlyDigits(value).slice(0, 5);
+  if (d.length === 5) return `${d.slice(0, 4)}-${d.slice(4)}`;
+  return d;
+}
+
+export function isValidAgencia(value) {
+  const d = onlyDigits(value);
+  return d.length >= 3 && d.length <= 5;
+}
+
+export function maskConta(value) {
+  const d = onlyDigits(value).slice(0, 13);
+  if (d.length > 1) return `${d.slice(0, -1)}-${d.slice(-1)}`;
+  return d;
+}
+
+export function isValidConta(value) {
+  const d = onlyDigits(value);
+  return d.length >= 4 && d.length <= 13;
+}
+
+// ---------- validade do cartão ----------
+// segue o padrão das bandeiras: validade máxima de até ~12 anos a partir de hoje
+
+export function cardExpiryYearOptions() {
+  const currentYear = new Date().getFullYear();
+  return Array.from({ length: 13 }, (_, i) => currentYear + i);
+}
+
+export const CARD_EXPIRY_MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));

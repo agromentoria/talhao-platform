@@ -163,13 +163,28 @@ router.put("/payout-account", requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
+  let agenciaNormalizada = agencia;
+  let contaNormalizada = conta;
+  if (temBanco) {
+    const agenciaDigitos = onlyDigits(agencia);
+    const contaDigitos = onlyDigits(conta);
+    if (agenciaDigitos.length < 3 || agenciaDigitos.length > 5) {
+      return res.status(400).json({ error: "Agência inválida — informe de 3 a 5 dígitos." });
+    }
+    if (contaDigitos.length < 4 || contaDigitos.length > 13) {
+      return res.status(400).json({ error: "Conta inválida — informe de 4 a 13 dígitos (com o dígito verificador)." });
+    }
+    agenciaNormalizada = agenciaDigitos;
+    contaNormalizada = contaDigitos;
+  }
+
   const { rows } = await pool.query(
     `INSERT INTO payout_accounts (user_id, pix_tipo, pix_chave, banco, agencia, conta, titular, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, now())
      ON CONFLICT (user_id) DO UPDATE SET
        pix_tipo = $2, pix_chave = $3, banco = $4, agencia = $5, conta = $6, titular = $7, updated_at = now()
      RETURNING *`,
-    [req.user.id, pix_tipo || null, chaveNormalizada || null, banco || null, agencia || null, conta || null, String(titular).trim()]
+    [req.user.id, pix_tipo || null, chaveNormalizada || null, banco || null, agenciaNormalizada || null, contaNormalizada || null, String(titular).trim()]
   );
   res.json({ account: rows[0] });
 }));

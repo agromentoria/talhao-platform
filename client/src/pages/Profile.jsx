@@ -7,7 +7,8 @@ import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import {
   maskCPF, isValidCPF, maskCNPJ, isValidCNPJ, maskPhone, isValidPhone,
-  isValidEmail, isValidRandomKey, onlyDigits,
+  isValidEmail, isValidRandomKey, onlyDigits, BRAZILIAN_BANKS, maskAgencia,
+  isValidAgencia, maskConta, isValidConta,
 } from "../utils/validators";
 
 const MAX_AVATAR_BYTES = 1_200_000;
@@ -57,8 +58,8 @@ export default function Profile() {
           } else if (acc.banco) {
             setPayoutMethod("banco");
             setBanco(acc.banco || "");
-            setAgencia(acc.agencia || "");
-            setConta(acc.conta || "");
+            setAgencia(maskAgencia(acc.agencia || ""));
+            setConta(maskConta(acc.conta || ""));
           }
         }
       })
@@ -142,6 +143,14 @@ export default function Profile() {
     return null;
   }
 
+  function bankAccountError() {
+    if (payoutMethod !== "banco") return null;
+    if (!banco) return "Selecione o banco.";
+    if (!isValidAgencia(agencia)) return "Agência inválida — informe de 3 a 5 dígitos.";
+    if (!isValidConta(conta)) return "Conta inválida — informe de 4 a 13 dígitos (com o dígito verificador).";
+    return null;
+  }
+
   function handlePixChaveChange(value) {
     if (pixTipo === "cpf") setPixChave(maskCPF(value));
     else if (pixTipo === "cnpj") setPixChave(maskCNPJ(value));
@@ -154,7 +163,7 @@ export default function Profile() {
     setPayoutError("");
     setPayoutSuccess("");
 
-    const keyError = pixKeyError();
+    const keyError = pixKeyError() || bankAccountError();
     if (keyError) {
       setPayoutError(keyError);
       return;
@@ -164,7 +173,7 @@ export default function Profile() {
     try {
       const payload = payoutMethod === "pix"
         ? { pix_tipo: pixTipo, pix_chave: pixTipo === "cpf" || pixTipo === "cnpj" || pixTipo === "telefone" ? onlyDigits(pixChave) : pixChave, titular }
-        : { banco, agencia, conta, titular };
+        : { banco, agencia: onlyDigits(agencia), conta: onlyDigits(conta), titular };
       await api.savePayoutAccount(payload);
       setPayoutSuccess("Dados de recebimento salvos.");
     } catch (err) {
@@ -296,10 +305,18 @@ export default function Profile() {
                 </>
               ) : (
                 <>
-                  <TextField label="Banco" value={banco} onChange={setBanco} required />
+                  <div>
+                    <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Banco</label>
+                    <select value={banco} onChange={(e) => setBanco(e.target.value)} required style={selectStyle}>
+                      <option value="">Selecione o banco</option>
+                      {BRAZILIAN_BANKS.map((b) => (
+                        <option key={b.code} value={`${b.code} - ${b.name}`}>{b.code} - {b.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <TextField label="Agência" value={agencia} onChange={setAgencia} required />
-                    <TextField label="Conta" value={conta} onChange={setConta} required />
+                    <TextField label="Agência" value={agencia} onChange={(v) => setAgencia(maskAgencia(v))} placeholder="0000-0" required inputMode="numeric" />
+                    <TextField label="Conta (com dígito)" value={conta} onChange={(v) => setConta(maskConta(v))} placeholder="00000-0" required inputMode="numeric" />
                   </div>
                 </>
               )}

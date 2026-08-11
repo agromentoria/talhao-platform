@@ -1,0 +1,10 @@
+.bottom-nav { display: none; }
+.desktop-nav-links { display: flex; }
+
+@media (max-width: 768px) {
+  .bottom-nav { display: flex; }
+  .desktop-nav-links { display: none; }
+  .page-content { padding-bottom: 92px !important; }
+}
+
+button, input, select { font-family: inherit; }

@@ -29,7 +29,7 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Administração do Talhão</h1>
+      <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Administração do Talhão</h1>
       <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "0 0 20px" }}>Visão geral da plataforma e aprovação de fazendas.</p>
 
       <ErrorBanner message={error} />
@@ -77,7 +77,7 @@ function Stat({ label, value, icon: Icon }) {
       <div style={{ display: "flex", alignItems: "center", gap: 6, color: COLORS.soilLight, marginBottom: 6 }}>
         <Icon size={13} /><span style={{ fontSize: 11 }}>{label}</span>
       </div>
-      <p style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{value}</p>
+      <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 19, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{value}</p>
     </div>
   );
 }

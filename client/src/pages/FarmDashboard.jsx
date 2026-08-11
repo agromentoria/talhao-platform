@@ -37,7 +37,7 @@ export default function FarmDashboard() {
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 4 }}>
         <img src={ICONS.fazendas} alt="" style={{ width: 44, height: 44, objectFit: "contain" }} />
         <div>
-          <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: 0 }}>Painel da fazenda</h1>
+          <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: 0 }}>Painel da fazenda</h1>
           <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{farm.name} · {farm.location}</p>
         </div>
       </div>
@@ -119,7 +119,7 @@ function NewPlotForm({ farmId, onCreated, setError }) {
       <Field label="Total de cotas" type="number" value={form.cotas_totais} onChange={(v) => update("cotas_totais", v)} required />
       <Field label="Retorno estimado (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
       <div style={{ gridColumn: "1 / -1" }}>
-        <button type="submit" disabled={saving} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: COLORS.leaf, color: "#fff", fontSize: 13.5, fontWeight: 500, cursor: "pointer" }}>
+        <button type="submit" disabled={saving} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: COLORS.orange, color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
           {saving ? "Publicando..." : "Publicar talhão"}
         </button>
       </div>

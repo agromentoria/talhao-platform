@@ -23,7 +23,7 @@ export default function Portfolio() {
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Meus investimentos</h1>
+      <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Meus investimentos</h1>
       <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "0 0 20px" }}>Acompanhe cada talhão até a colheita e o pagamento da sua parte.</p>
 
       <ErrorBanner message={error} />
@@ -38,7 +38,7 @@ export default function Portfolio() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: COLORS.soilLight, marginBottom: 8 }}>
               <c.icon size={15} /><span style={{ fontSize: 12 }}>{c.label}</span>
             </div>
-            <p style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{c.value}</p>
+            <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 22, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{c.value}</p>
           </div>
         ))}
       </div>

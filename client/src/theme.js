@@ -1,19 +1,27 @@
-// Paleta oficial da marca Meu Talhão (extraída de paleta_de_Cores_meutalhao.svg)
+// Paleta oficial extraída diretamente das telas de referência (Figma → SVG)
 export const COLORS = {
-  bg: "#EADFCD",        // creme — fundo geral
-  bgCard: "#FFFFFF",
-  soil: "#3A2E22",       // marrom escuro — títulos, texto principal
-  soilLight: "#6A5B4C",  // marrom médio — texto secundário
-  leaf: "#668C2D",       // verde principal da marca
-  leafDark: "#445F1C",   // verde escuro — hover, ênfase
-  leafLight: "#87B726",  // verde claro — destaques, badges
-  wheat: "#F9B000",      // dourado — cor do grão/trigo na logo
-  wheatDark: "#DD8209",  // laranja — sombra do grão
-  wheatLight: "#FBD066",
-  clay: "#928270",       // taupe — usado com moderação
-  danger: "#B23B3B",
-  line: "#CFBEA6",       // tan — bordas e divisores
+  bg: "#EADFCD",          // creme — fundo geral das telas internas
+  headerGreen: "#5F8229", // verde escuro — cabeçalho e navegação
+  leaf: "#668C2D",        // verde da marca — wordmark, toggles, confirmação final
+  leafDark: "#445F1C",
+  orange: "#DD8209",      // laranja — ação principal (botões, nav inferior)
+  orangeDark: "#B96B07",
+  orangeLight: "#ED9313",
+  card: "#CFBEA6",        // areia — fundo dos cards
+  cardLight: "#DED2BC",
+  soil: "#342525",        // marrom escuro — texto principal sobre fundo claro
+  soilLight: "#6A5B4C",   // marrom médio — texto secundário
+  clay: "#928270",
+  danger: "#A01916",
+  line: "#CFBEA6",
+  white: "#FFFFFF",
 };
+
+// mantido por compatibilidade com telas antigas que ainda referenciam COLORS.bgCard
+COLORS.bgCard = COLORS.card;
+COLORS.wheat = COLORS.orange;
+COLORS.wheatDark = COLORS.orangeDark;
+COLORS.wheatLight = COLORS.orangeLight;
 
 // Ilustrações reais da marca para cada grão comercializado
 export const GRAIN_ICONS = {
@@ -27,10 +35,10 @@ export const GRAIN_ICONS = {
 
 export const GRAIN_COLORS = {
   Soja: COLORS.leaf,
-  Milho: COLORS.wheat,
+  Milho: COLORS.orange,
   Algodão: COLORS.clay,
   Arroz: "#6B8CAE",
-  Trigo: COLORS.wheatDark,
+  Trigo: COLORS.orangeDark,
   Feijão: "#8B4A2B",
 };
 
@@ -58,6 +66,12 @@ export const ICONS = {
   fazendas: "/icons/icon_fazendas.svg",
   touro: "/icons/icon_touro_meu_talhao.svg",
   vaca: "/icons/icon_vaca_meu_talhao.svg",
+};
+
+// Fundos ilustrados extraídos das telas de referência
+export const BACKGROUNDS = {
+  cream: "/bg-farm-cream.svg",
+  green: "/bg-farm-green.svg",
 };
 
 export function fmtBRL(n) {

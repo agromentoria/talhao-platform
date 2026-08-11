@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import TopNav from "./components/TopNav";
+import BottomNav from "./components/BottomNav";
 import Marketplace from "./pages/Marketplace";
 import PlotDetail from "./pages/PlotDetail";
 import Login from "./pages/Login";
@@ -20,18 +21,21 @@ function RequireRole({ role, children }) {
 
 export default function App() {
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
       <TopNav />
-      <Routes>
-        <Route path="/" element={<Marketplace />} />
-        <Route path="/talhao/:id" element={<PlotDetail />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/cadastro" element={<Register />} />
-        <Route path="/carteira" element={<RequireRole role="investidor"><Portfolio /></RequireRole>} />
-        <Route path="/fazenda" element={<RequireRole role="fazenda"><FarmDashboard /></RequireRole>} />
-        <Route path="/admin" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <div className="page-content">
+        <Routes>
+          <Route path="/" element={<Marketplace />} />
+          <Route path="/talhao/:id" element={<PlotDetail />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/cadastro" element={<Register />} />
+          <Route path="/carteira" element={<RequireRole role="investidor"><Portfolio /></RequireRole>} />
+          <Route path="/fazenda" element={<RequireRole role="fazenda"><FarmDashboard /></RequireRole>} />
+          <Route path="/admin" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+      <BottomNav />
     </div>
   );
 }

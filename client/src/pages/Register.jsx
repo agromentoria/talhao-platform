@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { COLORS } from "../theme";
+import { COLORS, BACKGROUNDS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 import { ErrorBanner } from "../components/Shared";
 
@@ -32,10 +32,16 @@ export default function Register() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: "50px auto", padding: "0 20px" }}>
-      <img src="/logo-icon.svg" alt="" style={{ width: 48, height: 48, borderRadius: 12, marginBottom: 16 }} />
-      <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 24, color: COLORS.soil, marginBottom: 4 }}>Criar conta</h1>
-      <p style={{ fontSize: 13.5, color: COLORS.soilLight, marginBottom: 20 }}>Escolha o tipo de conta que combina com você.</p>
+    <div style={{
+      maxWidth: 460, margin: "24px auto", padding: "36px 28px 32px", borderRadius: 26,
+      background: `${COLORS.headerGreen} url(${BACKGROUNDS.green}) center / cover no-repeat`,
+      boxShadow: "0 8px 24px rgba(52,37,25,0.2)", color: "#fff", textAlign: "center",
+    }}>
+      <div style={{ width: 96, height: 96, borderRadius: 20, background: "#fff", margin: "0 auto 18px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <img src="/logo-icon.svg" alt="" style={{ width: 76, height: 76 }} />
+      </div>
+      <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, fontWeight: 700, margin: "0 0 4px" }}>Criar uma conta</h1>
+      <p style={{ fontSize: 13.5, opacity: 0.9, marginBottom: 22 }}>Escolha o tipo de conta que combina com você.</p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {[
@@ -43,17 +49,17 @@ export default function Register() {
           { id: "fazenda", label: "Sou uma fazenda" },
         ].map((opt) => (
           <button key={opt.id} type="button" onClick={() => setRole(opt.id)} style={{
-            flex: 1, padding: "10px 0", borderRadius: 9, fontSize: 13.5, cursor: "pointer", fontWeight: 500,
-            border: `1px solid ${role === opt.id ? COLORS.leaf : COLORS.line}`,
-            background: role === opt.id ? COLORS.leaf : "#fff",
-            color: role === opt.id ? "#fff" : COLORS.soilLight,
+            flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13.5, cursor: "pointer", fontWeight: 600,
+            border: role === opt.id ? "none" : "1px solid rgba(255,255,255,0.5)",
+            background: role === opt.id ? COLORS.orange : "transparent",
+            color: "#fff",
           }}>{opt.label}</button>
         ))}
       </div>
 
       <ErrorBanner message={error} />
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12, textAlign: "left" }}>
         <Field label="Nome completo" value={form.name} onChange={(v) => update("name", v)} required />
         <Field label="E-mail" type="email" value={form.email} onChange={(v) => update("email", v)} required />
         <Field label="Senha (mínimo 8 caracteres)" type="password" value={form.password} onChange={(v) => update("password", v)} required minLength={8} />
@@ -62,22 +68,23 @@ export default function Register() {
           <>
             <Field label="Nome da fazenda" value={form.farmName} onChange={(v) => update("farmName", v)} required />
             <Field label="Localização (cidade, estado)" value={form.farmLocation} onChange={(v) => update("farmLocation", v)} required />
-            <p style={{ fontSize: 12, color: COLORS.soilLight, margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 12, opacity: 0.85, margin: 0, lineHeight: 1.5 }}>
               Sua fazenda entra em análise da administração do Talhão antes de poder publicar talhões para investimento.
             </p>
           </>
         )}
 
         <button type="submit" disabled={loading} style={{
-          marginTop: 8, padding: "11px 0", borderRadius: 9, border: "none", background: COLORS.leaf,
-          color: "#fff", fontSize: 14, fontWeight: 500, cursor: "pointer", opacity: loading ? 0.7 : 1,
+          marginTop: 8, padding: "15px 0", borderRadius: 14, border: "none", background: COLORS.orange,
+          color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: "'Baloo 2', cursive", cursor: "pointer",
+          opacity: loading ? 0.7 : 1, boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
         }}>
-          {loading ? "Criando conta..." : "Criar conta"}
+          {loading ? "Criando conta..." : "Começar"}
         </button>
       </form>
 
-      <p style={{ fontSize: 13, color: COLORS.soilLight, marginTop: 18, textAlign: "center" }}>
-        Já tem conta? <Link to="/login" style={{ color: COLORS.leaf, fontWeight: 500 }}>Entrar</Link>
+      <p style={{ fontSize: 13, marginTop: 18 }}>
+        Já tem conta? <Link to="/login" style={{ color: "#fff", fontWeight: 700, textDecoration: "underline" }}>Entrar</Link>
       </p>
     </div>
   );
@@ -86,9 +93,9 @@ export default function Register() {
 function Field({ label, value, onChange, type = "text", required, minLength }) {
   return (
     <div>
-      <label style={{ fontSize: 12, color: COLORS.soilLight }}>{label}</label>
+      <label style={{ fontSize: 12, color: "#fff", opacity: 0.9 }}>{label}</label>
       <input type={type} required={required} minLength={minLength} value={value} onChange={(e) => onChange(e.target.value)}
-        style={{ width: "100%", marginTop: 5, padding: "10px 12px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 14 }} />
+        style={{ width: "100%", marginTop: 5, padding: "12px 14px", borderRadius: 12, border: "none", fontSize: 14, color: COLORS.soil }} />
     </div>
   );
 }

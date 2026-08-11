@@ -23,7 +23,7 @@ export default function Marketplace() {
   return (
     <div style={{ padding: "28px 32px", maxWidth: 1120, margin: "0 auto" }}>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: COLORS.soil, margin: 0 }}>
+        <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 28, fontWeight: 600, color: COLORS.soil, margin: 0 }}>
           Invista direto no talhão
         </h1>
         <p style={{ fontSize: 14, color: COLORS.soilLight, margin: "6px 0 0" }}>

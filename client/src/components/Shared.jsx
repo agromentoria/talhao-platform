@@ -46,7 +46,7 @@ export function PlotCard({ plot }) {
 
         <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
           <div>
-            <p style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{plot.nome}</p>
+            <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 17, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{plot.nome}</p>
             <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "3px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
               <MapPin size={12} /> {plot.farm_name} · {plot.farm_location}
             </p>
@@ -61,7 +61,7 @@ export function PlotCard({ plot }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "auto", paddingTop: 6 }}>
             <div>
               <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>cota a partir de</p>
-              <p style={{ fontSize: 18, fontWeight: 600, color: COLORS.soil, margin: 0, fontFamily: "'Fraunces', serif" }}>{fmtBRL(plot.cota_valor)}</p>
+              <p style={{ fontSize: 18, fontWeight: 600, color: COLORS.soil, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{fmtBRL(plot.cota_valor)}</p>
             </div>
             <div style={{ textAlign: "right" }}>
               <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>retorno estimado</p>

@@ -72,7 +72,7 @@ export default function PlotDetail() {
           <img src={GRAIN_ICONS[plot.grao]} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: grainColor }}>{plot.grao}</span>
         </div>
-        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.farm_name}</h1>
+        <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.farm_name}</h1>
         <p style={{ fontSize: 13, color: COLORS.soilLight, margin: "4px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
           <MapPin size={13} /> {plot.farm_location} · {plot.area_ha} ha · safra {plot.safra}
         </p>
@@ -159,7 +159,7 @@ export default function PlotDetail() {
 
             <button onClick={handleBuy} disabled={buying || plot.cotas_disponiveis === 0} style={{
               width: "100%", padding: "11px 0", borderRadius: 9, border: "none",
-              background: plot.cotas_disponiveis === 0 ? COLORS.line : COLORS.leaf,
+              background: plot.cotas_disponiveis === 0 ? COLORS.line : COLORS.orange,
               color: plot.cotas_disponiveis === 0 ? COLORS.soilLight : "#fff", fontSize: 14, fontWeight: 500,
               cursor: plot.cotas_disponiveis === 0 ? "not-allowed" : "pointer",
             }}>

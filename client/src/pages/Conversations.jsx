@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-import { ArrowLeft, Send, Building2, User } from "lucide-react";
-import { COLORS } from "../theme";
+import { ArrowLeft, Send, User } from "lucide-react";
+import { COLORS, ICONS, GRAIN_ICONS } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -64,13 +64,20 @@ export default function Conversations() {
         {list.map((item, i) => {
           const name = item.farm_name || item.investor_name;
           const subtitle = item.farm_location || null;
+          const graos = (item.graos || []).filter(Boolean);
           return (
             <button key={i} onClick={() => openConversation(item)} style={{
               display: "flex", alignItems: "center", gap: 12, textAlign: "left", background: COLORS.bgCard,
               border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "14px 16px", cursor: "pointer",
             }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {item.farm_name ? <Building2 size={17} color={COLORS.leaf} /> : <User size={17} color={COLORS.leaf} />}
+              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                {item.farm_name ? (
+                  <img src={ICONS.fazendas} alt="" style={{ width: 30, height: 30, objectFit: "contain" }} />
+                ) : item.investor_avatar ? (
+                  <img src={item.investor_avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <User size={17} color={COLORS.leaf} />
+                )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{name}</p>
@@ -78,6 +85,19 @@ export default function Conversations() {
                   {item.ultima_mensagem || subtitle || "Toque para iniciar a conversa"}
                 </p>
               </div>
+              {graos.length > 0 && (
+                <div style={{ display: "flex", flexShrink: 0 }}>
+                  {graos.slice(0, 3).map((g, gi) => (
+                    <div key={g} title={g} style={{
+                      width: 24, height: 24, borderRadius: "50%", background: "#fff", display: "flex",
+                      alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(58,46,34,0.12)",
+                      marginLeft: gi > 0 ? -8 : 0, border: `1px solid ${COLORS.line}`,
+                    }}>
+                      <img src={GRAIN_ICONS[g]} alt={g} style={{ width: 15, height: 15, objectFit: "contain" }} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </button>
           );
         })}
@@ -127,6 +147,13 @@ function ChatView({ conversationId, name, onBack }) {
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.soilLight, display: "flex" }}>
           <ArrowLeft size={18} />
         </button>
+        <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(58,46,34,0.1)" }}>
+          {user.role === "investidor" ? (
+            <img src={ICONS.fazendas} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
+          ) : (
+            <User size={16} color={COLORS.leaf} />
+          )}
+        </div>
         <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 18, color: COLORS.soil, margin: 0 }}>{name}</p>
       </div>
 

@@ -8,7 +8,7 @@ const router = express.Router();
 
 router.get("/me", requireAuth, asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT n.*, f.name as farm_name, p.nome as plot_nome
+    `SELECT n.*, f.name as farm_name, p.nome as plot_nome, p.grao as plot_grao
      FROM notifications n
      LEFT JOIN farms f ON f.id = n.farm_id
      LEFT JOIN plots p ON p.id = n.plot_id

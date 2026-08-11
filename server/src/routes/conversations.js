@@ -16,8 +16,9 @@ async function canAccessConversation(conversation, user) {
 router.get("/me", requireAuth, asyncHandler(async (req, res) => {
   if (req.user.role === "investidor") {
     const { rows } = await pool.query(
-      `SELECT DISTINCT f.id as farm_id, f.name as farm_name, f.location as farm_location,
+      `SELECT f.id as farm_id, f.name as farm_name, f.location as farm_location,
               c.id as conversation_id,
+              array_agg(DISTINCT p.grao) as graos,
               (SELECT body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as ultima_mensagem,
               (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as ultima_mensagem_em
        FROM investments i
@@ -25,6 +26,7 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
        JOIN farms f ON f.id = p.farm_id
        LEFT JOIN conversations c ON c.farm_id = f.id AND c.investor_user_id = $1
        WHERE i.user_id = $1
+       GROUP BY f.id, f.name, f.location, c.id
        ORDER BY f.name`,
       [req.user.id]
     );
@@ -33,12 +35,16 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
 
   if (req.user.role === "fazenda") {
     const { rows } = await pool.query(
-      `SELECT c.id as conversation_id, u.id as investor_id, u.name as investor_name,
+      `SELECT c.id as conversation_id, u.id as investor_id, u.name as investor_name, u.avatar_data as investor_avatar,
+              array_agg(DISTINCT p.grao) FILTER (WHERE p.grao IS NOT NULL) as graos,
               (SELECT body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as ultima_mensagem,
               (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as ultima_mensagem_em
        FROM conversations c
        JOIN users u ON u.id = c.investor_user_id
+       LEFT JOIN investments i ON i.user_id = u.id
+       LEFT JOIN plots p ON p.id = i.plot_id AND p.farm_id = c.farm_id
        WHERE c.farm_id = $1
+       GROUP BY c.id, u.id, u.name, u.avatar_data
        ORDER BY ultima_mensagem_em DESC NULLS LAST`,
       [req.user.farm_id]
     );

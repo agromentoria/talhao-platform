@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import { Sprout, Wheat, Building2, ShieldCheck, Megaphone } from "lucide-react";
-import { COLORS } from "../theme";
+import { ShieldCheck, Megaphone } from "lucide-react";
+import { COLORS, ICONS, GRAIN_ICONS } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
+// ícone padrão (lucide) para avisos sem talhão associado
 const TYPE_ICON = {
-  novo_talhao: Sprout,
-  atualizacao_safra: Wheat,
-  aviso_fazenda: Building2,
+  aviso_fazenda: ICONS.fazendas,
   aviso_admin: ShieldCheck,
 };
 
@@ -82,7 +81,11 @@ export default function Notifications() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {notifications.map((n) => {
-          const Icon = TYPE_ICON[n.type] || Megaphone;
+          const commodityIcon = (n.type === "novo_talhao" || n.type === "atualizacao_safra") && n.plot_grao
+            ? GRAIN_ICONS[n.plot_grao]
+            : null;
+          const imageIcon = commodityIcon || (typeof TYPE_ICON[n.type] === "string" ? TYPE_ICON[n.type] : null);
+          const LucideIcon = !imageIcon ? (TYPE_ICON[n.type] || Megaphone) : null;
           const unread = !n.read_at;
           return (
             <button
@@ -94,8 +97,12 @@ export default function Notifications() {
                 boxShadow: unread ? "0 2px 8px rgba(58,46,34,0.08)" : "none",
               }}
             >
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: unread ? `${COLORS.orange}18` : COLORS.line, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon size={16} color={unread ? COLORS.orange : COLORS.soilLight} />
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: imageIcon ? "#fff" : (unread ? `${COLORS.orange}18` : COLORS.line), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: imageIcon ? "0 1px 4px rgba(58,46,34,0.1)" : "none" }}>
+                {imageIcon ? (
+                  <img src={imageIcon} alt="" style={{ width: 22, height: 22, objectFit: "contain" }} />
+                ) : (
+                  <LucideIcon size={16} color={unread ? COLORS.orange : COLORS.soilLight} />
+                )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>

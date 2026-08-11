@@ -100,6 +100,37 @@ CREATE TABLE IF NOT EXISTS payouts (
 CREATE INDEX IF NOT EXISTS idx_plots_farm ON plots(farm_id);
 CREATE INDEX IF NOT EXISTS idx_investments_user ON investments(user_id);
 CREATE INDEX IF NOT EXISTS idx_investments_plot ON investments(plot_id);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id SERIAL PRIMARY KEY,
+  recipient_user_id INTEGER NOT NULL REFERENCES users(id),
+  sender_role TEXT NOT NULL CHECK (sender_role IN ('sistema','fazenda','admin')),
+  farm_id INTEGER REFERENCES farms(id),
+  plot_id INTEGER REFERENCES plots(id),
+  type TEXT NOT NULL CHECK (type IN ('novo_talhao','atualizacao_safra','aviso_fazenda','aviso_admin')),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS conversations (
+  id SERIAL PRIMARY KEY,
+  investor_user_id INTEGER NOT NULL REFERENCES users(id),
+  farm_id INTEGER NOT NULL REFERENCES farms(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(investor_user_id, farm_id)
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id SERIAL PRIMARY KEY,
+  conversation_id INTEGER NOT NULL REFERENCES conversations(id),
+  sender_user_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
 `;
 
 async function ensureAdmin() {

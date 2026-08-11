@@ -62,6 +62,19 @@ export const api = {
   overview: () => request("/admin/overview"),
   adminFarms: () => request("/admin/farms"),
   adminPlots: () => request("/admin/plots"),
+
+  // notifications
+  myNotifications: () => request("/notifications/me"),
+  markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: "PATCH" }),
+  markAllNotificationsRead: () => request("/notifications/read-all", { method: "PATCH" }),
+  farmBroadcast: (payload) => request("/notifications/farm-broadcast", { method: "POST", body: payload }),
+  adminBroadcast: (payload) => request("/notifications/admin-broadcast", { method: "POST", body: payload }),
+
+  // conversations
+  myConversations: () => request("/conversations/me"),
+  startConversation: (farm_id) => request("/conversations", { method: "POST", body: { farm_id } }),
+  conversationMessages: (id) => request(`/conversations/${id}/messages`),
+  sendMessage: (id, body) => request(`/conversations/${id}/messages`, { method: "POST", body: { body } }),
 };
 
 export function saveToken(token) {

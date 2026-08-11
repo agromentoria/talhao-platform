@@ -1,10 +1,10 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutGrid, Wallet, Settings, ShieldCheck, Bell, User } from "lucide-react";
+import { LayoutGrid, Wallet, Settings, ShieldCheck, Bell, User, MessageCircle } from "lucide-react";
 import { COLORS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 
 export default function BottomNav() {
-  const { user } = useAuth();
+  const { user, unreadCount } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -12,7 +12,8 @@ export default function BottomNav() {
   if (user?.role === "investidor") items.push({ to: "/carteira", label: "carteira", icon: Wallet });
   if (user?.role === "fazenda") items.push({ to: "/fazenda", label: "fazenda", icon: Settings });
   if (user?.role === "admin") items.push({ to: "/admin", label: "admin", icon: ShieldCheck });
-  items.push({ to: null, label: "avisos", icon: Bell });
+  if (user?.role === "investidor" || user?.role === "fazenda") items.push({ to: "/conversas", label: "conversas", icon: MessageCircle });
+  items.push({ to: user ? "/avisos" : "/login", label: user ? "avisos" : "entrar", icon: Bell, badge: user ? unreadCount : 0 });
   items.push({ to: user ? "/perfil" : "/login", label: user ? "perfil" : "entrar", icon: User });
 
   return (
@@ -29,11 +30,20 @@ export default function BottomNav() {
         };
         return (
           <button key={i} onClick={handleClick} style={{
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+            position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
             background: "none", border: "none", cursor: it.to ? "pointer" : "default",
             color: "#fff", opacity: active ? 1 : 0.85, padding: "2px 4px", minWidth: 54,
           }}>
-            <Icon size={19} strokeWidth={active ? 2.5 : 2} />
+            <span style={{ position: "relative" }}>
+              <Icon size={19} strokeWidth={active ? 2.5 : 2} />
+              {it.badge > 0 && (
+                <span style={{
+                  position: "absolute", top: -5, right: -7, minWidth: 13, height: 13, borderRadius: 7,
+                  background: COLORS.danger, fontSize: 8.5, fontWeight: 700, display: "flex",
+                  alignItems: "center", justifyContent: "center", padding: "0 3px",
+                }}>{it.badge > 9 ? "9+" : it.badge}</span>
+              )}
+            </span>
             <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{it.label}</span>
           </button>
         );

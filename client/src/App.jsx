@@ -9,6 +9,8 @@ import Portfolio from "./pages/Portfolio";
 import FarmDashboard from "./pages/FarmDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
+import Notifications from "./pages/Notifications";
+import Conversations from "./pages/Conversations";
 import { useAuth } from "./context/AuthContext";
 import { COLORS } from "./theme";
 
@@ -41,6 +43,8 @@ export default function App() {
           <Route path="/fazenda" element={<RequireRole role="fazenda"><FarmDashboard /></RequireRole>} />
           <Route path="/admin" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
           <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
+          <Route path="/avisos" element={<RequireAuth><Notifications /></RequireAuth>} />
+          <Route path="/conversas" element={<RequireAuth><Conversations /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

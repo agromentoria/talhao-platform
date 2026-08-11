@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
+const { notifyUsers, getFarmInvestorIds, getPlotInvestorIds } = require("../notify");
 
 const router = express.Router();
 
@@ -86,7 +87,20 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
      VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8) RETURNING *`,
     [farm_id, nome, grao, area, safra, valor, cotas, retorno]
   );
-  res.status(201).json({ plot: rows[0] });
+  const plot = rows[0];
+
+  // avisa quem já investiu nessa fazenda sobre a novidade
+  const investorIds = await getFarmInvestorIds(pool, farm_id);
+  await notifyUsers(pool, investorIds, {
+    senderRole: "sistema",
+    farmId: farm_id,
+    plotId: plot.id,
+    type: "novo_talhao",
+    title: `Novo talhão em ${owned.farm.name}`,
+    body: `A fazenda ${owned.farm.name} publicou um novo talhão de ${grao} (${plot.nome}) disponível para investimento.`,
+  });
+
+  res.status(201).json({ plot });
 }));
 
 router.patch("/:id/progress", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
@@ -128,6 +142,19 @@ router.patch("/:id/progress", requireAuth, requireRole("fazenda", "admin"), asyn
   }
 
   const { rows } = await pool.query("SELECT * FROM plots WHERE id = $1", [plot.id]);
+
+  const investorIds = await getPlotInvestorIds(pool, plot.id);
+  await notifyUsers(pool, investorIds, {
+    senderRole: "sistema",
+    farmId: plot.farm_id,
+    plotId: plot.id,
+    type: "atualizacao_safra",
+    title: `Atualização em ${plot.nome}`,
+    body: nota
+      ? `${FASES[fase]} · ${prog}% da safra. ${nota}`
+      : `O talhão avançou para a fase "${FASES[fase]}" (${prog}% da safra).`,
+  });
+
   res.json({ plot: rows[0] });
 }));
 

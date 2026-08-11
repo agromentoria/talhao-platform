@@ -1,10 +1,10 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Bell, User, LayoutGrid, Wallet, Settings, ShieldCheck, LogOut } from "lucide-react";
+import { Bell, User, LayoutGrid, Wallet, Settings, ShieldCheck, LogOut, MessageCircle } from "lucide-react";
 import { COLORS, BACKGROUNDS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 
 export default function TopNav() {
-  const { user, logout } = useAuth();
+  const { user, logout, unreadCount } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -12,6 +12,7 @@ export default function TopNav() {
   if (user?.role === "investidor") items.push({ to: "/carteira", label: "Meus investimentos", icon: Wallet });
   if (user?.role === "fazenda") items.push({ to: "/fazenda", label: "Painel da fazenda", icon: Settings });
   if (user?.role === "admin") items.push({ to: "/admin", label: "Administração", icon: ShieldCheck });
+  if (user?.role === "investidor" || user?.role === "fazenda") items.push({ to: "/conversas", label: "Conversas", icon: MessageCircle });
 
   return (
     <div style={{
@@ -43,7 +44,16 @@ export default function TopNav() {
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {user ? (
             <>
-              <Bell size={18} color="#fff" />
+              <Link to="/avisos" style={{ position: "relative", display: "flex" }} title="Avisos">
+                <Bell size={18} color="#fff" />
+                {unreadCount > 0 && (
+                  <span style={{
+                    position: "absolute", top: -6, right: -6, minWidth: 15, height: 15, borderRadius: 8,
+                    background: COLORS.danger, color: "#fff", fontSize: 9.5, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
+                  }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
+                )}
+              </Link>
               <Link to="/perfil" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }} title="Seu perfil">
                 <div style={{ width: 30, height: 30, borderRadius: "50%", background: COLORS.orange, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                   {user.avatar_data ? (

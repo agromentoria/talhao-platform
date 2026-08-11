@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Percent, Plus, Trash2, RotateCcw, Pencil } from "lucide-react";
-import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, fmtBRL } from "../theme";
+import { Percent, Plus, Trash2, RotateCcw, Pencil, Info } from "lucide-react";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
 import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -9,6 +9,7 @@ export default function FarmDashboard() {
   const { user } = useAuth();
   const [farm, setFarm] = useState(null);
   const [plots, setPlots] = useState([]);
+  const [references, setReferences] = useState([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -16,6 +17,7 @@ export default function FarmDashboard() {
   function load() {
     api.getFarm(user.farm_id).then((data) => setFarm(data.farm)).catch((err) => setError(err.message));
     api.myFarmPlots().then((data) => setPlots(data.plots)).catch((err) => setError(err.message));
+    api.commodityReferences().then((data) => setReferences(data.references)).catch(() => {});
   }
 
   useEffect(() => { load(); }, []);
@@ -56,9 +58,12 @@ export default function FarmDashboard() {
           <Percent size={12} /> sua comissão sobre o lucro de cada colheita
         </label>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <input type="range" min={0} max={30} value={farm.commission_pct} onChange={(e) => updateCommission(Number(e.target.value))} />
+          <input type="range" min={0} max={30} value={farm.commission_pct} onChange={(e) => updateCommission(Number(e.target.value))} style={{ flex: 1 }} />
           <span style={{ fontSize: 16, fontWeight: 600, color: COLORS.leaf, minWidth: 40 }}>{farm.commission_pct}%</span>
         </div>
+        <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "10px 0 0", display: "flex", alignItems: "center", gap: 5 }}>
+          <Info size={12} /> Quanto menor sua comissão, maior o repasse ao investidor — fazendas com melhor retorno atraem mais investimento.
+        </p>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -72,11 +77,11 @@ export default function FarmDashboard() {
         </button>
       </div>
 
-      {showForm && <NewPlotForm farmId={farm.id} onCreated={() => { setShowForm(false); load(); }} setError={setError} />}
+      {showForm && <NewPlotForm farmId={farm.id} references={references} onCreated={() => { setShowForm(false); load(); }} setError={setError} />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 14 }}>
         {plots.map((p) => (
-          <PlotAdminCard key={p.id} plot={p} onChanged={load} setNotice={setNotice} setError={setError} />
+          <PlotAdminCard key={p.id} plot={p} references={references} onChanged={load} setNotice={setNotice} setError={setError} />
         ))}
         {plots.length === 0 && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum talhão cadastrado ainda.</p>}
       </div>
@@ -84,9 +89,24 @@ export default function FarmDashboard() {
   );
 }
 
-function NewPlotForm({ farmId, onCreated, setError }) {
-  const [form, setForm] = useState({ nome: "", grao: "Soja", area_ha: "", safra: "", cota_valor: "", cotas_totais: "", previsao_retorno: "" });
+function NewPlotForm({ farmId, references, onCreated, setError }) {
+  const [form, setForm] = useState({ nome: "", grao: "Soja", area_ha: "", safra: "", previsao_retorno: "" });
+  const [cotaValor, setCotaValor] = useState("");
+  const [cotasTotais, setCotasTotais] = useState("");
+  const [manual, setManual] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const ref = references.find((r) => r.grao === form.grao);
+  const unidade = ref?.unidade || "saca";
+
+  useEffect(() => {
+    if (manual || !ref || !form.area_ha) return;
+    const area = Number(form.area_ha);
+    if (Number.isNaN(area) || area <= 0) return;
+    setCotaValor(String(ref.preco_unidade));
+    setCotasTotais(String(Math.round(area * ref.produtividade_ha)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.grao, form.area_ha, references]);
 
   function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
 
@@ -94,7 +114,7 @@ function NewPlotForm({ farmId, onCreated, setError }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.createPlot({ farm_id: farmId, ...form });
+      await api.createPlot({ farm_id: farmId, ...form, cota_valor: cotaValor, cotas_totais: cotasTotais, unidade });
       onCreated();
     } catch (err) {
       setError(err.message);
@@ -102,6 +122,9 @@ function NewPlotForm({ farmId, onCreated, setError }) {
       setSaving(false);
     }
   }
+
+  const producaoTotal = cotasTotais ? Number(cotasTotais) : 0;
+  const captacaoTotal = cotaValor && cotasTotais ? Number(cotaValor) * Number(cotasTotais) : 0;
 
   return (
     <form onSubmit={submit} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -114,9 +137,42 @@ function NewPlotForm({ farmId, onCreated, setError }) {
       </div>
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <Field label="Safra (ex: 2026/27)" value={form.safra} onChange={(v) => update("safra", v)} required />
-      <Field label="Valor da cota (R$)" type="number" value={form.cota_valor} onChange={(v) => update("cota_valor", v)} required />
-      <Field label="Total de cotas" type="number" value={form.cotas_totais} onChange={(v) => update("cotas_totais", v)} required />
-      <Field label="Retorno estimado (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+
+      <div style={{ gridColumn: "1 / -1", background: COLORS.bg, borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ fontSize: 12, color: COLORS.soilLight, margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
+            <Info size={13} /> Calculado com base na referência de mercado — pode ajustar se souber a produtividade real do seu talhão.
+          </p>
+          <button type="button" onClick={() => setManual((m) => !m)} style={{ fontSize: 11.5, color: COLORS.orange, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
+            {manual ? "usar cálculo automático" : "editar manualmente"}
+          </button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field
+            label={`Preço por ${UNIT_LABEL[unidade]} (R$)`}
+            type="number" value={cotaValor}
+            onChange={setCotaValor}
+            required
+            readOnly={!manual}
+            style={manual ? {} : { opacity: 0.75, background: COLORS.line }}
+          />
+          <Field
+            label={`Total de ${unitPlural(unidade, 2)} previstas`}
+            type="number" value={cotasTotais}
+            onChange={setCotasTotais}
+            required
+            readOnly={!manual}
+            style={manual ? {} : { opacity: 0.75, background: COLORS.line }}
+          />
+        </div>
+        {producaoTotal > 0 && (
+          <p style={{ fontSize: 12, color: COLORS.soil, margin: 0 }}>
+            Produção estimada: <strong>{producaoTotal.toLocaleString("pt-BR")} {unitPlural(unidade, producaoTotal)}</strong> · Captação total: <strong>{fmtBRL(captacaoTotal)}</strong>
+          </p>
+        )}
+      </div>
+
+      <Field label="Retorno estimado ao investidor (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
       <div style={{ gridColumn: "1 / -1" }}>
         <button type="submit" disabled={saving} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: COLORS.orange, color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
           {saving ? "Publicando..." : "Publicar talhão"}
@@ -134,7 +190,7 @@ const STATUS_LABEL = {
   arquivado: "arquivado",
 };
 
-function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
+function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
   const [fase, setFase] = useState(plot.fase_atual);
   const [progresso, setProgresso] = useState(plot.progresso);
@@ -201,7 +257,7 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
           <div>
             <p style={{ fontWeight: 500, fontSize: 14, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.grao}</p>
             <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0" }}>
-              {plot.cotas_totais - plot.cotas_disponiveis}/{plot.cotas_totais} cotas vendidas · {fmtBRL((plot.cotas_totais - plot.cotas_disponiveis) * plot.cota_valor)} captados
+              {(plot.cotas_totais - plot.cotas_disponiveis).toLocaleString("pt-BR")}/{plot.cotas_totais.toLocaleString("pt-BR")} {unitPlural(plot.unidade, plot.cotas_totais)} vendidas · {fmtBRL((plot.cotas_totais - plot.cotas_disponiveis) * plot.cota_valor)} captados
             </p>
           </div>
         </div>
@@ -245,14 +301,31 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
             Salvar andamento
           </button>
 
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "flex-end", gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Retorno final (%)</label>
-              <input type="number" value={retornoFinal} onChange={(e) => setRetornoFinal(Number(e.target.value))} style={{ ...inputStyle, marginTop: 4, width: 90 }} />
+          <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Retorno final (%)</label>
+                <input type="number" value={retornoFinal} onChange={(e) => setRetornoFinal(Number(e.target.value))} style={{ ...inputStyle, marginTop: 4, width: 90 }} />
+              </div>
+              <button
+                onClick={finalize}
+                disabled={saving || plot.fase_atual !== FASES.length - 1}
+                title={plot.fase_atual !== FASES.length - 1 ? `Atualize e salve a fase para "${FASES[FASES.length - 1]}" antes de finalizar` : ""}
+                style={{
+                  padding: "9px 14px", borderRadius: 8, border: "none",
+                  background: plot.fase_atual !== FASES.length - 1 ? COLORS.line : COLORS.clay,
+                  color: plot.fase_atual !== FASES.length - 1 ? COLORS.soilLight : "#fff",
+                  fontSize: 13, fontWeight: 500, cursor: plot.fase_atual !== FASES.length - 1 ? "not-allowed" : "pointer",
+                }}
+              >
+                Finalizar colheita e pagar
+              </button>
             </div>
-            <button onClick={finalize} disabled={saving} style={{ padding: "9px 14px", borderRadius: 8, border: "none", background: COLORS.clay, color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-              Finalizar colheita e pagar
-            </button>
+            {plot.fase_atual !== FASES.length - 1 && (
+              <p style={{ fontSize: 10.5, color: COLORS.orangeDark, margin: 0, maxWidth: 220, textAlign: "right" }}>
+                Mude a fase para "{FASES[FASES.length - 1]}" e clique em "Salvar andamento" para liberar o pagamento.
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -266,7 +339,7 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
             <EditPlotForm plot={plot} onDone={() => { setShowEdit(false); onChanged(); }} setError={setError} />
           )}
           {showRestart && (
-            <RestartPlotForm plot={plot} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
+            <RestartPlotForm plot={plot} references={references} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
           )}
         </>
       )}
@@ -317,12 +390,24 @@ function EditPlotForm({ plot, onDone, setError }) {
   );
 }
 
-function RestartPlotForm({ plot, onDone, setError }) {
-  const [form, setForm] = useState({
-    nome: plot.nome, grao: plot.grao, area_ha: plot.area_ha, safra: "",
-    cota_valor: plot.cota_valor, cotas_totais: plot.cotas_totais, previsao_retorno: plot.previsao_retorno,
-  });
+function RestartPlotForm({ plot, references, onDone, setError }) {
+  const [form, setForm] = useState({ nome: plot.nome, grao: plot.grao, area_ha: plot.area_ha, safra: "", previsao_retorno: plot.previsao_retorno });
+  const [cotaValor, setCotaValor] = useState(String(plot.cota_valor));
+  const [cotasTotais, setCotasTotais] = useState(String(plot.cotas_totais));
+  const [manual, setManual] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const ref = references.find((r) => r.grao === form.grao);
+  const unidade = ref?.unidade || plot.unidade || "saca";
+
+  useEffect(() => {
+    if (manual || !ref || !form.area_ha) return;
+    const area = Number(form.area_ha);
+    if (Number.isNaN(area) || area <= 0) return;
+    setCotaValor(String(ref.preco_unidade));
+    setCotasTotais(String(Math.round(area * ref.produtividade_ha)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.grao, form.area_ha, references]);
 
   function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
 
@@ -330,7 +415,7 @@ function RestartPlotForm({ plot, onDone, setError }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.restartPlot(plot.id, form);
+      await api.restartPlot(plot.id, { ...form, cota_valor: cotaValor, cotas_totais: cotasTotais, unidade });
       onDone();
     } catch (err) {
       setError(err.message);
@@ -353,9 +438,21 @@ function RestartPlotForm({ plot, onDone, setError }) {
       </div>
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <Field label="Nova safra (ex: 2027/28)" value={form.safra} onChange={(v) => update("safra", v)} required />
-      <Field label="Valor da cota (R$)" type="number" value={form.cota_valor} onChange={(v) => update("cota_valor", v)} required />
-      <Field label="Total de cotas" type="number" value={form.cotas_totais} onChange={(v) => update("cotas_totais", v)} required />
-      <Field label="Retorno estimado (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+
+      <div style={{ gridColumn: "1 / -1", background: COLORS.bg, borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ fontSize: 12, color: COLORS.soilLight, margin: 0 }}>Calculado com base na referência de mercado.</p>
+          <button type="button" onClick={() => setManual((m) => !m)} style={{ fontSize: 11.5, color: COLORS.orange, background: "none", border: "none", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
+            {manual ? "usar cálculo automático" : "editar manualmente"}
+          </button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label={`Preço por ${UNIT_LABEL[unidade]} (R$)`} type="number" value={cotaValor} onChange={setCotaValor} required readOnly={!manual} style={manual ? {} : { opacity: 0.75, background: COLORS.line }} />
+          <Field label={`Total de ${unitPlural(unidade, 2)} previstas`} type="number" value={cotasTotais} onChange={setCotasTotais} required readOnly={!manual} style={manual ? {} : { opacity: 0.75, background: COLORS.line }} />
+        </div>
+      </div>
+
+      <Field label="Retorno estimado ao investidor (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
       <div style={{ gridColumn: "1 / -1" }}>
         <button type="submit" disabled={saving} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: COLORS.leaf, color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
           {saving ? "Reiniciando..." : "Reiniciar talhão com esses dados"}
@@ -365,11 +462,15 @@ function RestartPlotForm({ plot, onDone, setError }) {
   );
 }
 
-function Field({ label, value, onChange, type = "text", required }) {
+function Field({ label, value, onChange, type = "text", required, style, readOnly }) {
   return (
     <div>
       <label style={{ fontSize: 12, color: COLORS.soilLight }}>{label}</label>
-      <input type={type} required={required} value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, marginTop: 5 }} />
+      <input
+        type={type} required={required} value={value} readOnly={readOnly}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ ...inputStyle, marginTop: 5, ...style }}
+      />
     </div>
   );
 }

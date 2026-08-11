@@ -29,6 +29,8 @@ async function start() {
   const notificationRoutes = require("./routes/notifications");
   const conversationRoutes = require("./routes/conversations");
   const paymentRoutes = require("./routes/payments");
+  const commodityRoutes = require("./routes/commodities");
+  const { startReminderScheduler } = require("./reminders");
 
   const app = express();
 
@@ -59,6 +61,7 @@ async function start() {
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/conversations", conversationRoutes);
   app.use("/api/payments", paymentRoutes);
+  app.use("/api/commodities", commodityRoutes);
 
   app.use((err, req, res, next) => {
     console.error(err);
@@ -70,6 +73,7 @@ async function start() {
   const PORT = process.env.PORT || 4000;
   app.listen(PORT, () => {
     console.log(`[talhao-server] rodando em http://localhost:${PORT}`);
+    startReminderScheduler();
   });
 }
 

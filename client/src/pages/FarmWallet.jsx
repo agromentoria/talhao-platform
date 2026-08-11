@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Coins, TrendingUp, Warehouse, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
-import { COLORS, GRAIN_ICONS, fmtBRL } from "../theme";
+import { COLORS, GRAIN_ICONS, unitPlural, fmtBRL } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 
@@ -85,7 +85,7 @@ export default function FarmWallet() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil, margin: 0 }}>
-                  {isVenda ? `Venda de cota · ${t.plot_nome}` : `Repasse de comissão · ${t.plot_nome}`}
+                  {isVenda ? `Venda de ${unitPlural(t.unidade, 1)} · ${t.plot_nome}` : `Repasse de comissão · ${t.plot_nome}`}
                 </p>
                 <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0" }}>
                   {isVenda && t.investidor_nome ? `Comprado por ${t.investidor_nome} · ` : ""}{timeShort(t.created_at)}

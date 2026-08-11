@@ -208,7 +208,7 @@ router.get("/transactions/me", requireAuth, asyncHandler(async (req, res) => {
 // vendas de cotas dos talhões da fazenda + repasses de comissão recebidos por ela
 router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT t.*, p.nome as plot_nome, p.grao, u.name as investidor_nome
+    `SELECT t.*, p.nome as plot_nome, p.grao, p.unidade, u.name as investidor_nome
      FROM transactions t
      LEFT JOIN plots p ON p.id = t.plot_id
      LEFT JOIN users u ON u.id = t.user_id AND t.type = 'compra_cota'

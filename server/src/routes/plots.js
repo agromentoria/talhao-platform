@@ -4,6 +4,7 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers, getFarmInvestorIds, getPlotInvestorIds } = require("../notify");
 const { recordTransaction } = require("../ledger");
+const { getAppCommissionPct } = require("../settings");
 
 const router = express.Router();
 
@@ -15,7 +16,6 @@ const FASES = [
   "Ponto de colheita",
   "Colheita",
 ];
-const APP_COMMISSION_PCT = Number(process.env.APP_COMMISSION_PCT || 5);
 
 async function getFarmOwned(farmId, user) {
   const { rows } = await pool.query("SELECT * FROM farms WHERE id = $1", [farmId]);
@@ -28,6 +28,7 @@ async function getFarmOwned(farmId, user) {
 
 router.get("/", asyncHandler(async (req, res) => {
   const { grao } = req.query;
+  const appCommissionPct = await getAppCommissionPct();
   let sql = `
     SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct
     FROM plots p
@@ -41,13 +42,14 @@ router.get("/", asyncHandler(async (req, res) => {
   }
   sql += " ORDER BY p.created_at DESC";
   const { rows } = await pool.query(sql, params);
-  res.json({ plots: rows, app_commission_pct: APP_COMMISSION_PCT });
+  res.json({ plots: rows, app_commission_pct: appCommissionPct });
 }));
 
 // fazenda: todos os seus talhões, em qualquer status (inclusive já colhidos,
 // pagos e arquivados), para gestão — diferente da vitrine pública, que
 // esconde os já colhidos
 router.get("/farm/mine", requireAuth, requireRole("fazenda"), asyncHandler(async (req, res) => {
+  const appCommissionPct = await getAppCommissionPct();
   const { rows } = await pool.query(
     `SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct
      FROM plots p JOIN farms f ON f.id = p.farm_id
@@ -55,10 +57,11 @@ router.get("/farm/mine", requireAuth, requireRole("fazenda"), asyncHandler(async
      ORDER BY p.created_at DESC`,
     [req.user.farm_id]
   );
-  res.json({ plots: rows, app_commission_pct: APP_COMMISSION_PCT });
+  res.json({ plots: rows, app_commission_pct: appCommissionPct });
 }));
 
 router.get("/:id", asyncHandler(async (req, res) => {
+  const appCommissionPct = await getAppCommissionPct();
   const { rows } = await pool.query(
     `SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct, f.status as farm_status
      FROM plots p JOIN farms f ON f.id = p.farm_id WHERE p.id = $1`,
@@ -72,13 +75,14 @@ router.get("/:id", asyncHandler(async (req, res) => {
     [req.params.id]
   );
 
-  res.json({ plot, historico: historico.rows, app_commission_pct: APP_COMMISSION_PCT });
+  res.json({ plot, historico: historico.rows, app_commission_pct: appCommissionPct });
 }));
 
 router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
-  const { farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, previsao_retorno } = req.body || {};
+  const { farm_id, nome, grao, area_ha, safra, previsao_retorno } = req.body || {};
+  let { cota_valor, cotas_totais, unidade } = req.body || {};
 
-  if (!farm_id || !nome || !grao || !area_ha || !safra || !cota_valor || !cotas_totais || previsao_retorno == null) {
+  if (!farm_id || !nome || !grao || !area_ha || !safra || previsao_retorno == null) {
     return res.status(400).json({ error: "Preencha todos os campos do talhão." });
   }
 
@@ -88,19 +92,39 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
     return res.status(403).json({ error: "Sua fazenda ainda não foi aprovada pela administração do Talhão." });
   }
 
-  const cotas = Number(cotas_totais);
-  const valor = Number(cota_valor);
   const area = Number(area_ha);
   const retorno = Number(previsao_retorno);
-
-  if ([cotas, valor, area, retorno].some((n) => Number.isNaN(n)) || cotas <= 0 || valor <= 0 || area <= 0) {
+  if (Number.isNaN(area) || area <= 0 || Number.isNaN(retorno)) {
     return res.status(400).json({ error: "Valores numéricos inválidos." });
   }
 
+  // se o preço por unidade, a quantidade de unidades, ou a unidade em si
+  // não vierem preenchidos, usa a referência de mercado do grão (preço
+  // aproximado × produtividade média estimada × hectares do talhão)
+  if (!cota_valor || !cotas_totais || !unidade) {
+    const refResult = await pool.query("SELECT * FROM commodity_references WHERE grao = $1", [grao]);
+    const ref = refResult.rows[0];
+    if (!ref) {
+      return res.status(400).json({ error: "Não há referência de mercado cadastrada para este grão. Informe preço e quantidade manualmente ou peça à administração para cadastrar." });
+    }
+    unidade = unidade || ref.unidade;
+    cota_valor = cota_valor || ref.preco_unidade;
+    cotas_totais = cotas_totais || Math.round(area * ref.produtividade_ha);
+  }
+
+  const cotas = Number(cotas_totais);
+  const valor = Number(cota_valor);
+  if (Number.isNaN(cotas) || cotas <= 0 || Number.isNaN(valor) || valor <= 0) {
+    return res.status(400).json({ error: "Valores numéricos inválidos." });
+  }
+  if (!["saca", "fardo", "arroba"].includes(unidade)) {
+    return res.status(400).json({ error: "Unidade inválida. Use saca, fardo ou arroba." });
+  }
+
   const { rows } = await pool.query(
-    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8) RETURNING *`,
-    [farm_id, nome, grao, area, safra, valor, cotas, retorno]
+    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9) RETURNING *`,
+    [farm_id, nome, grao, area, safra, valor, cotas, retorno, unidade]
   );
   const plot = rows[0];
 
@@ -186,10 +210,16 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
   if (plot.status === "pago") {
     return res.status(409).json({ error: "Este talhão já foi pago aos investidores." });
   }
+  if (plot.fase_atual !== FASES.length - 1) {
+    return res.status(409).json({
+      error: `Atualize a fase do talhão para "${FASES[FASES.length - 1]}" antes de finalizar a colheita e pagar os investidores.`,
+    });
+  }
 
   const owned = await getFarmOwned(plot.farm_id, req.user);
   if (owned.error) return res.status(403).json({ error: owned.error });
   const farm = owned.farm;
+  const appCommissionPct = await getAppCommissionPct();
 
   const client = await pool.connect();
   let investidoresPagos = 0;
@@ -209,7 +239,7 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
       const valorBruto = inv.valor_investido * (1 + retorno / 100);
       const lucroBruto = valorBruto - inv.valor_investido;
       const comissaoFazenda = Math.max(0, lucroBruto) * (farm.commission_pct / 100);
-      const comissaoApp = Math.max(0, lucroBruto) * (APP_COMMISSION_PCT / 100);
+      const comissaoApp = Math.max(0, lucroBruto) * (appCommissionPct / 100);
       const valorLiquido = valorBruto - comissaoFazenda - comissaoApp;
 
       await client.query(
@@ -365,7 +395,8 @@ router.delete("/:id", requireAuth, requireRole("fazenda", "admin"), asyncHandler
 // criar um novo, mantendo o histórico de pagamento anterior intacto
 // para o investidor, e volta a aparecer na vitrine para investimento
 router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
-  const { nome, grao, area_ha, safra, cota_valor, cotas_totais, previsao_retorno } = req.body || {};
+  const { nome, grao, area_ha, safra, previsao_retorno } = req.body || {};
+  let { cota_valor, cotas_totais, unidade } = req.body || {};
 
   const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
   const plot = existing.rows[0];
@@ -378,26 +409,44 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
     return res.status(409).json({ error: "Só é possível reiniciar um talhão que já foi colhido e pago aos investidores." });
   }
 
-  if (!nome || !grao || !area_ha || !safra || !cota_valor || !cotas_totais || previsao_retorno == null) {
+  if (!nome || !grao || !area_ha || !safra || previsao_retorno == null) {
     return res.status(400).json({ error: "Preencha todos os campos do novo ciclo do talhão." });
+  }
+
+  const area = Number(area_ha);
+  const retorno = Number(previsao_retorno);
+  if (Number.isNaN(area) || area <= 0 || Number.isNaN(retorno)) {
+    return res.status(400).json({ error: "Valores numéricos inválidos." });
+  }
+
+  if (!cota_valor || !cotas_totais || !unidade) {
+    const refResult = await pool.query("SELECT * FROM commodity_references WHERE grao = $1", [grao]);
+    const ref = refResult.rows[0];
+    if (!ref) {
+      return res.status(400).json({ error: "Não há referência de mercado cadastrada para este grão. Informe preço e quantidade manualmente." });
+    }
+    unidade = unidade || ref.unidade;
+    cota_valor = cota_valor || ref.preco_unidade;
+    cotas_totais = cotas_totais || Math.round(area * ref.produtividade_ha);
   }
 
   const cotas = Number(cotas_totais);
   const valor = Number(cota_valor);
-  const area = Number(area_ha);
-  const retorno = Number(previsao_retorno);
-  if ([cotas, valor, area, retorno].some((n) => Number.isNaN(n)) || cotas <= 0 || valor <= 0 || area <= 0) {
+  if (Number.isNaN(cotas) || cotas <= 0 || Number.isNaN(valor) || valor <= 0) {
     return res.status(400).json({ error: "Valores numéricos inválidos." });
+  }
+  if (!["saca", "fardo", "arroba"].includes(unidade)) {
+    return res.status(400).json({ error: "Unidade inválida. Use saca, fardo ou arroba." });
   }
 
   const { rows } = await pool.query(
     `UPDATE plots SET
        nome = $1, grao = $2, area_ha = $3, safra = $4, cota_valor = $5,
        cotas_totais = $6, cotas_disponiveis = $6, previsao_retorno = $7,
-       retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao'
-     WHERE id = $8
+       retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao', unidade = $8
+     WHERE id = $9
      RETURNING *`,
-    [nome, grao, area, safra, valor, cotas, retorno, plot.id]
+    [nome, grao, area, safra, valor, cotas, retorno, unidade, plot.id]
   );
 
   res.json({ plot: rows[0] });

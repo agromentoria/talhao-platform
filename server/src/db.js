@@ -225,7 +225,59 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id, created_at DESC);
+
+-- Referência de mercado por commodity: unidade de comercialização (saca,
+-- fardo ou arroba), preço de referência aproximado, e produtividade média
+-- estimada por hectare. Editável pela administração — não é uma cotação
+-- em tempo real, é um ponto de partida a ser atualizado periodicamente.
+CREATE TABLE IF NOT EXISTS commodity_references (
+  grao TEXT PRIMARY KEY,
+  unidade TEXT NOT NULL,
+  preco_unidade REAL NOT NULL,
+  produtividade_ha REAL NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Configurações gerais da plataforma (linha única). Move a comissão da
+-- Meu Talhão para o banco, para o administrador poder editar pelo app
+-- em vez de depender de variável de ambiente fixa.
+CREATE TABLE IF NOT EXISTS platform_settings (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  app_commission_pct REAL NOT NULL DEFAULT 5,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (id = 1)
+);
+
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS unidade TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ;
 `;
+
+const COMMODITY_DEFAULTS = [
+  // grao, unidade, preco_unidade (R$), produtividade_ha (unidades/hectare)
+  // valores aproximados de referência — ajuste na administração conforme o mercado real
+  ["Soja", "saca", 130, 60],
+  ["Milho", "saca", 60, 100],
+  ["Trigo", "saca", 75, 50],
+  ["Arroz", "saca", 95, 110],
+  ["Feijão", "saca", 220, 27],
+  ["Algodão", "arroba", 140, 280],
+];
+
+async function ensureCommodityReferences() {
+  for (const [grao, unidade, preco, produtividade] of COMMODITY_DEFAULTS) {
+    await pool.query(
+      `INSERT INTO commodity_references (grao, unidade, preco_unidade, produtividade_ha)
+       VALUES ($1, $2, $3, $4) ON CONFLICT (grao) DO NOTHING`,
+      [grao, unidade, preco, produtividade]
+    );
+  }
+}
+
+async function ensurePlatformSettings() {
+  await pool.query(
+    `INSERT INTO platform_settings (id, app_commission_pct) VALUES (1, 5) ON CONFLICT (id) DO NOTHING`
+  );
+}
 
 async function ensureAdmin() {
   const { rows } = await pool.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
@@ -260,6 +312,8 @@ async function ensureAdmin() {
 async function initDb() {
   await pool.query(SCHEMA);
   await ensureAdmin();
+  await ensureCommodityReferences();
+  await ensurePlatformSettings();
 }
 
 module.exports = { pool, initDb };

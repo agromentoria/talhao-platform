@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
-import { COLORS, fmtBRL } from "../theme";
+import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, Settings2 } from "lucide-react";
+import { COLORS, GRAIN_ICONS, UNIT_LABEL, fmtBRL } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 
@@ -17,12 +17,16 @@ export default function AdminDashboard() {
   const [transactions, setTransactions] = useState([]);
   const [totals, setTotals] = useState({});
   const [typeFilter, setTypeFilter] = useState("");
+  const [appCommission, setAppCommission] = useState(null);
+  const [references, setReferences] = useState([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   function load() {
     api.overview().then(setOverview).catch((err) => setError(err.message));
     api.adminFarms().then((data) => setFarms(data.farms)).catch((err) => setError(err.message));
+    api.platformSettings().then((data) => setAppCommission(data.app_commission_pct)).catch((err) => setError(err.message));
+    api.commodityReferences().then((data) => setReferences(data.references)).catch((err) => setError(err.message));
   }
 
   function loadTransactions() {
@@ -39,6 +43,25 @@ export default function AdminDashboard() {
       await api.setFarmStatus(id, status);
       setNotice(status === "aprovada" ? "Fazenda aprovada." : "Fazenda suspensa.");
       load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function saveAppCommission(pct) {
+    setAppCommission(pct);
+    try {
+      await api.updatePlatformSettings(pct);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function saveReference(grao, payload) {
+    try {
+      const data = await api.updateCommodityReference(grao, payload);
+      setReferences((refs) => refs.map((r) => (r.grao === grao ? data.reference : r)));
+      setNotice(`Referência de ${grao} atualizada.`);
     } catch (err) {
       setError(err.message);
     }
@@ -62,6 +85,37 @@ export default function AdminDashboard() {
           <Stat label="Investidores" value={overview.investidores} icon={Users} />
         </div>
       )}
+
+      <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 6 }}>
+        <Settings2 size={15} /> Configurações de mercado
+      </p>
+
+      {appCommission != null && (
+        <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: COLORS.soilLight, display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+            <Percent size={12} /> comissão da Meu Talhão sobre o lucro de cada colheita
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input type="range" min={0} max={30} value={appCommission} onChange={(e) => saveAppCommission(Number(e.target.value))} style={{ flex: 1 }} />
+            <span style={{ fontSize: 16, fontWeight: 600, color: COLORS.leaf, minWidth: 40 }}>{appCommission}%</span>
+          </div>
+          <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "8px 0 0" }}>
+            Aplicada automaticamente sobre o lucro de toda colheita finalizada, além da comissão que cada fazenda define para si.
+          </p>
+        </div>
+      )}
+
+      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 30 }}>
+        <p style={{ fontSize: 12.5, color: COLORS.soil, fontWeight: 600, margin: "0 0 4px" }}>Referência de mercado por grão</p>
+        <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
+          Usada para calcular automaticamente o preço por unidade e a quantidade disponível ao publicar um talhão (área × produtividade estimada). Não é uma cotação em tempo real — atualize periodicamente conforme o mercado.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {references.map((ref) => (
+            <CommodityReferenceRow key={ref.grao} reference={ref} onSave={saveReference} />
+          ))}
+        </div>
+      </div>
 
       <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 12px" }}>Fazendas cadastradas</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 30 }}>
@@ -131,6 +185,56 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+function CommodityReferenceRow({ reference, onSave }) {
+  const [unidade, setUnidade] = useState(reference.unidade);
+  const [preco, setPreco] = useState(String(reference.preco_unidade));
+  const [produtividade, setProdutividade] = useState(String(reference.produtividade_ha));
+  const [saving, setSaving] = useState(false);
+  const dirty = unidade !== reference.unidade || preco !== String(reference.preco_unidade) || produtividade !== String(reference.produtividade_ha);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave(reference.grao, { unidade, preco_unidade: Number(preco), produtividade_ha: Number(produtividade) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", padding: "10px 0", borderBottom: `1px solid ${COLORS.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 110 }}>
+        <img src={GRAIN_ICONS[reference.grao]} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil }}>{reference.grao}</span>
+      </div>
+      <div style={{ width: 100 }}>
+        <label style={{ fontSize: 10.5, color: COLORS.soilLight }}>Unidade</label>
+        <select value={unidade} onChange={(e) => setUnidade(e.target.value)} style={miniInputStyle}>
+          <option value="saca">saca</option>
+          <option value="fardo">fardo</option>
+          <option value="arroba">arroba</option>
+        </select>
+      </div>
+      <div style={{ width: 110 }}>
+        <label style={{ fontSize: 10.5, color: COLORS.soilLight }}>Preço (R$/{UNIT_LABEL[unidade]})</label>
+        <input type="number" value={preco} onChange={(e) => setPreco(e.target.value)} style={miniInputStyle} />
+      </div>
+      <div style={{ width: 130 }}>
+        <label style={{ fontSize: 10.5, color: COLORS.soilLight }}>Produtividade ({UNIT_LABEL[unidade]}/ha)</label>
+        <input type="number" value={produtividade} onChange={(e) => setProdutividade(e.target.value)} style={miniInputStyle} />
+      </div>
+      <button onClick={save} disabled={!dirty || saving} style={{
+        padding: "8px 14px", borderRadius: 8, border: "none", fontSize: 12.5, fontWeight: 600, cursor: dirty ? "pointer" : "default",
+        background: dirty ? COLORS.orange : COLORS.line, color: dirty ? "#fff" : COLORS.soilLight,
+      }}>
+        {saving ? "Salvando..." : "Salvar"}
+      </button>
+    </div>
+  );
+}
+
+const miniInputStyle = { width: "100%", marginTop: 3, padding: "7px 8px", borderRadius: 7, border: `1px solid ${COLORS.line}`, fontSize: 12.5, background: "#fff", fontFamily: "inherit" };
 
 function Stat({ label, value, icon: Icon }) {
   return (

@@ -74,6 +74,18 @@ export const BACKGROUNDS = {
   green: "/bg-farm-green.svg",
 };
 
+// Unidade de comercialização de cada grão (usada em vez de "cota" genérica)
+export const UNIT_LABEL = {
+  saca: "saca",
+  fardo: "fardo",
+  arroba: "arroba",
+};
+
+export function unitPlural(unidade, n) {
+  const label = UNIT_LABEL[unidade] || "cota";
+  return n === 1 ? label : `${label}s`;
+}
+
 export function fmtBRL(n) {
   return Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
 }

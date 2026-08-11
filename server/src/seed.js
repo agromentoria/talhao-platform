@@ -27,15 +27,21 @@ async function upsertFarm(name, location, ownerId, commission) {
   return farm;
 }
 
-async function upsertPlot(farmId, nome, grao, area, safra, cotaValor, cotasTotais, retorno) {
+async function upsertPlot(farmId, nome, grao, area, safra, retorno) {
   const existing = await pool.query("SELECT * FROM plots WHERE farm_id = $1 AND nome = $2", [farmId, nome]);
   if (existing.rows.length) return existing.rows[0];
 
+  const refResult = await pool.query("SELECT * FROM commodity_references WHERE grao = $1", [grao]);
+  const ref = refResult.rows[0];
+  const unidade = ref.unidade;
+  const cotaValor = ref.preco_unidade;
+  const cotasTotais = Math.round(area * ref.produtividade_ha);
   const disponiveis = Math.round(cotasTotais * 0.7);
+
   const { rows } = await pool.query(
-    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-    [farmId, nome, grao, area, safra, cotaValor, cotasTotais, disponiveis, retorno]
+    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [farmId, nome, grao, area, safra, cotaValor, cotasTotais, disponiveis, retorno, unidade]
   );
   return rows[0];
 }
@@ -45,13 +51,13 @@ async function main() {
 
   const boaVistaOwner = await upsertFarmOwner("Carlos Bittencourt", "contato@fazendaboavista.com.br", "senha12345");
   const boaVista = await upsertFarm("Fazenda Boa Vista", "Rio Verde, GO", boaVistaOwner.id, 12);
-  await upsertPlot(boaVista.id, "Talhão 04", "Soja", 180, "2026/27", 240, 900, 18);
-  await upsertPlot(boaVista.id, "Talhão 07", "Trigo", 140, "2026/27", 155, 500, 12);
+  await upsertPlot(boaVista.id, "Talhão 04", "Soja", 180, "2026/27", 18);
+  await upsertPlot(boaVista.id, "Talhão 07", "Trigo", 140, "2026/27", 12);
 
   const santaLuziaOwner = await upsertFarmOwner("Marina Ferreira", "contato@santaluzia.com.br", "senha12345");
   const santaLuzia = await upsertFarm("Fazenda Santa Luzia", "Sorriso, MT", santaLuziaOwner.id, 15);
-  await upsertPlot(santaLuzia.id, "Talhão 11", "Milho", 260, "2026/27", 190, 700, 15);
-  await upsertPlot(santaLuzia.id, "Talhão 19", "Feijão", 90, "2026/27", 130, 400, 16);
+  await upsertPlot(santaLuzia.id, "Talhão 11", "Milho", 260, "2026/27", 15);
+  await upsertPlot(santaLuzia.id, "Talhão 19", "Feijão", 90, "2026/27", 16);
 
   console.log("[seed] fazendas e talhões de exemplo criados.");
   console.log("[seed] login de exemplo (fazenda): contato@fazendaboavista.com.br / senha12345");

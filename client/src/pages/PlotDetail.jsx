@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, MapPin, QrCode, CreditCard, Plus } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
 import { ErrorBanner, ShareButton } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -78,7 +78,7 @@ export default function PlotDetail() {
     setBuying(true);
     try {
       await api.invest(plot.id, cotas, paymentType, paymentType === "pix" ? null : selectedCardId);
-      setSuccess(`Compra confirmada: ${cotas} cota(s) por ${fmtBRL(custoTotal)}.`);
+      setSuccess(`Compra confirmada: ${cotas} ${unitPlural(plot.unidade, cotas)} por ${fmtBRL(custoTotal)}.`);
       load();
     } catch (err) {
       setError(err.message);
@@ -184,12 +184,12 @@ export default function PlotDetail() {
             ) : (
               <>
                 <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Investir neste talhão</p>
-                <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px" }}>{plot.cotas_disponiveis} de {plot.cotas_totais} cotas disponíveis nesta fase</p>
+                <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px" }}>{plot.cotas_disponiveis.toLocaleString("pt-BR")} de {plot.cotas_totais.toLocaleString("pt-BR")} {unitPlural(plot.unidade, plot.cotas_totais)} disponíveis nesta fase</p>
 
                 <ErrorBanner message={error} />
                 {success && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 10 }}>{success}</p>}
 
-                <label style={{ fontSize: 12, color: COLORS.soilLight }}>Quantidade de cotas</label>
+                <label style={{ fontSize: 12, color: COLORS.soilLight }}>Quantidade de {unitPlural(plot.unidade, 2)}</label>
                 <input type="number" min={1} max={plot.cotas_disponiveis} value={cotas}
                   onChange={(e) => setCotas(Math.max(1, Math.min(plot.cotas_disponiveis, Number(e.target.value) || 1)))}
                   style={{ width: "100%", marginTop: 6, marginBottom: 14, padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 14 }} />
@@ -250,7 +250,7 @@ export default function PlotDetail() {
                   color: plot.cotas_disponiveis === 0 ? COLORS.soilLight : "#fff", fontSize: 14, fontWeight: 500,
                   cursor: plot.cotas_disponiveis === 0 ? "not-allowed" : "pointer",
                 }}>
-                  {plot.cotas_disponiveis === 0 ? "Cotas esgotadas" : buying ? "Processando..." : `Comprar ${cotas} cota${cotas > 1 ? "s" : ""} — ${fmtBRL(custoTotal)}`}
+                  {plot.cotas_disponiveis === 0 ? "Esgotado" : buying ? "Processando..." : `Comprar ${cotas} ${unitPlural(plot.unidade, cotas)} — ${fmtBRL(custoTotal)}`}
                 </button>
                 <p style={{ fontSize: 10.5, color: COLORS.soilLight, marginTop: 10, lineHeight: 1.5 }}>
                   Valores e retornos são estimativas e variam conforme a fase da safra e o preço do grão na colheita.

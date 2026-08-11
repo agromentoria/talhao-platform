@@ -2,10 +2,25 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
+const { getAppCommissionPct, setAppCommissionPct } = require("../settings");
 
 const router = express.Router();
 
 router.use(requireAuth, requireRole("admin"));
+
+router.get("/settings", asyncHandler(async (req, res) => {
+  const app_commission_pct = await getAppCommissionPct();
+  res.json({ app_commission_pct });
+}));
+
+router.put("/settings", asyncHandler(async (req, res) => {
+  const pct = Number(req.body?.app_commission_pct);
+  if (Number.isNaN(pct) || pct < 0 || pct > 30) {
+    return res.status(400).json({ error: "A comissão da plataforma deve ser um número entre 0 e 30." });
+  }
+  const settings = await setAppCommissionPct(pct);
+  res.json({ app_commission_pct: settings.app_commission_pct });
+}));
 
 router.get("/overview", asyncHandler(async (req, res) => {
   const totalCaptado = (await pool.query("SELECT COALESCE(SUM(valor_investido), 0) as total FROM investments")).rows[0].total;

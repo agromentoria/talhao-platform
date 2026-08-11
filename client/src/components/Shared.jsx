@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { MapPin, TrendingUp, Share2 } from "lucide-react";
-import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL, fmtBRL } from "../theme";
 
 export function ProgressBar({ value, color = COLORS.leaf, height = 6 }) {
   return (
@@ -67,7 +67,7 @@ export function PlotCard({ plot }) {
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "auto", paddingTop: 6 }}>
             <div>
-              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>cota a partir de</p>
+              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>{UNIT_LABEL[plot.unidade] || "cota"} a partir de</p>
               <p style={{ fontSize: 18, fontWeight: 600, color: COLORS.soil, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{fmtBRL(plot.cota_valor)}</p>
             </div>
             <div style={{ textAlign: "right" }}>
@@ -77,7 +77,7 @@ export function PlotCard({ plot }) {
               </p>
             </div>
           </div>
-          <div style={{ fontSize: 11, color: COLORS.soilLight }}>{pctVendido}% das cotas já captadas</div>
+          <div style={{ fontSize: 11, color: COLORS.soilLight }}>{pctVendido}% das {UNIT_LABEL[plot.unidade] ? `${UNIT_LABEL[plot.unidade]}s` : "cotas"} já captadas</div>
         </div>
       </div>
     </Link>

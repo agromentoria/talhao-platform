@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Coins, TrendingUp, Warehouse, ChevronRight } from "lucide-react";
-import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, fmtBRL } from "../theme";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, unitPlural, fmtBRL } from "../theme";
 import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 
@@ -63,7 +63,7 @@ export default function Portfolio() {
                   <div>
                     <p style={{ fontWeight: 500, fontSize: 14, color: COLORS.soil, margin: 0 }}>{inv.plot_nome} · {inv.farm_name}</p>
                     <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0" }}>
-                      {inv.cotas} cota(s) · {fmtBRL(inv.valor_investido)} investidos · {FASES[inv.fase_atual]}
+                      {inv.cotas} {unitPlural(inv.unidade, inv.cotas)} · {fmtBRL(inv.valor_investido)} investidos · {FASES[inv.fase_atual]}
                     </p>
                   </div>
                 </div>

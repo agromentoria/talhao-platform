@@ -141,7 +141,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
 
 router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT i.*, p.nome as plot_nome, p.grao, p.fase_atual, p.progresso, p.safra, p.status as plot_status,
+    `SELECT i.*, p.nome as plot_nome, p.grao, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade,
             f.name as farm_name,
             po.valor_bruto, po.comissao_fazenda, po.comissao_app, po.valor_liquido
      FROM investments i

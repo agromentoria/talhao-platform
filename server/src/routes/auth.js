@@ -34,7 +34,7 @@ function publicUser(user) {
 }
 
 router.post("/register", asyncHandler(async (req, res) => {
-  const { name, email, password, role, farmName, farmLocation } = req.body || {};
+  const { name, email, password, role, farmName, farmLocation, avatar } = req.body || {};
 
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "Preencha nome, e-mail, senha e tipo de conta." });
@@ -51,6 +51,14 @@ router.post("/register", asyncHandler(async (req, res) => {
   if (role === "fazenda" && (!farmName || !farmLocation)) {
     return res.status(400).json({ error: "Informe o nome e a localização da fazenda." });
   }
+  if (avatar) {
+    if (typeof avatar !== "string" || !avatar.startsWith("data:image/")) {
+      return res.status(400).json({ error: "Foto de perfil em formato inválido." });
+    }
+    if (avatar.length > 1_500_000) {
+      return res.status(400).json({ error: "Foto de perfil muito grande. Escolha uma imagem menor." });
+    }
+  }
 
   const emailLower = email.toLowerCase();
   const existing = await pool.query("SELECT id FROM users WHERE email = $1", [emailLower]);
@@ -64,8 +72,8 @@ router.post("/register", asyncHandler(async (req, res) => {
     await client.query("BEGIN");
 
     const userResult = await client.query(
-      "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *",
-      [name, emailLower, hash, role]
+      "INSERT INTO users (name, email, password_hash, role, avatar_data) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [name, emailLower, hash, role, avatar || null]
     );
     let user = userResult.rows[0];
 
@@ -110,6 +118,23 @@ router.post("/login", loginLimiter, asyncHandler(async (req, res) => {
 router.get("/me", requireAuth, asyncHandler(async (req, res) => {
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.id]);
   if (!rows.length) return res.status(404).json({ error: "Usuário não encontrado." });
+  res.json({ user: publicUser(rows[0]) });
+}));
+
+router.patch("/avatar", requireAuth, asyncHandler(async (req, res) => {
+  const { avatar } = req.body || {};
+  if (avatar) {
+    if (typeof avatar !== "string" || !avatar.startsWith("data:image/")) {
+      return res.status(400).json({ error: "Foto de perfil em formato inválido." });
+    }
+    if (avatar.length > 1_500_000) {
+      return res.status(400).json({ error: "Foto de perfil muito grande. Escolha uma imagem menor." });
+    }
+  }
+  const { rows } = await pool.query(
+    "UPDATE users SET avatar_data = $1 WHERE id = $2 RETURNING *",
+    [avatar || null, req.user.id]
+  );
   res.json({ user: publicUser(rows[0]) });
 }));
 

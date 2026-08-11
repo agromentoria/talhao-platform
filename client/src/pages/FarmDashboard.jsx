@@ -165,7 +165,7 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
     <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff", boxShadow: "0 2px 6px rgba(58,46,34,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <img src={GRAIN_ICONS[plot.grao]} alt={plot.grao} style={{ width: 26, height: 26, objectFit: "contain" }} />
           </div>
           <div>

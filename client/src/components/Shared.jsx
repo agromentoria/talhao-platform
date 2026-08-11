@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, TrendingUp } from "lucide-react";
+import { MapPin, TrendingUp, Share2 } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
 
 export function ProgressBar({ value, color = COLORS.leaf, height = 6 }) {
@@ -42,6 +43,12 @@ export function PlotCard({ plot }) {
           <div title={FASES[plot.fase_atual]} style={{ width: 30, height: 30, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(58,46,34,0.08)" }}>
             <img src={FASE_ICONS[plot.fase_atual]} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
           </div>
+          <ShareButton
+            compact
+            title={`${plot.nome} · ${plot.grao} — Meu Talhão`}
+            text={`Dá uma olhada nesse talhão de ${plot.grao} na Meu Talhão — dá pra investir direto na safra!`}
+            url={`${window.location.origin}/talhao/${plot.id}`}
+          />
         </div>
 
         <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
@@ -74,6 +81,55 @@ export function PlotCard({ plot }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+export function ShareButton({ title, text, url, style, compact }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleShare(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const shareUrl = url || window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url: shareUrl });
+      } catch {
+        // pessoa cancelou o compartilhamento — não faz nada
+      }
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard indisponível; sem fallback adicional
+    }
+  }
+
+  if (compact) {
+    return (
+      <button onClick={handleShare} title="Compartilhar com amigos" style={{
+        width: 32, height: 32, borderRadius: "50%", background: "#fff", border: "none", cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(58,46,34,0.12)", ...style,
+      }}>
+        <Share2 size={15} color={COLORS.soilLight} />
+      </button>
+    );
+  }
+
+  return (
+    <button onClick={handleShare} style={{
+      display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%",
+      padding: "11px 0", borderRadius: 12, border: `1px solid ${COLORS.line}`, background: "#fff",
+      color: COLORS.soil, fontSize: 13.5, fontWeight: 600, cursor: "pointer", ...style,
+    }}>
+      <Share2 size={15} />
+      {copied ? "Link copiado!" : "Compartilhar com amigos"}
+    </button>
   );
 }
 

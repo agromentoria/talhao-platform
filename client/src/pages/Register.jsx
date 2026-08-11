@@ -1,19 +1,45 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { Camera } from "lucide-react";
 import { COLORS, BACKGROUNDS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 import { ErrorBanner } from "../components/Shared";
+
+const MAX_AVATAR_BYTES = 1_200_000;
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [role, setRole] = useState("investidor");
   const [form, setForm] = useState({ name: "", email: "", password: "", farmName: "", farmLocation: "" });
+  const [avatar, setAvatar] = useState(null);
+  const [avatarError, setAvatarError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  function handleAvatarChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarError("");
+
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("Escolha um arquivo de imagem (JPG, PNG ou WEBP).");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError("Imagem muito grande. Escolha um arquivo de até 1,2 MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setAvatar(reader.result);
+    reader.onerror = () => setAvatarError("Não foi possível ler essa imagem. Tente outra.");
+    reader.readAsDataURL(file);
   }
 
   async function handleSubmit(e) {
@@ -21,7 +47,7 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      const user = await register({ ...form, role });
+      const user = await register({ ...form, role, avatar });
       if (user.role === "fazenda") navigate("/fazenda");
       else navigate("/carteira");
     } catch (err) {
@@ -37,9 +63,34 @@ export default function Register() {
       background: `${COLORS.headerGreen} url(${BACKGROUNDS.green}) center / cover no-repeat`,
       boxShadow: "0 8px 24px rgba(52,37,25,0.2)", color: "#fff", textAlign: "center",
     }}>
-      <div style={{ width: 96, height: 96, borderRadius: 20, background: "#fff", margin: "0 auto 18px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <img src="/logo-icon.svg" alt="" style={{ width: 76, height: 76 }} />
-      </div>
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          width: 96, height: 96, borderRadius: 20, background: "#fff", margin: "0 auto 10px", border: "none", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", padding: 0,
+        }}
+        title="Adicionar foto de perfil"
+      >
+        {avatar ? (
+          <img src={avatar} alt="Sua foto de perfil" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <img src="/logo-icon.svg" alt="" style={{ width: 76, height: 76 }} />
+        )}
+        <div style={{
+          position: "absolute", bottom: 0, right: 0, width: 30, height: 30, borderRadius: "50%",
+          background: COLORS.orange, display: "flex", alignItems: "center", justifyContent: "center",
+          border: "2px solid #fff",
+        }}>
+          <Camera size={14} color="#fff" />
+        </div>
+      </button>
+      <p style={{ fontSize: 11.5, opacity: 0.85, margin: "0 0 18px" }}>
+        {avatar ? "Toque para trocar a foto" : "Toque para adicionar sua foto (opcional)"}
+      </p>
+      {avatarError && <p style={{ fontSize: 12, color: "#FFD7D7", margin: "-12px 0 16px" }}>{avatarError}</p>}
+
       <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, fontWeight: 700, margin: "0 0 4px" }}>Criar uma conta</h1>
       <p style={{ fontSize: 13.5, opacity: 0.9, marginBottom: 22 }}>Escolha o tipo de conta que combina com você.</p>
 

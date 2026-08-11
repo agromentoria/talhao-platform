@@ -20,9 +20,8 @@ export default function TopNav() {
       borderRadius: "0 0 26px 26px", boxShadow: "0 4px 16px rgba(52,37,25,0.18)",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", flexWrap: "wrap", gap: 10 }}>
-        <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-          <img src="/logo-header.svg" alt="" style={{ height: 42 }} />
-          <span style={{ fontFamily: "'Baloo 2', cursive", fontSize: 24, fontWeight: 700, color: "#fff" }}>talhão</span>
+        <Link to="/" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+          <img src="/logo-header.svg" alt="Meu Talhão" style={{ height: 42 }} />
         </Link>
 
         <div className="desktop-nav-links" style={{ gap: 4, flexWrap: "wrap" }}>
@@ -45,8 +44,12 @@ export default function TopNav() {
           {user ? (
             <>
               <Bell size={18} color="#fff" />
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: COLORS.orange, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <User size={15} color="#fff" />
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: COLORS.orange, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                {user.avatar_data ? (
+                  <img src={user.avatar_data} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <User size={15} color="#fff" />
+                )}
               </div>
               <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{user.name.split(" ")[0]}</span>
               <button onClick={() => { logout(); navigate("/"); }} title="Sair" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}>

@@ -36,7 +36,7 @@ async function start() {
       credentials: true,
     })
   );
-  app.use(express.json({ limit: "200kb" }));
+  app.use(express.json({ limit: "2mb" })); // acomoda foto de perfil em base64
 
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,

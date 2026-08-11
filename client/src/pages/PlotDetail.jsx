@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
-import { ErrorBanner } from "../components/Shared";
+import { ErrorBanner, ShareButton } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -69,7 +69,9 @@ export default function PlotDetail() {
 
       <div style={{ marginBottom: 22 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <img src={GRAIN_ICONS[plot.grao]} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
+          <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#fff", boxShadow: "0 2px 6px rgba(58,46,34,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <img src={GRAIN_ICONS[plot.grao]} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
+          </span>
           <span style={{ fontSize: 13, fontWeight: 600, color: grainColor }}>{plot.grao}</span>
         </div>
         <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.farm_name}</h1>
@@ -92,7 +94,7 @@ export default function PlotDetail() {
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 76 }}>
                       <div style={{
                         width: 46, height: 46, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                        background: current ? COLORS.wheatLight : done ? `${COLORS.leaf}22` : COLORS.bg,
+                        background: current ? "#fff" : done ? `${COLORS.leaf}22` : COLORS.bg,
                         border: current ? `2px solid ${COLORS.wheat}` : done ? `2px solid ${COLORS.leaf}` : `2px solid ${COLORS.line}`,
                         opacity: done || current ? 1 : 0.5,
                       }}>
@@ -168,6 +170,16 @@ export default function PlotDetail() {
             <p style={{ fontSize: 10.5, color: COLORS.soilLight, marginTop: 10, lineHeight: 1.5 }}>
               Valores e retornos são estimativas e variam conforme a fase da safra e o preço do grão na colheita.
             </p>
+
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${COLORS.line}` }}>
+              <ShareButton
+                title={`${plot.nome} · ${plot.grao} — Meu Talhão`}
+                text={`Dá uma olhada nesse talhão de ${plot.grao} na Meu Talhão — dá pra investir direto na safra e acompanhar até a colheita!`}
+              />
+              <p style={{ fontSize: 10.5, color: COLORS.soilLight, marginTop: 8, textAlign: "center" }}>
+                Indique para amigos investirem com você
+              </p>
+            </div>
           </div>
         </div>
       </div>

@@ -20,8 +20,9 @@ export default function TopNav() {
       borderRadius: "0 0 26px 26px", boxShadow: "0 4px 16px rgba(52,37,25,0.18)",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", flexWrap: "wrap", gap: 10 }}>
-        <Link to="/" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
-          <img src="/logo-horizontal.svg" alt="Meu Talhão" style={{ height: 38, filter: "brightness(0) invert(1)" }} />
+        <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+          <img src="/logo-header.svg" alt="" style={{ height: 42 }} />
+          <span style={{ fontFamily: "'Baloo 2', cursive", fontSize: 24, fontWeight: 700, color: "#fff" }}>talhão</span>
         </Link>
 
         <div className="desktop-nav-links" style={{ gap: 4, flexWrap: "wrap" }}>

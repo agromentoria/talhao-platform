@@ -11,6 +11,7 @@ export default function BottomNav() {
   const items = [{ to: "/", label: "início", icon: LayoutGrid }];
   if (user?.role === "investidor") items.push({ to: "/carteira", label: "carteira", icon: Wallet });
   if (user?.role === "fazenda") items.push({ to: "/fazenda", label: "fazenda", icon: Settings });
+  if (user?.role === "fazenda") items.push({ to: "/fazenda/carteira", label: "carteira", icon: Wallet });
   if (user?.role === "admin") items.push({ to: "/admin", label: "admin", icon: ShieldCheck });
   if (user) items.push({ to: "/conversas", label: "conversas", icon: MessageCircle, badge: unreadMessages });
   items.push({ to: user ? "/avisos" : "/login", label: user ? "avisos" : "entrar", icon: Bell, badge: user ? unreadCount : 0 });

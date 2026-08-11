@@ -79,6 +79,7 @@ export const api = {
   getPayoutAccount: () => request("/payments/payout-account"),
   savePayoutAccount: (payload) => request("/payments/payout-account", { method: "PUT", body: payload }),
   myTransactions: () => request("/payments/transactions/me"),
+  farmTransactions: () => request("/payments/transactions/farm"),
   adminTransactions: (type) => request(`/admin/transactions${type ? `?type=${type}` : ""}`),
   myConversations: () => request("/conversations/me"),
   startConversation: (user_id) => request("/conversations", { method: "POST", body: { user_id } }),

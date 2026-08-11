@@ -234,6 +234,15 @@ export default function Profile() {
         </Link>
       )}
 
+      {user.role === "fazenda" && (
+        <Link to="/fazenda/carteira" style={{
+          display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
+          borderRadius: 12, padding: "12px 16px", marginBottom: 24, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
+        }}>
+          <CreditCard size={16} /> Ver carteira (vendas e recebimentos)
+        </Link>
+      )}
+
       {user.role === "investidor" && (
         <Link to="/pagamentos" style={{
           display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,

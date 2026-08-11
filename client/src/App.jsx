@@ -12,6 +12,7 @@ import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import Conversations from "./pages/Conversations";
 import PaymentMethods from "./pages/PaymentMethods";
+import FarmWallet from "./pages/FarmWallet";
 import { useAuth } from "./context/AuthContext";
 import { COLORS } from "./theme";
 
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/avisos" element={<RequireAuth><Notifications /></RequireAuth>} />
           <Route path="/conversas" element={<RequireAuth><Conversations /></RequireAuth>} />
           <Route path="/pagamentos" element={<RequireRole role="investidor"><PaymentMethods /></RequireRole>} />
+          <Route path="/fazenda/carteira" element={<RequireRole role="fazenda"><FarmWallet /></RequireRole>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

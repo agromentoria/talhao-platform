@@ -11,6 +11,7 @@ export default function TopNav() {
   const items = [{ to: "/", label: "Talhões", icon: LayoutGrid }];
   if (user?.role === "investidor") items.push({ to: "/carteira", label: "Meus investimentos", icon: Wallet });
   if (user?.role === "fazenda") items.push({ to: "/fazenda", label: "Painel da fazenda", icon: Settings });
+  if (user?.role === "fazenda") items.push({ to: "/fazenda/carteira", label: "Carteira", icon: Wallet });
   if (user?.role === "admin") items.push({ to: "/admin", label: "Administração", icon: ShieldCheck });
   if (user) items.push({ to: "/conversas", label: "Conversas", icon: MessageCircle, badge: unreadMessages });
 

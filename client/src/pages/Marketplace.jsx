@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { COLORS, GRAIN_COLORS } from "../theme";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS } from "../theme";
 import { PlotCard } from "../components/Shared";
 import { api } from "../api";
 
@@ -34,11 +34,19 @@ export default function Marketplace() {
       <div style={{ display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" }}>
         {grainList.map((g) => (
           <button key={g} onClick={() => setGrao(g)} style={{
-            padding: "7px 14px", borderRadius: 20, fontSize: 13, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "6px 14px 6px 8px", borderRadius: 20, fontSize: 13, cursor: "pointer",
             border: `1px solid ${grao === g ? COLORS.leaf : COLORS.line}`,
             background: grao === g ? COLORS.leaf : "#fff",
             color: grao === g ? "#fff" : COLORS.soilLight, fontWeight: 500,
-          }}>{g}</button>
+          }}>
+            {GRAIN_ICONS[g] && (
+              <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <img src={GRAIN_ICONS[g]} alt="" style={{ width: 16, height: 16, objectFit: "contain" }} />
+              </span>
+            )}
+            {g}
+          </button>
         ))}
       </div>
 

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Coins, TrendingUp, Warehouse, ChevronRight } from "lucide-react";
-import { COLORS, GRAIN_COLORS, FASES, fmtBRL } from "../theme";
-import { grainIcon, ProgressBar, ErrorBanner } from "../components/Shared";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, fmtBRL } from "../theme";
+import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 
 export default function Portfolio() {
@@ -53,13 +53,12 @@ export default function Portfolio() {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {investments.map((inv) => {
           const color = GRAIN_COLORS[inv.grao] || COLORS.leaf;
-          const Icon = grainIcon(inv.grao);
           return (
             <Link key={inv.id} to={`/talhao/${inv.plot_id}`} style={{ textDecoration: "none" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "14px 18px", flexWrap: "wrap", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 9, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon size={17} color={color} />
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <img src={GRAIN_ICONS[inv.grao]} alt={inv.grao} style={{ width: 28, height: 28, objectFit: "contain" }} />
                   </div>
                   <div>
                     <p style={{ fontWeight: 500, fontSize: 14, color: COLORS.soil, margin: 0 }}>{inv.plot_nome} · {inv.farm_name}</p>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { MapPin, Percent, Plus } from "lucide-react";
-import { COLORS, GRAIN_COLORS, FASES, fmtBRL } from "../theme";
-import { grainIcon, ProgressBar, ErrorBanner } from "../components/Shared";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
+import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -34,8 +34,14 @@ export default function FarmDashboard() {
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Painel da fazenda</h1>
-      <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "0 0 20px" }}>{farm.name} · {farm.location}</p>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 4 }}>
+        <img src={ICONS.fazendas} alt="" style={{ width: 44, height: 44, objectFit: "contain" }} />
+        <div>
+          <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: 0 }}>Painel da fazenda</h1>
+          <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{farm.name} · {farm.location}</p>
+        </div>
+      </div>
+      <div style={{ marginBottom: 16 }} />
 
       <ErrorBanner message={error} />
       {notice && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 14 }}>{notice}</p>}
@@ -123,7 +129,6 @@ function NewPlotForm({ farmId, onCreated, setError }) {
 
 function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
-  const Icon = grainIcon(plot.grao);
   const [fase, setFase] = useState(plot.fase_atual);
   const [progresso, setProgresso] = useState(plot.progresso);
   const [retornoFinal, setRetornoFinal] = useState(plot.previsao_retorno);
@@ -160,8 +165,8 @@ function PlotAdminCard({ plot, onChanged, setNotice, setError }) {
     <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon size={16} color={color} />
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <img src={GRAIN_ICONS[plot.grao]} alt={plot.grao} style={{ width: 26, height: 26, objectFit: "contain" }} />
           </div>
           <div>
             <p style={{ fontWeight: 500, fontSize: 14, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.grao}</p>

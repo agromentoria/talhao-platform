@@ -1,36 +1,49 @@
 import { Link } from "react-router-dom";
-import { MapPin, TrendingUp, Sprout, Wheat, TreeDeciduous } from "lucide-react";
-import { COLORS, GRAIN_COLORS, FASES, fmtBRL } from "../theme";
+import { MapPin, TrendingUp } from "lucide-react";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
 
 export function ProgressBar({ value, color = COLORS.leaf, height = 6 }) {
   return (
     <div style={{ width: "100%", height, borderRadius: height, background: COLORS.line, overflow: "hidden" }}>
-      <div style={{ width: `${Math.max(0, Math.min(100, value))}%`, height: "100%", background: color, borderRadius: height }} />
+      <div style={{ width: `${Math.max(0, Math.min(100, value))}%`, height: "100%", background: color, borderRadius: height, transition: "width 0.3s ease" }} />
     </div>
   );
 }
 
-export function grainIcon(grao) {
-  if (grao === "Milho" || grao === "Trigo") return Wheat;
-  if (grao === "Algodão") return TreeDeciduous;
-  return Sprout;
+// mantido por compatibilidade: retorna o caminho da ilustração do grão
+export function grainIconSrc(grao) {
+  return GRAIN_ICONS[grao] || GRAIN_ICONS.Soja;
 }
 
 export function PlotCard({ plot }) {
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
-  const Icon = grainIcon(plot.grao);
   const pctVendido = Math.round(((plot.cotas_totais - plot.cotas_disponiveis) / plot.cotas_totais) * 100);
 
   return (
     <Link to={`/talhao/${plot.id}`} style={{ textDecoration: "none" }}>
-      <div style={{ background: COLORS.bgCard, borderRadius: 14, border: `1px solid ${COLORS.line}`, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
-        <div style={{ padding: "16px 18px", background: `${color}14`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon size={18} color={color} />
-            <span style={{ fontSize: 13, fontWeight: 600, color }}>{plot.grao}</span>
+      <div style={{
+        background: COLORS.bgCard, borderRadius: 16, border: `1px solid ${COLORS.line}`, overflow: "hidden",
+        display: "flex", flexDirection: "column", height: "100%", transition: "transform 0.15s ease, box-shadow 0.15s ease",
+      }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 20px rgba(58,46,34,0.10)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{
+          position: "relative", padding: "14px 18px", background: `linear-gradient(135deg, ${color}22, ${color}0A)`,
+          display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <div style={{ width: 52, height: 52, borderRadius: 12, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(58,46,34,0.08)", flexShrink: 0 }}>
+            <img src={GRAIN_ICONS[plot.grao]} alt={plot.grao} style={{ width: 38, height: 38, objectFit: "contain" }} />
           </div>
-          <span style={{ fontSize: 11.5, color: COLORS.soilLight }}>Safra {plot.safra}</span>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: COLORS.soil }}>{plot.grao}</span>
+            <p style={{ fontSize: 11, color: COLORS.soilLight, margin: "2px 0 0" }}>Safra {plot.safra}</p>
+          </div>
+          <div title={FASES[plot.fase_atual]} style={{ width: 30, height: 30, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(58,46,34,0.08)" }}>
+            <img src={FASE_ICONS[plot.fase_atual]} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
+          </div>
         </div>
+
         <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
           <div>
             <p style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{plot.nome}</p>

@@ -5,7 +5,14 @@ const asyncHandler = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
-const FASES = ["Preparo do solo", "Plantio", "Crescimento", "Colheita"];
+const FASES = [
+  "Preparo do solo",
+  "Plantio",
+  "Germinação",
+  "Manejo e combate a pragas",
+  "Ponto de colheita",
+  "Colheita",
+];
 const APP_COMMISSION_PCT = Number(process.env.APP_COMMISSION_PCT || 5);
 
 async function getFarmOwned(farmId, user) {
@@ -169,7 +176,7 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
     investidoresPagos = investments.length;
 
     await client.query(
-      "UPDATE plots SET status = 'pago', retorno_final = $1, fase_atual = 3, progresso = 100 WHERE id = $2",
+      "UPDATE plots SET status = 'pago', retorno_final = $1, fase_atual = 5, progresso = 100 WHERE id = $2",
       [retorno, plot.id]
     );
 

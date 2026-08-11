@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, MapPin, CheckCircle2, Circle } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { COLORS, GRAIN_COLORS, FASES, fmtBRL } from "../theme";
-import { grainIcon, ErrorBanner } from "../components/Shared";
+import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, fmtBRL } from "../theme";
+import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -34,7 +34,6 @@ export default function PlotDetail() {
   if (!plot) return <div style={{ padding: 32, color: COLORS.soilLight, fontSize: 13 }}>Carregando...</div>;
 
   const grainColor = GRAIN_COLORS[plot.grao] || COLORS.leaf;
-  const Icon = grainIcon(plot.grao);
   const custoTotal = cotas * plot.cota_valor;
   const retornoBruto = custoTotal * (1 + plot.previsao_retorno / 100);
   const lucroBruto = retornoBruto - custoTotal;
@@ -70,7 +69,7 @@ export default function PlotDetail() {
 
       <div style={{ marginBottom: 22 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <Icon size={20} color={grainColor} />
+          <img src={GRAIN_ICONS[plot.grao]} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: grainColor }}>{plot.grao}</span>
         </div>
         <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.farm_name}</h1>
@@ -83,19 +82,28 @@ export default function PlotDetail() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
           <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 14px" }}>Etapas da safra</p>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              {FASES.map((f, i) => (
-                <div key={f} style={{ display: "flex", alignItems: "center", flex: i < FASES.length - 1 ? 1 : "none" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 64 }}>
-                    {i < plot.fase_atual ? <CheckCircle2 size={20} color={COLORS.leaf} /> :
-                      i === plot.fase_atual ? <Circle size={20} color={COLORS.wheat} fill={COLORS.wheat} /> :
-                      <Circle size={20} color={COLORS.line} />}
-                    <span style={{ fontSize: 11, color: i <= plot.fase_atual ? COLORS.soil : COLORS.soilLight, textAlign: "center" }}>{f}</span>
+            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 16px" }}>Etapas da safra</p>
+            <div style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", gap: 0 }}>
+              {FASES.map((f, i) => {
+                const done = i < plot.fase_atual;
+                const current = i === plot.fase_atual;
+                return (
+                  <div key={f} style={{ display: "flex", alignItems: "flex-start", flex: i < FASES.length - 1 ? 1 : "none", minWidth: 0 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 76 }}>
+                      <div style={{
+                        width: 46, height: 46, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                        background: current ? COLORS.wheatLight : done ? `${COLORS.leaf}22` : COLORS.bg,
+                        border: current ? `2px solid ${COLORS.wheat}` : done ? `2px solid ${COLORS.leaf}` : `2px solid ${COLORS.line}`,
+                        opacity: done || current ? 1 : 0.5,
+                      }}>
+                        <img src={FASE_ICONS[i]} alt="" style={{ width: 26, height: 26, objectFit: "contain" }} />
+                      </div>
+                      <span style={{ fontSize: 10.5, color: done || current ? COLORS.soil : COLORS.soilLight, textAlign: "center", lineHeight: 1.3, fontWeight: current ? 600 : 400 }}>{f}</span>
+                    </div>
+                    {i < FASES.length - 1 && <div style={{ flex: 1, height: 2, background: i < plot.fase_atual ? COLORS.leaf : COLORS.line, marginTop: 22 }} />}
                   </div>
-                  {i < FASES.length - 1 && <div style={{ flex: 1, height: 2, background: i < plot.fase_atual ? COLORS.leaf : COLORS.line, marginBottom: 18 }} />}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

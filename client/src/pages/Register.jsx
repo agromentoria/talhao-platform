@@ -4,6 +4,7 @@ import { Camera } from "lucide-react";
 import { COLORS, BACKGROUNDS } from "../theme";
 import { useAuth } from "../context/AuthContext";
 import { ErrorBanner } from "../components/Shared";
+import CityStateSelect from "../components/CityStateSelect";
 
 const MAX_AVATAR_BYTES = 1_200_000;
 
@@ -118,7 +119,13 @@ export default function Register() {
         {role === "fazenda" && (
           <>
             <Field label="Nome da fazenda" value={form.farmName} onChange={(v) => update("farmName", v)} required />
-            <Field label="Localização (cidade, estado)" value={form.farmLocation} onChange={(v) => update("farmLocation", v)} required />
+            <CityStateSelect
+              value={form.farmLocation}
+              onChange={(v) => update("farmLocation", v)}
+              required
+              labelStyle={{ fontSize: 12, color: "#fff", opacity: 0.9 }}
+              selectStyle={{ width: "100%", marginTop: 5, padding: "12px 14px", borderRadius: 12, border: "none", fontSize: 14, color: COLORS.soil }}
+            />
             <p style={{ fontSize: 12, opacity: 0.85, margin: 0, lineHeight: 1.5 }}>
               Sua fazenda entra em análise da administração do Talhão antes de poder publicar talhões para investimento.
             </p>

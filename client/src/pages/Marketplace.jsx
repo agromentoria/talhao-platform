@@ -41,7 +41,7 @@ export default function Marketplace() {
             color: grao === g ? "#fff" : COLORS.soilLight, fontWeight: 500,
           }}>
             {GRAIN_ICONS[g] && (
-              <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ width: 22, height: 22, borderRadius: "50%", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <img src={GRAIN_ICONS[g]} alt="" style={{ width: 16, height: 16, objectFit: "contain" }} />
               </span>
             )}

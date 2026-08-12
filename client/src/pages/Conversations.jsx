@@ -104,7 +104,7 @@ export default function Conversations() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                 {(c.graos || []).slice(0, 2).map((g, gi) => (
                   <div key={g} title={g} style={{
-                    width: 22, height: 22, borderRadius: "50%", background: "#fff", display: "flex",
+                    width: 22, height: 22, borderRadius: "50%", background: COLORS.bg, display: "flex",
                     alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(58,46,34,0.12)",
                     marginLeft: gi > 0 ? -8 : 0, border: `1px solid ${COLORS.line}`,
                   }}>

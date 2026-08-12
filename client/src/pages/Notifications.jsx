@@ -102,7 +102,7 @@ export default function Notifications() {
                 boxShadow: unread ? "0 2px 8px rgba(58,46,34,0.08)" : "none",
               }}
             >
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: imageIcon ? "#fff" : (unread ? `${COLORS.orange}18` : COLORS.line), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: imageIcon ? "0 1px 4px rgba(58,46,34,0.1)" : "none" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: imageIcon ? COLORS.bg : (unread ? `${COLORS.orange}18` : COLORS.line), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: imageIcon ? "0 1px 4px rgba(58,46,34,0.1)" : "none" }}>
                 {imageIcon ? (
                   <img src={imageIcon} alt="" style={{ width: 22, height: 22, objectFit: "contain" }} />
                 ) : (

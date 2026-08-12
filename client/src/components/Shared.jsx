@@ -33,7 +33,7 @@ export function PlotCard({ plot }) {
           position: "relative", padding: "14px 18px", background: `linear-gradient(135deg, ${color}22, ${color}0A)`,
           display: "flex", alignItems: "center", gap: 12,
         }}>
-          <div style={{ width: 52, height: 52, borderRadius: 12, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(58,46,34,0.08)", flexShrink: 0 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 12, background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(58,46,34,0.08)", flexShrink: 0 }}>
             <img src={GRAIN_ICONS[plot.grao]} alt={plot.grao} style={{ width: 38, height: 38, objectFit: "contain" }} />
           </div>
           <div style={{ flex: 1 }}>

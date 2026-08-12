@@ -57,7 +57,7 @@ export default function Portfolio() {
             <Link key={inv.id} to={`/talhao/${inv.plot_id}`} style={{ textDecoration: "none" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "14px 18px", flexWrap: "wrap", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 10, background: "#fff", boxShadow: "0 2px 6px rgba(58,46,34,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: COLORS.bg, boxShadow: "0 2px 6px rgba(58,46,34,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <img src={GRAIN_ICONS[inv.grao]} alt={inv.grao} style={{ width: 28, height: 28, objectFit: "contain" }} />
                   </div>
                   <div>

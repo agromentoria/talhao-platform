@@ -74,7 +74,7 @@ export default function FarmWallet() {
           const isVenda = t.type === "compra_cota";
           return (
             <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "14px 16px", flexWrap: "wrap" }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 6px rgba(58,46,34,0.08)" }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 6px rgba(58,46,34,0.08)" }}>
                 {t.grao ? (
                   <img src={GRAIN_ICONS[t.grao]} alt={t.grao} style={{ width: 26, height: 26, objectFit: "contain" }} />
                 ) : isVenda ? (

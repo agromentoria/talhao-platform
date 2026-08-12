@@ -296,7 +296,9 @@ function CommodityReferenceRow({ reference, onSave }) {
   return (
     <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <img src={GRAIN_ICONS[reference.grao]} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
+        <span style={{ width: 32, height: 32, borderRadius: "50%", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <img src={GRAIN_ICONS[reference.grao]} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
+        </span>
         <span style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil }}>{reference.grao}</span>
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>

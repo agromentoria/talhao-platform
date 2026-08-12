@@ -56,7 +56,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     if (!farm || farm.status !== "aprovada") {
       throw new AppError(403, "Este talhão não está disponível para investimento.");
     }
-    if (plot.status === "colhido" || plot.status === "pago") {
+    if (["colhido", "pago", "aguardando_aprovacao", "arquivado"].includes(plot.status)) {
       throw new AppError(409, "Este talhão já encerrou o ciclo de captação.");
     }
     if (plot.cotas_disponiveis < qtd) {

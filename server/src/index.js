@@ -31,6 +31,8 @@ async function start() {
   const paymentRoutes = require("./routes/payments");
   const commodityRoutes = require("./routes/commodities");
   const fasePricingRoutes = require("./routes/fasePricing");
+  const harvestRequestRoutes = require("./routes/harvestRequests");
+  const trackRecordRoutes = require("./routes/trackRecord");
   const { startReminderScheduler } = require("./reminders");
 
   const app = express();
@@ -55,9 +57,11 @@ async function start() {
   app.get("/api/health", (req, res) => res.json({ ok: true }));
 
   app.use("/api/auth", authRoutes);
+  app.use("/api/farms/track-record", trackRecordRoutes);
   app.use("/api/farms", farmRoutes);
   app.use("/api/plots", plotRoutes);
   app.use("/api/investments", investmentRoutes);
+  app.use("/api/admin/harvest-requests", harvestRequestRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/conversations", conversationRoutes);

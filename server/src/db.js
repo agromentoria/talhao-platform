@@ -71,7 +71,9 @@ CREATE TABLE IF NOT EXISTS plots (
 -- em versões anteriores "status" tinha uma lista fixa (captacao/em_andamento/
 -- colhido/pago); removemos a checagem para permitir o status "arquivado"
 -- (talhão pago que a fazenda excluiu, mas cujo histórico o investidor
--- ainda precisa ver) sem exigir migração toda vez. Validado na aplicação.
+-- ainda precisa ver) e "aguardando_aprovacao" (finalização solicitada
+-- pela fazenda, esperando revisão do admin) sem exigir migração toda
+-- vez. Validado na aplicação.
 ALTER TABLE plots DROP CONSTRAINT IF EXISTS plots_status_check;
 
 -- preço estimado de venda por unidade na colheita (o "alvo"). O preço da
@@ -99,6 +101,27 @@ CREATE TABLE IF NOT EXISTS investments (
   status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo','pago','cancelado')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Solicitação de finalização de colheita. A fazenda não paga direto:
+-- ela pede, anexando um comprovante, e o pagamento só acontece depois
+-- que um administrador revisa e aprova. Reduz (não elimina) o risco de
+-- a fazenda declarar um resultado sem nenhuma verificação independente.
+CREATE TABLE IF NOT EXISTS harvest_requests (
+  id SERIAL PRIMARY KEY,
+  plot_id INTEGER NOT NULL REFERENCES plots(id),
+  farm_id INTEGER NOT NULL REFERENCES farms(id),
+  retorno_final REAL NOT NULL,
+  comprovante_texto TEXT NOT NULL,
+  comprovante_imagem TEXT,
+  status TEXT NOT NULL DEFAULT 'pendente',
+  motivo_rejeicao TEXT,
+  requested_by INTEGER REFERENCES users(id),
+  reviewed_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reviewed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_harvest_requests_plot ON harvest_requests(plot_id);
+CREATE INDEX IF NOT EXISTS idx_harvest_requests_status ON harvest_requests(status);
 
 -- preço unitário efetivamente pago naquela compra (registro histórico —
 -- não muda mesmo que o preço do talhão suba depois em fases seguintes)

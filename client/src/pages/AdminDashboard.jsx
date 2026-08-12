@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat } from "lucide-react";
+import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText } from "lucide-react";
 import { COLORS, GRAIN_ICONS, UNIT_LABEL, FASES, fmtBRL } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
@@ -13,6 +13,7 @@ const TYPE_LABEL = {
 
 const TABS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
+  { id: "colheitas", label: "Colheitas", icon: ClipboardCheck },
   { id: "fazendas", label: "Fazendas", icon: Building2 },
   { id: "fases", label: "Preço por fase", icon: TrendingUp },
   { id: "mercado", label: "Referência de mercado", icon: Wheat },
@@ -28,6 +29,7 @@ export default function AdminDashboard() {
   const [appCommission, setAppCommission] = useState(null);
   const [references, setReferences] = useState([]);
   const [fasePricing, setFasePricing] = useState({});
+  const [harvestRequests, setHarvestRequests] = useState([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -37,6 +39,7 @@ export default function AdminDashboard() {
     api.platformSettings().then((data) => setAppCommission(data.app_commission_pct)).catch((err) => setError(err.message));
     api.commodityReferences().then((data) => setReferences(data.references)).catch((err) => setError(err.message));
     api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch((err) => setError(err.message));
+    api.pendingHarvestRequests("pendente").then((data) => setHarvestRequests(data.requests)).catch((err) => setError(err.message));
   }
 
   function loadTransactions() {
@@ -47,6 +50,7 @@ export default function AdminDashboard() {
 
   useEffect(() => { load(); }, []);
   useEffect(() => { loadTransactions(); }, [typeFilter]);
+
 
   async function setStatus(id, status) {
     try {
@@ -87,6 +91,29 @@ export default function AdminDashboard() {
     }
   }
 
+  async function approveHarvest(id) {
+    if (!confirm("Aprovar esta colheita? Os investidores serão pagos imediatamente e isso não pode ser desfeito.")) return;
+    try {
+      const data = await api.approveHarvestRequest(id);
+      setNotice(`Colheita aprovada e paga: ${data.investidoresPagos} investidor(es).`);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function rejectHarvest(id) {
+    const motivo = prompt("Explique o motivo da rejeição (a fazenda vai receber esse texto):");
+    if (!motivo || !motivo.trim()) return;
+    try {
+      await api.rejectHarvestRequest(id, motivo);
+      setNotice("Solicitação rejeitada. A fazenda foi avisada.");
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div style={{ padding: "24px 20px", maxWidth: 1000, margin: "0 auto" }}>
       <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 24, color: COLORS.soil, margin: "0 0 4px" }}>Administração do Talhão</h1>
@@ -97,13 +124,20 @@ export default function AdminDashboard() {
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
+          const badge = t.id === "colheitas" ? harvestRequests.length : 0;
           return (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, whiteSpace: "nowrap",
+              position: "relative", display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, whiteSpace: "nowrap",
               border: `1px solid ${active ? COLORS.leaf : COLORS.line}`, background: active ? COLORS.leaf : "#fff",
               color: active ? "#fff" : COLORS.soilLight, fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0,
             }}>
               <Icon size={14} /> {t.label}
+              {badge > 0 && (
+                <span style={{
+                  minWidth: 18, height: 18, borderRadius: 9, background: COLORS.danger, color: "#fff",
+                  fontSize: 10.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px",
+                }}>{badge}</span>
+              )}
             </button>
           );
         })}
@@ -182,6 +216,61 @@ export default function AdminDashboard() {
             {transactions.length === 0 && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhuma transação registrada ainda.</p>}
           </div>
         </>
+      )}
+
+      {tab === "colheitas" && (
+        <div>
+          <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
+            Solicitações de finalização de colheita enviadas pelas fazendas. Confira o comprovante antes de aprovar — a aprovação paga os investidores imediatamente e não pode ser desfeita.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {harvestRequests.map((r) => (
+              <div key={r.id} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                  <img src={GRAIN_ICONS[r.grao]} alt="" style={{ width: 30, height: 30, objectFit: "contain", background: COLORS.bg, borderRadius: 8, padding: 4 }} />
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{r.plot_nome} · {r.farm_name}</p>
+                    <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{r.farm_location} · solicitado por {r.solicitado_por || "—"}</p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>prometido {r.previsao_retorno}% · declarado</p>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: r.retorno_final >= r.previsao_retorno ? COLORS.leaf : COLORS.danger, margin: 0, fontFamily: "'Baloo 2', cursive" }}>
+                      {r.retorno_final}%
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ background: COLORS.bg, borderRadius: 10, padding: 12, display: "flex", gap: 10, marginBottom: 12 }}>
+                  <FileText size={16} color={COLORS.soilLight} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 12.5, color: COLORS.soil, margin: 0, whiteSpace: "pre-wrap" }}>{r.comprovante_texto}</p>
+                    {r.comprovante_imagem && (
+                      <img src={r.comprovante_imagem} alt="comprovante" style={{ marginTop: 8, maxWidth: 200, borderRadius: 8, display: "block" }} />
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => rejectHarvest(r.id)} style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0",
+                    borderRadius: 8, border: `1px solid ${COLORS.danger}`, background: "#fff", color: COLORS.danger, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}>
+                    <X size={14} /> Rejeitar
+                  </button>
+                  <button onClick={() => approveHarvest(r.id)} style={{
+                    flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0",
+                    borderRadius: 8, border: "none", background: COLORS.leaf, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}>
+                    <Check size={14} /> Aprovar e pagar investidores
+                  </button>
+                </div>
+              </div>
+            ))}
+            {harvestRequests.length === 0 && (
+              <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhuma solicitação pendente no momento.</p>
+            )}
+          </div>
+        </div>
       )}
 
       {tab === "fazendas" && (

@@ -61,7 +61,12 @@ export const api = {
   restartPlot: (id, payload) => request(`/plots/${id}/restart`, { method: "PATCH", body: payload }),
   editPlot: (id, payload) => request(`/plots/${id}`, { method: "PATCH", body: payload }),
   updateProgress: (id, payload) => request(`/plots/${id}/progress`, { method: "PATCH", body: payload }),
-  finalizeHarvest: (id, retorno_final) => request(`/plots/${id}/finalize`, { method: "POST", body: { retorno_final } }),
+  finalizeHarvest: (id, retorno_final, comprovante_texto, comprovante_imagem) =>
+    request(`/plots/${id}/finalize`, { method: "POST", body: { retorno_final, comprovante_texto, comprovante_imagem } }),
+  pendingHarvestRequests: (status) => request(`/admin/harvest-requests${status ? `?status=${status}` : ""}`),
+  approveHarvestRequest: (id) => request(`/admin/harvest-requests/${id}/approve`, { method: "POST" }),
+  rejectHarvestRequest: (id, motivo) => request(`/admin/harvest-requests/${id}/reject`, { method: "POST", body: { motivo } }),
+  farmTrackRecord: (farmId) => request(`/farms/track-record/${farmId}`, { auth: false }),
 
   // investments
   invest: (plot_id, cotas, payment_method_type, payment_method_id) =>

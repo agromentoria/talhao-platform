@@ -191,6 +191,8 @@ export default function PlotDetail() {
               <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${COLORS.line}`, paddingTop: 8 }}><span>Sua parte do lucro na venda do grão</span><span style={{ color: COLORS.leaf, fontWeight: 600 }}>{100 - plot.commission_pct - appCommission}%</span></div>
             </div>
           </div>
+
+          <FarmTrackRecord farmId={plot.farm_id} farmName={plot.farm_name} />
         </div>
 
         <div>
@@ -297,6 +299,64 @@ export default function PlotDetail() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FarmTrackRecord({ farmId, farmName }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.farmTrackRecord(farmId).then(setData).catch((err) => setError(err.message));
+  }, [farmId]);
+
+  if (error || !data) return null;
+  const { resumo, historico } = data;
+
+  return (
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+      <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Histórico de {farmName}</p>
+      <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
+        Comparação entre o retorno prometido e o que foi realmente entregue nas colheitas anteriores desta fazenda.
+      </p>
+
+      {resumo.totalColhidos === 0 ? (
+        <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: 0 }}>
+          Esta fazenda ainda não finalizou nenhuma colheita na plataforma — não há histórico para comparar ainda.
+        </p>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 14 }}>
+            <div>
+              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>colheitas finalizadas</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: COLORS.soil, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{resumo.totalColhidos}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>cumpriu o prometido</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: resumo.cumpriuPromessaPct >= 50 ? COLORS.leaf : COLORS.danger, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{resumo.cumpriuPromessaPct}%</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>desvio médio</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: resumo.desvioMedio >= 0 ? COLORS.leaf : COLORS.danger, margin: 0, fontFamily: "'Baloo 2', cursive" }}>
+                {resumo.desvioMedio >= 0 ? "+" : ""}{resumo.desvioMedio} p.p.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {historico.slice(0, 5).map((h) => (
+              <div key={h.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "6px 0", borderTop: `1px solid ${COLORS.line}` }}>
+                <span style={{ color: COLORS.soilLight }}>{h.nome} · {h.grao} · {h.safra}</span>
+                <span>
+                  <span style={{ color: COLORS.soilLight }}>prometeu {h.previsao_retorno}% </span>
+                  <span style={{ color: h.cumpriu ? COLORS.leaf : COLORS.danger, fontWeight: 600 }}>entregou {h.retorno_final}%</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

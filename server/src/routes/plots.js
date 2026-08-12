@@ -3,7 +3,6 @@ const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers, getFarmInvestorIds, getPlotInvestorIds } = require("../notify");
-const { recordTransaction } = require("../ledger");
 const { getAppCommissionPct, getFaseMultiplier } = require("../settings");
 
 const router = express.Router();
@@ -33,7 +32,7 @@ router.get("/", asyncHandler(async (req, res) => {
     SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct
     FROM plots p
     JOIN farms f ON f.id = p.farm_id
-    WHERE f.status = 'aprovada' AND p.status NOT IN ('pago', 'arquivado')
+    WHERE f.status = 'aprovada' AND p.status NOT IN ('pago', 'arquivado', 'aguardando_aprovacao')
   `;
   const params = [];
   if (grao) {
@@ -209,10 +208,23 @@ router.patch("/:id/progress", requireAuth, requireRole("fazenda", "admin"), asyn
 }));
 
 router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
-  const { retorno_final } = req.body || {};
+  const { retorno_final, comprovante_texto, comprovante_imagem } = req.body || {};
   const retorno = Number(retorno_final);
   if (Number.isNaN(retorno)) {
     return res.status(400).json({ error: "Informe o retorno final da safra (%)." });
+  }
+  if (!comprovante_texto || comprovante_texto.trim().length < 15) {
+    return res.status(400).json({
+      error: "Descreva o comprovante da colheita (ex: número da nota fiscal, comprador, ou onde a fazenda pode ser conferida) com pelo menos 15 caracteres.",
+    });
+  }
+  if (comprovante_imagem) {
+    if (typeof comprovante_imagem !== "string" || !comprovante_imagem.startsWith("data:image/")) {
+      return res.status(400).json({ error: "Comprovante em formato de imagem inválido." });
+    }
+    if (comprovante_imagem.length > 1_500_000) {
+      return res.status(400).json({ error: "Imagem do comprovante muito grande. Escolha um arquivo menor." });
+    }
   }
 
   const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
@@ -221,105 +233,29 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
   if (plot.status === "pago") {
     return res.status(409).json({ error: "Este talhão já foi pago aos investidores." });
   }
+  if (plot.status === "aguardando_aprovacao") {
+    return res.status(409).json({ error: "Já existe uma solicitação de finalização aguardando aprovação da administração para este talhão." });
+  }
   if (plot.fase_atual !== FASES.length - 1) {
     return res.status(409).json({
-      error: `Atualize a fase do talhão para "${FASES[FASES.length - 1]}" antes de finalizar a colheita e pagar os investidores.`,
+      error: `Atualize a fase do talhão para "${FASES[FASES.length - 1]}" antes de solicitar a finalização da colheita.`,
     });
   }
 
   const owned = await getFarmOwned(plot.farm_id, req.user);
   if (owned.error) return res.status(403).json({ error: owned.error });
-  const farm = owned.farm;
-  const appCommissionPct = await getAppCommissionPct();
 
   const client = await pool.connect();
-  let investidoresPagos = 0;
-  let totalComissaoFazenda = 0;
-  let totalComissaoApp = 0;
-  const investorNotifications = []; // { userId, valorLiquido }
-
+  let request;
   try {
     await client.query("BEGIN");
-
-    const { rows: investments } = await client.query(
-      "SELECT * FROM investments WHERE plot_id = $1 AND status = 'ativo' FOR UPDATE",
-      [plot.id]
+    const { rows } = await client.query(
+      `INSERT INTO harvest_requests (plot_id, farm_id, retorno_final, comprovante_texto, comprovante_imagem, requested_by)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [plot.id, plot.farm_id, retorno, comprovante_texto.trim(), comprovante_imagem || null, req.user.id]
     );
-
-    // preço real de venda por unidade na colheita: o preço estimado
-    // ajustado pelo desempenho real do mercado (retorno_final). É o
-    // mesmo para todos os investidores do talhão — o que muda entre
-    // eles é o preço que cada um pagou por unidade (preco_unitario),
-    // que ficou registrado no momento da compra. Isso é o que faz quem
-    // comprou mais cedo (preço mais baixo) lucrar mais do que quem
-    // comprou mais perto da colheita (preço mais alto).
-    const precoVendaReal = plot.preco_venda_estimado * (1 + retorno / 100);
-
-    for (const inv of investments) {
-      const precoUnitario = inv.preco_unitario || (inv.valor_investido / inv.cotas);
-      const valorBruto = inv.cotas * precoVendaReal;
-      const lucroBruto = valorBruto - inv.valor_investido;
-      const comissaoFazenda = Math.max(0, lucroBruto) * (farm.commission_pct / 100);
-      const comissaoApp = Math.max(0, lucroBruto) * (appCommissionPct / 100);
-      const valorLiquido = valorBruto - comissaoFazenda - comissaoApp;
-
-      await client.query(
-        `INSERT INTO payouts (investment_id, valor_bruto, comissao_fazenda, comissao_app, valor_liquido)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [inv.id, valorBruto, comissaoFazenda, comissaoApp, valorLiquido]
-      );
-      await client.query("UPDATE investments SET status = 'pago' WHERE id = $1", [inv.id]);
-
-      // pagamento SIMULADO ao investidor — sem gateway conectado ainda,
-      // o valor é registrado no livro-razão como aprovado automaticamente
-      await recordTransaction(client, {
-        type: "pagamento_investidor",
-        status: "aprovado",
-        userId: inv.user_id,
-        farmId: plot.farm_id,
-        plotId: plot.id,
-        investmentId: inv.id,
-        amount: valorLiquido,
-        description: `Pagamento da colheita de ${plot.nome} (comprou a R$ ${precoUnitario.toFixed(2)}, vendido a R$ ${precoVendaReal.toFixed(2)} por unidade)`,
-      });
-
-      totalComissaoFazenda += comissaoFazenda;
-      totalComissaoApp += comissaoApp;
-      investorNotifications.push({ userId: inv.user_id, valorLiquido });
-    }
-    investidoresPagos = investments.length;
-
-    // repasse da comissão para a fazenda
-    if (farm.owner_user_id && totalComissaoFazenda > 0) {
-      await recordTransaction(client, {
-        type: "repasse_fazenda",
-        status: "aprovado",
-        userId: farm.owner_user_id,
-        farmId: plot.farm_id,
-        plotId: plot.id,
-        amount: totalComissaoFazenda,
-        description: `Comissão da colheita de ${plot.nome} (${farm.commission_pct}%)`,
-      });
-    }
-
-    // comissão da plataforma (registrada sem um usuário específico — receita da Meu Talhão)
-    if (totalComissaoApp > 0) {
-      await recordTransaction(client, {
-        type: "comissao_plataforma",
-        status: "aprovado",
-        userId: null,
-        farmId: plot.farm_id,
-        plotId: plot.id,
-        amount: totalComissaoApp,
-        description: `Comissão da plataforma sobre a colheita de ${plot.nome}`,
-      });
-    }
-
-    await client.query(
-      "UPDATE plots SET status = 'pago', retorno_final = $1, fase_atual = 5, progresso = 100 WHERE id = $2",
-      [retorno, plot.id]
-    );
-
+    request = rows[0];
+    await client.query("UPDATE plots SET status = 'aguardando_aprovacao' WHERE id = $1", [plot.id]);
     await client.query("COMMIT");
   } catch (err) {
     await client.query("ROLLBACK");
@@ -328,45 +264,23 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
     client.release();
   }
 
-  // notificações (fora da transação)
+  // avisa a administração que há uma solicitação para revisar
   try {
-    for (const n of investorNotifications) {
-      await notifyUsers(pool, [n.userId], {
-        senderRole: "sistema",
-        farmId: plot.farm_id,
-        plotId: plot.id,
-        type: "pagamento_recebido",
-        title: "Você recebeu um pagamento",
-        body: `A colheita de ${plot.nome} foi paga. Você recebeu R$ ${n.valorLiquido.toFixed(2)}.`,
-      });
-    }
-
-    if (farm.owner_user_id && totalComissaoFazenda > 0) {
-      await notifyUsers(pool, [farm.owner_user_id], {
-        senderRole: "sistema",
-        farmId: plot.farm_id,
-        plotId: plot.id,
-        type: "repasse_recebido",
-        title: "Repasse de comissão recebido",
-        body: `Você recebeu R$ ${totalComissaoFazenda.toFixed(2)} de comissão pela colheita de ${plot.nome}.`,
-      });
-    }
-
     const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin'");
     await notifyUsers(pool, admins.map((a) => a.id), {
       senderRole: "sistema",
       farmId: plot.farm_id,
       plotId: plot.id,
-      type: "transacao_admin",
-      title: "Colheita paga",
-      body: `${plot.nome} (${farm.name}) foi paga: ${investidoresPagos} investidor(es), comissão da plataforma de R$ ${totalComissaoApp.toFixed(2)}.`,
+      type: "solicitacao_colheita",
+      title: "Nova solicitação de finalização de colheita",
+      body: `${owned.farm.name} pediu para finalizar a colheita de ${plot.nome} com retorno de ${retorno}%. Revise o comprovante antes de aprovar o pagamento.`,
     });
   } catch (notifyErr) {
-    console.error("[aviso] falha ao enviar notificações de pagamento:", notifyErr);
+    console.error("[aviso] falha ao notificar administração:", notifyErr);
   }
 
-  const { rows } = await pool.query("SELECT * FROM plots WHERE id = $1", [plot.id]);
-  res.json({ ok: true, investidoresPagos, plot: rows[0] });
+  const { rows: updatedPlot } = await pool.query("SELECT * FROM plots WHERE id = $1", [plot.id]);
+  res.status(201).json({ ok: true, request, plot: updatedPlot[0] });
 }));
 
 // exclui um talhão. Se ele nunca teve cota vendida, remove de verdade.

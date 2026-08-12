@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt } from "lucide-react";
+import { ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt, ClipboardCheck, XCircle } from "lucide-react";
 import { COLORS, ICONS, GRAIN_ICONS } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
@@ -15,6 +15,8 @@ const TYPE_ICON = {
   pagamento_recebido: Wallet,
   repasse_recebido: Wallet,
   transacao_admin: Receipt,
+  solicitacao_colheita: ClipboardCheck,
+  solicitacao_rejeitada: XCircle,
 };
 
 function timeAgo(dateStr) {

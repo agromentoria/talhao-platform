@@ -6,9 +6,10 @@ import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
 const STATUS_FILTERS = [
-  { id: "ativos", label: "Ativos", match: (s) => s === "captacao" || s === "em_andamento" },
+  { id: "ativos", label: "Ativos", match: (s) => s === "captacao" || s === "em_andamento" || s === "aguardando_aprovacao" },
   { id: "captacao", label: "Em captação", match: (s) => s === "captacao" },
   { id: "andamento", label: "Em andamento", match: (s) => s === "em_andamento" },
+  { id: "aprovacao", label: "Aguardando aprovação", match: (s) => s === "aguardando_aprovacao" },
   { id: "finalizados", label: "Colhidos e pagos", match: (s) => s === "pago" || s === "colhido" },
   { id: "arquivados", label: "Arquivados", match: (s) => s === "arquivado" },
   { id: "todos", label: "Todos", match: () => true },
@@ -225,6 +226,7 @@ const STATUS_LABEL = {
   colhido: "colhido",
   pago: "colhido e pago",
   arquivado: "arquivado",
+  aguardando_aprovacao: "aguardando aprovação",
 };
 
 function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
@@ -232,6 +234,9 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
   const [fase, setFase] = useState(plot.fase_atual);
   const [progresso, setProgresso] = useState(plot.progresso);
   const [retornoFinal, setRetornoFinal] = useState(plot.previsao_retorno);
+  const [comprovanteTexto, setComprovanteTexto] = useState("");
+  const [comprovanteImagem, setComprovanteImagem] = useState(null);
+  const [showFinalizeForm, setShowFinalizeForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showRestart, setShowRestart] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -240,6 +245,7 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
   const nuncaVendido = plot.cotas_disponiveis === plot.cotas_totais;
   const podeExcluir = plot.status === "pago" || nuncaVendido;
   const finalizado = plot.status === "pago" || plot.status === "arquivado";
+  const aguardandoAprovacao = plot.status === "aguardando_aprovacao";
 
   async function saveProgress() {
     setSaving(true);
@@ -254,12 +260,29 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
     }
   }
 
-  async function finalize() {
-    if (!confirm(`Finalizar a colheita do ${plot.nome} com retorno de ${retornoFinal}%? Isso paga todos os investidores imediatamente.`)) return;
+  function handleComprovanteImagem(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Escolha um arquivo de imagem para o comprovante.");
+      return;
+    }
+    if (file.size > 1_200_000) {
+      setError("Imagem muito grande. Escolha um arquivo de até 1,2 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setComprovanteImagem(reader.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function submitFinalize(e) {
+    e.preventDefault();
     setSaving(true);
     try {
-      const data = await api.finalizeHarvest(plot.id, retornoFinal);
-      setNotice(`Colheita finalizada. ${data.investidoresPagos} investidor(es) pago(s).`);
+      const data = await api.finalizeHarvest(plot.id, retornoFinal, comprovanteTexto, comprovanteImagem);
+      setNotice("Solicitação enviada! A administração vai revisar o comprovante antes de liberar o pagamento aos investidores.");
+      setShowFinalizeForm(false);
       onChanged();
     } catch (err) {
       setError(err.message);
@@ -334,7 +357,7 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
             )}
           </div>
 
-          {!finalizado ? (
+          {!finalizado && !aguardandoAprovacao ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 14, alignItems: "flex-end" }}>
           <div>
             <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Fase atual</label>
@@ -350,32 +373,65 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
             Salvar andamento
           </button>
 
-          <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
-              <div>
-                <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Retorno final (%)</label>
-                <input type="number" value={retornoFinal} onChange={(e) => setRetornoFinal(Number(e.target.value))} style={{ ...inputStyle, marginTop: 4, width: 90 }} />
-              </div>
-              <button
-                onClick={finalize}
-                disabled={saving || plot.fase_atual !== FASES.length - 1}
-                title={plot.fase_atual !== FASES.length - 1 ? `Atualize e salve a fase para "${FASES[FASES.length - 1]}" antes de finalizar` : ""}
-                style={{
-                  padding: "9px 14px", borderRadius: 8, border: "none",
-                  background: plot.fase_atual !== FASES.length - 1 ? COLORS.line : COLORS.clay,
-                  color: plot.fase_atual !== FASES.length - 1 ? COLORS.soilLight : "#fff",
-                  fontSize: 13, fontWeight: 500, cursor: plot.fase_atual !== FASES.length - 1 ? "not-allowed" : "pointer",
-                }}
-              >
-                Finalizar colheita e pagar
-              </button>
-            </div>
+          <div style={{ marginLeft: "auto" }}>
+            <button
+              onClick={() => setShowFinalizeForm((s) => !s)}
+              disabled={saving || plot.fase_atual !== FASES.length - 1}
+              title={plot.fase_atual !== FASES.length - 1 ? `Atualize e salve a fase para "${FASES[FASES.length - 1]}" antes de finalizar` : ""}
+              style={{
+                padding: "9px 14px", borderRadius: 8, border: "none",
+                background: plot.fase_atual !== FASES.length - 1 ? COLORS.line : COLORS.clay,
+                color: plot.fase_atual !== FASES.length - 1 ? COLORS.soilLight : "#fff",
+                fontSize: 13, fontWeight: 500, cursor: plot.fase_atual !== FASES.length - 1 ? "not-allowed" : "pointer",
+              }}
+            >
+              Solicitar finalização da colheita
+            </button>
             {plot.fase_atual !== FASES.length - 1 && (
-              <p style={{ fontSize: 10.5, color: COLORS.orangeDark, margin: 0, maxWidth: 220, textAlign: "right" }}>
-                Mude a fase para "{FASES[FASES.length - 1]}" e clique em "Salvar andamento" para liberar o pagamento.
+              <p style={{ fontSize: 10.5, color: COLORS.orangeDark, margin: "6px 0 0", maxWidth: 240, textAlign: "right" }}>
+                Mude a fase para "{FASES[FASES.length - 1]}" e clique em "Salvar andamento" para liberar a solicitação.
               </p>
             )}
           </div>
+
+          {showFinalizeForm && (
+            <form onSubmit={submitFinalize} style={{ width: "100%", background: COLORS.bg, borderRadius: 10, padding: 16, marginTop: 6, display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ fontSize: 12, color: COLORS.soil, margin: 0, fontWeight: 600 }}>Solicitar finalização e pagamento</p>
+              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0, lineHeight: 1.5 }}>
+                O pagamento só é liberado depois que a administração revisar o comprovante. Isso protege os investidores contra informações incorretas.
+              </p>
+              <div>
+                <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Retorno final da safra (%)</label>
+                <input type="number" required value={retornoFinal} onChange={(e) => setRetornoFinal(Number(e.target.value))} style={{ ...inputStyle, marginTop: 4, width: 120 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Comprovante (nota fiscal, comprador, silo, etc.) — mínimo 15 caracteres</label>
+                <textarea required minLength={15} rows={3} value={comprovanteTexto} onChange={(e) => setComprovanteTexto(e.target.value)}
+                  placeholder="Ex: Nota fiscal nº 12345, venda para Cargill em 20/09, 6.480 sacas entregues no armazém X."
+                  style={{ ...inputStyle, marginTop: 4, resize: "vertical", fontFamily: "inherit" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Foto do comprovante (opcional)</label>
+                <input type="file" accept="image/*" onChange={handleComprovanteImagem} style={{ marginTop: 4, fontSize: 12 }} />
+                {comprovanteImagem && <img src={comprovanteImagem} alt="" style={{ marginTop: 8, maxWidth: 160, borderRadius: 8 }} />}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" onClick={() => setShowFinalizeForm(false)} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: `1px solid ${COLORS.line}`, background: "#fff", fontSize: 13, cursor: "pointer" }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={saving} style={{ flex: 2, padding: "9px 0", borderRadius: 8, border: "none", background: COLORS.clay, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  {saving ? "Enviando..." : "Enviar solicitação"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      ) : aguardandoAprovacao ? (
+        <div style={{ background: "#FBF3E1", border: "1px solid #E8C97A", borderRadius: 10, padding: "12px 14px", marginTop: 14 }}>
+          <p style={{ fontSize: 12.5, color: COLORS.soil, margin: 0, fontWeight: 600 }}>Aguardando aprovação da administração</p>
+          <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "4px 0 0" }}>
+            Sua solicitação de finalização foi enviada e está em análise. Os investidores serão pagos assim que for aprovada.
+          </p>
         </div>
       ) : (
         <>

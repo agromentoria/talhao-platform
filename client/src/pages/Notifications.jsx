@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt } from "lucide-react";
 import { COLORS, ICONS, GRAIN_ICONS } from "../theme";
 import { ErrorBanner } from "../components/Shared";
@@ -26,6 +27,7 @@ function timeAgo(dateStr) {
 
 export default function Notifications() {
   const { user, refreshUnread } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -47,6 +49,11 @@ export default function Notifications() {
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  async function handleClick(n) {
+    if (!n.read_at) await markRead(n.id);
+    if (n.plot_id) navigate(`/talhao/${n.plot_id}`);
   }
 
   async function markAllRead() {
@@ -95,10 +102,11 @@ export default function Notifications() {
           return (
             <button
               key={n.id}
-              onClick={() => unread && markRead(n.id)}
+              onClick={() => handleClick(n)}
               style={{
                 display: "flex", gap: 12, textAlign: "left", padding: "14px 16px", borderRadius: 12,
-                background: unread ? "#fff" : COLORS.bgCard, border: `1px solid ${COLORS.line}`, cursor: unread ? "pointer" : "default",
+                background: unread ? "#fff" : COLORS.bgCard, border: `1px solid ${COLORS.line}`,
+                cursor: unread || n.plot_id ? "pointer" : "default",
                 boxShadow: unread ? "0 2px 8px rgba(58,46,34,0.08)" : "none",
               }}
             >
@@ -115,7 +123,10 @@ export default function Notifications() {
                   {unread && <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.orange, marginTop: 4, flexShrink: 0 }} />}
                 </div>
                 <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "3px 0 0", lineHeight: 1.4 }}>{n.body}</p>
-                <p style={{ fontSize: 11, color: COLORS.clay, margin: "5px 0 0" }}>{timeAgo(n.created_at)}</p>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 5 }}>
+                  <p style={{ fontSize: 11, color: COLORS.clay, margin: 0 }}>{timeAgo(n.created_at)}</p>
+                  {n.plot_id && <span style={{ fontSize: 11, color: COLORS.orange, fontWeight: 600 }}>Ver talhão →</span>}
+                </div>
               </div>
             </button>
           );

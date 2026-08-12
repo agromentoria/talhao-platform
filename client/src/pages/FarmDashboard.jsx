@@ -1,9 +1,18 @@
 import { useEffect, useState } from "react";
-import { Percent, Plus, Trash2, RotateCcw, Pencil, Info } from "lucide-react";
+import { Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
 import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+
+const STATUS_FILTERS = [
+  { id: "ativos", label: "Ativos", match: (s) => s === "captacao" || s === "em_andamento" },
+  { id: "captacao", label: "Em captação", match: (s) => s === "captacao" },
+  { id: "andamento", label: "Em andamento", match: (s) => s === "em_andamento" },
+  { id: "finalizados", label: "Colhidos e pagos", match: (s) => s === "pago" || s === "colhido" },
+  { id: "arquivados", label: "Arquivados", match: (s) => s === "arquivado" },
+  { id: "todos", label: "Todos", match: () => true },
+];
 
 export default function FarmDashboard() {
   const { user } = useAuth();
@@ -14,6 +23,7 @@ export default function FarmDashboard() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("ativos");
 
   function load() {
     api.getFarm(user.farm_id).then((data) => setFarm(data.farm)).catch((err) => setError(err.message));
@@ -25,6 +35,9 @@ export default function FarmDashboard() {
   useEffect(() => { load(); }, []);
 
   if (!farm) return <div style={{ padding: 32 }}><ErrorBanner message={error} />{!error && <p style={{ color: COLORS.soilLight, fontSize: 13 }}>Carregando painel...</p>}</div>;
+
+  const activeFilter = STATUS_FILTERS.find((f) => f.id === statusFilter) || STATUS_FILTERS[0];
+  const filteredPlots = plots.filter((p) => activeFilter.match(p.status));
 
   async function updateCommission(pct) {
     try {
@@ -68,7 +81,7 @@ export default function FarmDashboard() {
         </p>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: 0 }}>Seus talhões</p>
         <button onClick={() => setShowForm((s) => !s)} disabled={farm.status !== "aprovada"} style={{
           display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none",
@@ -81,11 +94,31 @@ export default function FarmDashboard() {
 
       {showForm && <NewPlotForm farmId={farm.id} references={references} fasePricing={fasePricing} onCreated={() => { setShowForm(false); load(); }} setError={setError} />}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 14 }}>
-        {plots.map((p) => (
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginTop: 14, WebkitOverflowScrolling: "touch" }}>
+        {STATUS_FILTERS.map((f) => {
+          const count = plots.filter((p) => f.match(p.status)).length;
+          const active = statusFilter === f.id;
+          return (
+            <button key={f.id} onClick={() => setStatusFilter(f.id)} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 20, whiteSpace: "nowrap",
+              border: `1px solid ${active ? COLORS.leaf : COLORS.line}`, background: active ? COLORS.leaf : "#fff",
+              color: active ? "#fff" : COLORS.soilLight, fontSize: 12.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+            }}>
+              {f.label} <span style={{ opacity: 0.8 }}>({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
+        {filteredPlots.map((p) => (
           <PlotAdminCard key={p.id} plot={p} references={references} onChanged={load} setNotice={setNotice} setError={setError} />
         ))}
-        {plots.length === 0 && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum talhão cadastrado ainda.</p>}
+        {filteredPlots.length === 0 && (
+          <p style={{ fontSize: 13, color: COLORS.soilLight }}>
+            {plots.length === 0 ? "Nenhum talhão cadastrado ainda." : "Nenhum talhão nesse filtro."}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -202,6 +235,7 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
   const [saving, setSaving] = useState(false);
   const [showRestart, setShowRestart] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const nuncaVendido = plot.cotas_disponiveis === plot.cotas_totais;
   const podeExcluir = plot.status === "pago" || nuncaVendido;
@@ -252,44 +286,55 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
   }
 
   return (
-    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: COLORS.bg, boxShadow: "0 2px 6px rgba(58,46,34,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 16 }}>
+      <div
+        onClick={() => setExpanded((e) => !e)}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, cursor: "pointer" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: COLORS.bg, boxShadow: "0 2px 6px rgba(58,46,34,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <img src={GRAIN_ICONS[plot.grao]} alt={plot.grao} style={{ width: 26, height: 26, objectFit: "contain" }} />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <p style={{ fontWeight: 500, fontSize: 14, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.grao}</p>
-            <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0" }}>
-              {(plot.cotas_totais - plot.cotas_disponiveis).toLocaleString("pt-BR")}/{plot.cotas_totais.toLocaleString("pt-BR")} {unitPlural(plot.unidade, plot.cotas_totais)} vendidas · {fmtBRL((plot.cotas_totais - plot.cotas_disponiveis) * plot.cota_valor)} captados
+            <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "2px 0 0" }}>
+              {(plot.cotas_totais - plot.cotas_disponiveis).toLocaleString("pt-BR")}/{plot.cotas_totais.toLocaleString("pt-BR")} {unitPlural(plot.unidade, plot.cotas_totais)} · {fmtBRL((plot.cotas_totais - plot.cotas_disponiveis) * plot.cota_valor)}
             </p>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 20, background: plot.status === "arquivado" ? COLORS.line : plot.status === "pago" ? "#E1F0DE" : COLORS.wheatLight, color: plot.status === "pago" ? COLORS.leafDark : COLORS.soil, fontWeight: 500 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: plot.status === "arquivado" ? COLORS.line : plot.status === "pago" ? "#E1F0DE" : COLORS.wheatLight, color: plot.status === "pago" ? COLORS.leafDark : COLORS.soil, fontWeight: 500, whiteSpace: "nowrap" }}>
             {STATUS_LABEL[plot.status] || plot.status}
           </span>
-          {finalizado && (
-            <button onClick={() => setShowEdit((s) => !s)} title="Editar informações" disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.soilLight, display: "flex" }}>
-              <Pencil size={16} />
-            </button>
-          )}
-          {finalizado && (
-            <button onClick={() => setShowRestart((s) => !s)} title="Reiniciar com nova commodity" disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.leaf, display: "flex" }}>
-              <RotateCcw size={16} />
-            </button>
-          )}
-          {podeExcluir && (
-            <button onClick={handleDelete} title="Excluir talhão" disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.danger, display: "flex" }}>
-              <Trash2 size={16} />
-            </button>
-          )}
+          <button onClick={(e) => { e.stopPropagation(); setExpanded((x) => !x); }} title={expanded ? "Recolher" : "Expandir"} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.soilLight, display: "flex" }}>
+            {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
         </div>
       </div>
 
-      <ProgressBar value={progresso} color={color} />
+      {expanded && (
+        <>
+          <div style={{ marginTop: 14 }}><ProgressBar value={progresso} color={color} /></div>
 
-      {!finalizado ? (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 14, marginTop: 10 }}>
+            {finalizado && (
+              <button onClick={() => setShowEdit((s) => !s)} title="Editar informações" disabled={saving} style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: COLORS.soilLight, fontSize: 12 }}>
+                <Pencil size={14} /> Editar
+              </button>
+            )}
+            {finalizado && (
+              <button onClick={() => setShowRestart((s) => !s)} title="Reiniciar com nova commodity" disabled={saving} style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: COLORS.leaf, fontSize: 12 }}>
+                <RotateCcw size={14} /> Reiniciar
+              </button>
+            )}
+            {podeExcluir && (
+              <button onClick={handleDelete} title="Excluir talhão" disabled={saving} style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: COLORS.danger, fontSize: 12 }}>
+                <Trash2 size={14} /> Excluir
+              </button>
+            )}
+          </div>
+
+          {!finalizado ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 14, alignItems: "flex-end" }}>
           <div>
             <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Fase atual</label>
@@ -345,6 +390,8 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
           {showRestart && (
             <RestartPlotForm plot={plot} references={references} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
           )}
+        </>
+      )}
         </>
       )}
     </div>

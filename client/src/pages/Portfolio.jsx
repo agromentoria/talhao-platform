@@ -28,10 +28,10 @@ export default function Portfolio() {
 
       <ErrorBanner message={error} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
         {[
           { label: "Total investido", value: fmtBRL(totalInvestido), icon: Coins },
-          { label: "Recebido em colheitas pagas", value: fmtBRL(totalRecebido), icon: TrendingUp },
+          { label: "Recebido em colheitas", value: fmtBRL(totalRecebido), icon: TrendingUp },
           { label: "Talhões ativos", value: ativos, icon: Warehouse },
         ].map((c) => (
           <div key={c.label} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: 16 }}>

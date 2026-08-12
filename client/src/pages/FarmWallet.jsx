@@ -43,9 +43,9 @@ export default function FarmWallet() {
 
       <ErrorBanner message={error} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
         <Stat label="Total vendido" value={fmtBRL(totalVendido)} icon={Coins} />
-        <Stat label="Total recebido (comissão)" value={fmtBRL(totalRecebido)} icon={TrendingUp} />
+        <Stat label="Recebido (comissão)" value={fmtBRL(totalRecebido)} icon={TrendingUp} />
         <Stat label="Talhões com vendas" value={talhõesVendendo} icon={Warehouse} />
       </div>
 

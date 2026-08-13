@@ -317,21 +317,22 @@ function FarmProfileCard({ farmId, estrelas }) {
   const { farm, caracteristicas } = data;
   if (!farm.descricao && !farm.premiacoes && caracteristicas.length === 0) return null;
 
+  const estrelasNum = Number(estrelas) || 0;
   const categorias = [...new Set(caracteristicas.map((c) => c.categoria))];
-  const full = Math.floor(estrelas || 0);
-  const hasHalf = (estrelas || 0) - full >= 0.5;
+  const full = Math.floor(estrelasNum);
+  const hasHalf = estrelasNum - full >= 0.5;
 
   return (
     <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: 0 }}>Sobre {farm.name}</p>
-        {estrelas > 0 && (
+        {estrelasNum > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
             {[0, 1, 2, 3, 4].map((i) => {
               const filled = i < full || (i === full && hasHalf);
               return <Star key={i} size={15} fill={filled ? COLORS.orange : "none"} color={filled ? COLORS.orange : COLORS.line} />;
             })}
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.soil, marginLeft: 3 }}>{estrelas.toFixed(1)}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.soil, marginLeft: 3 }}>{estrelasNum.toFixed(1)}</span>
           </div>
         )}
       </div>

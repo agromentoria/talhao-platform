@@ -58,7 +58,7 @@ export function PlotCard({ plot }) {
               {plot.farm_estrelas > 0 && (
                 <span style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, marginTop: 2 }}>
                   <Star size={13} fill={COLORS.orange} color={COLORS.orange} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.soil }}>{plot.farm_estrelas.toFixed(1)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.soil }}>{Number(plot.farm_estrelas).toFixed(1)}</span>
                 </span>
               )}
             </div>

@@ -33,7 +33,7 @@ router.get("/", asyncHandler(async (req, res) => {
            ROUND((
              COALESCE((SELECT SUM(c.pontos) FROM farm_characteristics fc JOIN farm_characteristics_catalog c ON c.key = fc.characteristic_key WHERE fc.farm_id = f.id), 0)::numeric
              / NULLIF((SELECT SUM(pontos) FROM farm_characteristics_catalog), 0) * 5
-           ), 1) as farm_estrelas
+           ), 1)::float8 as farm_estrelas
     FROM plots p
     JOIN farms f ON f.id = p.farm_id
     WHERE f.status = 'aprovada' AND p.status NOT IN ('pago', 'arquivado', 'aguardando_aprovacao')
@@ -70,7 +70,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
             ROUND((
               COALESCE((SELECT SUM(c.pontos) FROM farm_characteristics fc JOIN farm_characteristics_catalog c ON c.key = fc.characteristic_key WHERE fc.farm_id = f.id), 0)::numeric
               / NULLIF((SELECT SUM(pontos) FROM farm_characteristics_catalog), 0) * 5
-            ), 1) as farm_estrelas
+            ), 1)::float8 as farm_estrelas
      FROM plots p JOIN farms f ON f.id = p.farm_id WHERE p.id = $1`,
     [req.params.id]
   );

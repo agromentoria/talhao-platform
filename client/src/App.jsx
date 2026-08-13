@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import TopNav from "./components/TopNav";
 import BottomNav from "./components/BottomNav";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Marketplace from "./pages/Marketplace";
 import PlotDetail from "./pages/PlotDetail";
 import Login from "./pages/Login";
@@ -32,25 +33,28 @@ function RequireAuth({ children }) {
 }
 
 export default function App() {
+  const location = useLocation();
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
       <TopNav />
       <div className="page-content">
-        <Routes>
-          <Route path="/" element={<Marketplace />} />
-          <Route path="/talhao/:id" element={<PlotDetail />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/cadastro" element={<Register />} />
-          <Route path="/carteira" element={<RequireRole role="investidor"><Portfolio /></RequireRole>} />
-          <Route path="/fazenda" element={<RequireRole role="fazenda"><FarmDashboard /></RequireRole>} />
-          <Route path="/admin" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
-          <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
-          <Route path="/avisos" element={<RequireAuth><Notifications /></RequireAuth>} />
-          <Route path="/conversas" element={<RequireAuth><Conversations /></RequireAuth>} />
-          <Route path="/pagamentos" element={<RequireRole role="investidor"><PaymentMethods /></RequireRole>} />
-          <Route path="/fazenda/carteira" element={<RequireRole role="fazenda"><FarmWallet /></RequireRole>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <ErrorBoundary key={location.pathname}>
+          <Routes>
+            <Route path="/" element={<Marketplace />} />
+            <Route path="/talhao/:id" element={<PlotDetail />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/cadastro" element={<Register />} />
+            <Route path="/carteira" element={<RequireRole role="investidor"><Portfolio /></RequireRole>} />
+            <Route path="/fazenda" element={<RequireRole role="fazenda"><FarmDashboard /></RequireRole>} />
+            <Route path="/admin" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
+            <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
+            <Route path="/avisos" element={<RequireAuth><Notifications /></RequireAuth>} />
+            <Route path="/conversas" element={<RequireAuth><Conversations /></RequireAuth>} />
+            <Route path="/pagamentos" element={<RequireRole role="investidor"><PaymentMethods /></RequireRole>} />
+            <Route path="/fazenda/carteira" element={<RequireRole role="fazenda"><FarmWallet /></RequireRole>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </div>
       <BottomNav />
     </div>

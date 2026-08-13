@@ -29,7 +29,11 @@ router.get("/", asyncHandler(async (req, res) => {
   const { grao } = req.query;
   const appCommissionPct = await getAppCommissionPct();
   let sql = `
-    SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct
+    SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct,
+           ROUND((
+             COALESCE((SELECT SUM(c.pontos) FROM farm_characteristics fc JOIN farm_characteristics_catalog c ON c.key = fc.characteristic_key WHERE fc.farm_id = f.id), 0)::numeric
+             / NULLIF((SELECT SUM(pontos) FROM farm_characteristics_catalog), 0) * 5
+           ), 1) as farm_estrelas
     FROM plots p
     JOIN farms f ON f.id = p.farm_id
     WHERE f.status = 'aprovada' AND p.status NOT IN ('pago', 'arquivado', 'aguardando_aprovacao')
@@ -62,7 +66,11 @@ router.get("/farm/mine", requireAuth, requireRole("fazenda"), asyncHandler(async
 router.get("/:id", asyncHandler(async (req, res) => {
   const appCommissionPct = await getAppCommissionPct();
   const { rows } = await pool.query(
-    `SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct, f.status as farm_status
+    `SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct, f.status as farm_status,
+            ROUND((
+              COALESCE((SELECT SUM(c.pontos) FROM farm_characteristics fc JOIN farm_characteristics_catalog c ON c.key = fc.characteristic_key WHERE fc.farm_id = f.id), 0)::numeric
+              / NULLIF((SELECT SUM(pontos) FROM farm_characteristics_catalog), 0) * 5
+            ), 1) as farm_estrelas
      FROM plots p JOIN farms f ON f.id = p.farm_id WHERE p.id = $1`,
     [req.params.id]
   );

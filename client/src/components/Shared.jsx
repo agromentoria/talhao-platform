@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, TrendingUp, Share2 } from "lucide-react";
+import { MapPin, TrendingUp, Share2, Star } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL, fmtBRL } from "../theme";
 
 export function ProgressBar({ value, color = COLORS.leaf, height = 6 }) {
@@ -53,7 +53,15 @@ export function PlotCard({ plot }) {
 
         <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
           <div>
-            <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 17, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{plot.nome}</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+              <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 17, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{plot.nome}</p>
+              {plot.farm_estrelas > 0 && (
+                <span style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, marginTop: 2 }}>
+                  <Star size={13} fill={COLORS.orange} color={COLORS.orange} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.soil }}>{plot.farm_estrelas.toFixed(1)}</span>
+                </span>
+              )}
+            </div>
             <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "3px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
               <MapPin size={12} /> {plot.farm_name} · {plot.farm_location}
             </p>

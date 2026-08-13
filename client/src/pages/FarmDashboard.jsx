@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2 } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
 import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
@@ -24,6 +24,7 @@ export default function FarmDashboard() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ativos");
 
   function load() {
@@ -51,17 +52,29 @@ export default function FarmDashboard() {
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 4 }}>
-        <img src={ICONS.fazendas} alt="" style={{ width: 44, height: 44, objectFit: "contain" }} />
-        <div>
-          <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: 0 }}>Painel da fazenda</h1>
-          <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{farm.name} · {farm.location}</p>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 4, flexWrap: "wrap", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <img src={ICONS.fazendas} alt="" style={{ width: 44, height: 44, objectFit: "contain" }} />
+          <div>
+            <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: 0 }}>Painel da fazenda</h1>
+            <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{farm.name} · {farm.location}</p>
+          </div>
         </div>
+        <button onClick={() => setShowProfile((s) => !s)} style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, border: `1px solid ${COLORS.line}`,
+          background: "#fff", color: COLORS.soil, fontSize: 13, fontWeight: 600, cursor: "pointer",
+        }}>
+          <UserCircle2 size={16} /> Editar perfil e destaques
+        </button>
       </div>
       <div style={{ marginBottom: 16 }} />
 
       <ErrorBanner message={error} />
       {notice && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 14 }}>{notice}</p>}
+
+      {showProfile && (
+        <FarmProfileEditor farmId={farm.id} onClose={() => setShowProfile(false)} setNotice={setNotice} setError={setError} />
+      )}
 
       {farm.status === "pendente" && (
         <div style={{ background: "#FBF3E1", border: "1px solid #E8C97A", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: COLORS.soil, marginBottom: 20 }}>
@@ -583,3 +596,113 @@ function Field({ label, value, onChange, type = "text", required, style, readOnl
 }
 
 const inputStyle = { width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 13.5 };
+
+function StarRating({ value }) {
+  const full = Math.floor(value);
+  const hasHalf = value - full >= 0.5;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      {[0, 1, 2, 3, 4].map((i) => {
+        const filled = i < full || (i === full && hasHalf);
+        return <Star key={i} size={16} fill={filled ? COLORS.orange : "none"} color={filled ? COLORS.orange : COLORS.line} />;
+      })}
+      <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, marginLeft: 4 }}>{value.toFixed(1)}</span>
+    </div>
+  );
+}
+
+function FarmProfileEditor({ farmId, onClose, setNotice, setError }) {
+  const [catalog, setCatalog] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [descricao, setDescricao] = useState("");
+  const [premiacoes, setPremiacoes] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.all([api.farmCharacteristicsCatalog(), api.getFarmProfile(farmId)])
+      .then(([catData, profileData]) => {
+        setCatalog(catData.catalog);
+        setDescricao(profileData.farm.descricao || "");
+        setPremiacoes(profileData.farm.premiacoes || "");
+        setSelected(profileData.caracteristicas.map((c) => c.key));
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [farmId]);
+
+  const totalPontos = catalog.reduce((s, c) => s + c.pontos, 0) || 1;
+  const pontosSelecionados = catalog.filter((c) => selected.includes(c.key)).reduce((s, c) => s + c.pontos, 0);
+  const estrelasPreview = Math.min(5, Math.round((pontosSelecionados / totalPontos) * 5 * 10) / 10);
+
+  const categorias = [...new Set(catalog.map((c) => c.categoria))];
+
+  function toggle(key) {
+    setSelected((sel) => (sel.includes(key) ? sel.filter((k) => k !== key) : [...sel, key]));
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.updateFarmProfile(farmId, { descricao, premiacoes, caracteristicas: selected });
+      setNotice("Perfil da fazenda atualizado.");
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <p style={{ fontSize: 13, color: COLORS.soilLight, marginBottom: 20 }}>Carregando perfil...</p>;
+
+  return (
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil, margin: 0 }}>Perfil e destaques da fazenda</p>
+        <StarRating value={estrelasPreview} />
+      </div>
+      <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
+        Quanto mais itens de tecnologia e infraestrutura você marcar, maior sua nota em estrelas — isso aparece pros investidores na hora de escolher onde investir.
+      </p>
+
+      <label style={{ fontSize: 12, color: COLORS.soilLight }}>Descrição da fazenda</label>
+      <textarea
+        value={descricao} onChange={(e) => setDescricao(e.target.value)} maxLength={3000} rows={4}
+        placeholder="Conte a história da fazenda, tipo de plantio, região, o que torna sua operação diferenciada..."
+        style={{ ...inputStyle, marginTop: 5, marginBottom: 14, resize: "vertical", fontFamily: "inherit" }}
+      />
+
+      <label style={{ fontSize: 12, color: COLORS.soilLight }}>Prêmios e reconhecimentos</label>
+      <textarea
+        value={premiacoes} onChange={(e) => setPremiacoes(e.target.value)} maxLength={1500} rows={2}
+        placeholder="Ex: Prêmio Produtor Sustentável 2024, certificação X, reconhecimento Y..."
+        style={{ ...inputStyle, marginTop: 5, marginBottom: 18, resize: "vertical", fontFamily: "inherit" }}
+      />
+
+      {categorias.map((cat) => (
+        <div key={cat} style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: COLORS.soilLight, textTransform: "uppercase", margin: "0 0 8px" }}>{cat}</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {catalog.filter((c) => c.categoria === cat).map((c) => (
+              <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: COLORS.soil, cursor: "pointer" }}>
+                <input type="checkbox" checked={selected.includes(c.key)} onChange={() => toggle(c.key)} />
+                {c.label}
+                <span style={{ fontSize: 11, color: COLORS.orange, fontWeight: 600 }}>+{c.pontos}pt</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+        <button onClick={onClose} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1px solid ${COLORS.line}`, background: "#fff", color: COLORS.soilLight, fontSize: 13.5, cursor: "pointer" }}>
+          Cancelar
+        </button>
+        <button onClick={save} disabled={saving} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: COLORS.orange, color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1 }}>
+          {saving ? "Salvando..." : "Salvar perfil"}
+        </button>
+      </div>
+    </div>
+  );
+}

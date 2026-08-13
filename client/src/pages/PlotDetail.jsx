@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, MapPin, QrCode, CreditCard, Plus } from "lucide-react";
+import { ArrowLeft, MapPin, QrCode, CreditCard, Plus, Star, Award } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
 import { ErrorBanner, ShareButton } from "../components/Shared";
@@ -192,6 +192,8 @@ export default function PlotDetail() {
             </div>
           </div>
 
+          <FarmProfileCard farmId={plot.farm_id} estrelas={plot.farm_estrelas} />
+
           <FarmTrackRecord farmId={plot.farm_id} farmName={plot.farm_name} />
         </div>
 
@@ -299,6 +301,64 @@ export default function PlotDetail() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FarmProfileCard({ farmId, estrelas }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.getFarmProfile(farmId).then(setData).catch((err) => setError(err.message));
+  }, [farmId]);
+
+  if (error || !data) return null;
+  const { farm, caracteristicas } = data;
+  if (!farm.descricao && !farm.premiacoes && caracteristicas.length === 0) return null;
+
+  const categorias = [...new Set(caracteristicas.map((c) => c.categoria))];
+  const full = Math.floor(estrelas || 0);
+  const hasHalf = (estrelas || 0) - full >= 0.5;
+
+  return (
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: 0 }}>Sobre {farm.name}</p>
+        {estrelas > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {[0, 1, 2, 3, 4].map((i) => {
+              const filled = i < full || (i === full && hasHalf);
+              return <Star key={i} size={15} fill={filled ? COLORS.orange : "none"} color={filled ? COLORS.orange : COLORS.line} />;
+            })}
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.soil, marginLeft: 3 }}>{estrelas.toFixed(1)}</span>
+          </div>
+        )}
+      </div>
+
+      {farm.descricao && (
+        <p style={{ fontSize: 12.5, color: COLORS.soil, margin: "10px 0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{farm.descricao}</p>
+      )}
+
+      {farm.premiacoes && (
+        <div style={{ display: "flex", gap: 8, background: "#FBF3E1", border: "1px solid #E8C97A", borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
+          <Award size={16} color={COLORS.orangeDark} style={{ flexShrink: 0, marginTop: 1 }} />
+          <p style={{ fontSize: 12, color: COLORS.soil, margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{farm.premiacoes}</p>
+        </div>
+      )}
+
+      {categorias.map((cat) => (
+        <div key={cat} style={{ marginBottom: 10 }}>
+          <p style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.soilLight, textTransform: "uppercase", margin: "0 0 6px" }}>{cat}</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {caracteristicas.filter((c) => c.categoria === cat).map((c) => (
+              <span key={c.key} style={{ fontSize: 11.5, padding: "4px 10px", borderRadius: 20, background: COLORS.bg, color: COLORS.soil }}>
+                {c.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

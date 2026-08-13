@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText } from "lucide-react";
+import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, GRAIN_ICONS, UNIT_LABEL, FASES, fmtBRL } from "../theme";
 import { ErrorBanner } from "../components/Shared";
 import { api } from "../api";
@@ -17,6 +17,7 @@ const TABS = [
   { id: "fazendas", label: "Fazendas", icon: Building2 },
   { id: "fases", label: "Preço por fase", icon: TrendingUp },
   { id: "mercado", label: "Referência de mercado", icon: Wheat },
+  { id: "destaques", label: "Destaques da fazenda", icon: Star },
 ];
 
 export default function AdminDashboard() {
@@ -30,6 +31,7 @@ export default function AdminDashboard() {
   const [references, setReferences] = useState([]);
   const [fasePricing, setFasePricing] = useState({});
   const [harvestRequests, setHarvestRequests] = useState([]);
+  const [characteristics, setCharacteristics] = useState([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -40,6 +42,7 @@ export default function AdminDashboard() {
     api.commodityReferences().then((data) => setReferences(data.references)).catch((err) => setError(err.message));
     api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch((err) => setError(err.message));
     api.pendingHarvestRequests("pendente").then((data) => setHarvestRequests(data.requests)).catch((err) => setError(err.message));
+    api.farmCharacteristicsCatalog().then((data) => setCharacteristics(data.catalog)).catch((err) => setError(err.message));
   }
 
   function loadTransactions() {
@@ -109,6 +112,16 @@ export default function AdminDashboard() {
       await api.rejectHarvestRequest(id, motivo);
       setNotice("Solicitação rejeitada. A fazenda foi avisada.");
       load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function saveCharacteristicPoints(key, pontos) {
+    try {
+      await api.updateFarmCharacteristicPoints(key, pontos);
+      setCharacteristics((list) => list.map((c) => (c.key === key ? { ...c, pontos } : c)));
+      setNotice("Pontuação atualizada.");
     } catch (err) {
       setError(err.message);
     }
@@ -309,6 +322,20 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {tab === "destaques" && (
+        <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+          <p style={{ fontSize: 12.5, color: COLORS.soil, fontWeight: 600, margin: "0 0 4px" }}>Catálogo de destaques da fazenda</p>
+          <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
+            Cada item que a fazenda marca no perfil dela vale esses pontos. A nota em estrelas exibida ao investidor é a soma dos pontos marcados dividida pelo total possível deste catálogo. Ajuste os pesos conforme o que for mais relevante para a plataforma.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {characteristics.map((c) => (
+              <CharacteristicRow key={c.key} item={c} onSave={saveCharacteristicPoints} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {tab === "mercado" && (
         <div>
           <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
@@ -362,6 +389,38 @@ function FasePricingRow({ fase, label, multiplicador, onSave }) {
           {saving ? "Salvando..." : "Salvar"}
         </button>
       </div>
+    </div>
+  );
+}
+
+function CharacteristicRow({ item, onSave }) {
+  const [value, setValue] = useState(String(item.pontos));
+  const [saving, setSaving] = useState(false);
+  const dirty = value !== String(item.pontos);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave(item.key, Number(value));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${COLORS.line}`, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 10.5, color: COLORS.soilLight, minWidth: 130, textTransform: "uppercase", fontWeight: 700 }}>{item.categoria}</span>
+      <span style={{ fontSize: 12.5, color: COLORS.soil, flex: 1, minWidth: 200 }}>{item.label}</span>
+      <input type="number" min="0" max="10" value={value} onChange={(e) => setValue(e.target.value)} style={{
+        width: 60, padding: "6px 8px", borderRadius: 7, border: `1px solid ${COLORS.line}`, fontSize: 12.5, fontFamily: "inherit",
+      }} />
+      <span style={{ fontSize: 11, color: COLORS.soilLight }}>pts</span>
+      <button onClick={save} disabled={!dirty || saving} style={{
+        padding: "6px 12px", borderRadius: 7, border: "none", fontSize: 12, fontWeight: 600,
+        cursor: dirty ? "pointer" : "default", background: dirty ? COLORS.orange : COLORS.line, color: dirty ? "#fff" : COLORS.soilLight,
+      }}>
+        {saving ? "Salvando..." : "Salvar"}
+      </button>
     </div>
   );
 }

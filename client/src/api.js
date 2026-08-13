@@ -42,6 +42,10 @@ export const api = {
   // farms
   listFarms: () => request("/farms", { auth: false }),
   getFarm: (id) => request(`/farms/${id}`),
+  getFarmProfile: (id) => request(`/farms/${id}/profile`, { auth: false }),
+  updateFarmProfile: (id, payload) => request(`/farms/${id}/profile`, { method: "PATCH", body: payload }),
+  farmCharacteristicsCatalog: () => request("/farm-characteristics", { auth: false }),
+  updateFarmCharacteristicPoints: (key, pontos) => request(`/farm-characteristics/${key}`, { method: "PUT", body: { pontos } }),
   pendingFarms: () => request("/farms/status/pendentes"),
   setFarmStatus: (id, status) => request(`/farms/${id}/status`, { method: "PATCH", body: { status } }),
   setCommission: (id, commission_pct) => request(`/farms/${id}/commission`, { method: "PATCH", body: { commission_pct } }),

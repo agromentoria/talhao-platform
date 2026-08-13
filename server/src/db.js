@@ -25,6 +25,32 @@ CREATE TABLE IF NOT EXISTS farms (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Perfil estendido da fazenda: descrição livre escrita pelo próprio
+-- produtor, e um campo separado para prêmios/reconhecimentos (o
+-- investidor lê isso antes de decidir investir).
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS descricao TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS premiacoes TEXT;
+
+-- Catálogo de características técnicas que uma fazenda pode ter
+-- (irrigação, agricultura de precisão, maquinário, certificações etc).
+-- Cada característica vale uma quantidade de pontos, e a nota em
+-- estrelas da fazenda é calculada a partir de quantos pontos ela
+-- acumula em relação ao total possível do catálogo. Editável pelo
+-- admin (pontos e categoria), igual à referência de mercado.
+CREATE TABLE IF NOT EXISTS farm_characteristics_catalog (
+  key TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  pontos INTEGER NOT NULL DEFAULT 1
+);
+
+-- quais características cada fazenda marcou ter
+CREATE TABLE IF NOT EXISTS farm_characteristics (
+  farm_id INTEGER NOT NULL REFERENCES farms(id),
+  characteristic_key TEXT NOT NULL REFERENCES farm_characteristics_catalog(key),
+  PRIMARY KEY (farm_id, characteristic_key)
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -348,6 +374,37 @@ async function ensureFasePricing() {
   }
 }
 
+// catálogo inicial de características técnicas que uma fazenda pode
+// destacar — pontos ilustrativos, ajustáveis pelo admin depois
+const FARM_CHARACTERISTICS_DEFAULTS = [
+  // key, label, categoria, pontos
+  ["irrigacao_pivo", "Área irrigada com pivô central", "Infraestrutura e irrigação", 3],
+  ["irrigacao_gotejamento", "Irrigação por gotejamento", "Infraestrutura e irrigação", 2],
+  ["armazenagem_propria", "Armazenagem própria (silos)", "Infraestrutura e irrigação", 2],
+  ["agricultura_precisao", "Agricultura de precisão (GPS, piloto automático)", "Tecnologia", 3],
+  ["monitoramento_satelite", "Monitoramento por satélite ou drone", "Tecnologia", 2],
+  ["sensores_solo_clima", "Sensores de solo e clima", "Tecnologia", 2],
+  ["plantio_direto", "Plantio direto", "Tecnologia", 1],
+  ["maquinario_recente", "Maquinário de última geração (menos de 5 anos)", "Maquinário", 2],
+  ["frota_propria", "Frota própria de colheitadeiras", "Maquinário", 1],
+  ["certificacao_ambiental", "Certificação ambiental / manejo sustentável", "Sustentabilidade", 2],
+  ["energia_solar", "Energia solar na propriedade", "Sustentabilidade", 1],
+  ["premiacoes_recebidas", "Prêmios ou reconhecimentos recebidos", "Reconhecimento", 3],
+  ["certificacao_qualidade", "Certificação de qualidade/rastreabilidade", "Reconhecimento", 2],
+  ["experiencia_10anos", "Mais de 10 anos de atuação", "Experiência", 1],
+  ["sucessao_familiar", "Sucessão familiar consolidada", "Experiência", 1],
+];
+
+async function ensureFarmCharacteristics() {
+  for (const [key, label, categoria, pontos] of FARM_CHARACTERISTICS_DEFAULTS) {
+    await pool.query(
+      `INSERT INTO farm_characteristics_catalog (key, label, categoria, pontos)
+       VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO NOTHING`,
+      [key, label, categoria, pontos]
+    );
+  }
+}
+
 async function ensureAdmin() {
   const { rows } = await pool.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
   if (rows.length) return;
@@ -384,6 +441,7 @@ async function initDb() {
   await ensureCommodityReferences();
   await ensurePlatformSettings();
   await ensureFasePricing();
+  await ensureFarmCharacteristics();
 }
 
 module.exports = { pool, initDb };

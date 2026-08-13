@@ -33,6 +33,7 @@ async function start() {
   const fasePricingRoutes = require("./routes/fasePricing");
   const harvestRequestRoutes = require("./routes/harvestRequests");
   const trackRecordRoutes = require("./routes/trackRecord");
+  const farmCharacteristicsRoutes = require("./routes/farmCharacteristics");
   const { startReminderScheduler } = require("./reminders");
 
   const app = express();
@@ -68,6 +69,7 @@ async function start() {
   app.use("/api/payments", paymentRoutes);
   app.use("/api/commodities", commodityRoutes);
   app.use("/api/fase-pricing", fasePricingRoutes);
+  app.use("/api/farm-characteristics", farmCharacteristicsRoutes);
 
   app.use((err, req, res, next) => {
     console.error(err);

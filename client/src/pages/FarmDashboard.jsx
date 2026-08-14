@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2 } from "lucide-react";
+import { Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
 import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../utils/validators";
 
 const STATUS_FILTERS = [
   { id: "ativos", label: "Ativos", match: (s) => s === "captacao" || s === "em_andamento" || s === "aguardando_aprovacao" },
@@ -25,6 +26,7 @@ export default function FarmDashboard() {
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showLegalInfo, setShowLegalInfo] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ativos");
 
   function load() {
@@ -60,12 +62,20 @@ export default function FarmDashboard() {
             <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{farm.name} · {farm.location}</p>
           </div>
         </div>
-        <button onClick={() => setShowProfile((s) => !s)} style={{
-          display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, border: `1px solid ${COLORS.line}`,
-          background: "#fff", color: COLORS.soil, fontSize: 13, fontWeight: 600, cursor: "pointer",
-        }}>
-          <UserCircle2 size={16} /> Editar perfil e destaques
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setShowProfile((s) => !s)} style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, border: `1px solid ${COLORS.line}`,
+            background: "#fff", color: COLORS.soil, fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>
+            <UserCircle2 size={16} /> Editar perfil e destaques
+          </button>
+          <button onClick={() => setShowLegalInfo((s) => !s)} style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, border: `1px solid ${COLORS.line}`,
+            background: "#fff", color: COLORS.soil, fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>
+            <FileText size={16} /> Dados legais da propriedade
+          </button>
+        </div>
       </div>
       <div style={{ marginBottom: 16 }} />
 
@@ -74,6 +84,10 @@ export default function FarmDashboard() {
 
       {showProfile && (
         <FarmProfileEditor farmId={farm.id} onClose={() => setShowProfile(false)} setNotice={setNotice} setError={setError} />
+      )}
+
+      {showLegalInfo && (
+        <FarmLegalInfoEditor farmId={farm.id} onClose={() => setShowLegalInfo(false)} setNotice={setNotice} setError={setError} />
       )}
 
       {farm.status === "pendente" && (
@@ -701,6 +715,148 @@ function FarmProfileEditor({ farmId, onClose, setNotice, setError }) {
         </button>
         <button onClick={save} disabled={saving} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: COLORS.orange, color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1 }}>
           {saving ? "Salvando..." : "Salvar perfil"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FarmLegalInfoEditor({ farmId, onClose, setNotice, setError }) {
+  const [tipoPessoa, setTipoPessoa] = useState("fisica");
+  const [cnpj, setCnpj] = useState("");
+  const [razaoSocial, setRazaoSocial] = useState("");
+  const [carNumero, setCarNumero] = useState("");
+  const [matricula, setMatricula] = useState("");
+  const [areaTotal, setAreaTotal] = useState("");
+  const [cep, setCep] = useState("");
+  const [logradouro, setLogradouro] = useState("");
+  const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.getFarmLegalInfo(farmId)
+      .then((data) => {
+        const info = data.legalInfo;
+        if (!info) return;
+        setTipoPessoa(info.tipo_pessoa || "fisica");
+        if (info.cnpj) setCnpj(maskCNPJ(info.cnpj));
+        setRazaoSocial(info.razao_social || "");
+        setCarNumero(info.car_numero || "");
+        setMatricula(info.matricula_imovel || "");
+        setAreaTotal(info.area_total_ha != null ? String(info.area_total_ha) : "");
+        if (info.endereco_cep) setCep(maskCEP(info.endereco_cep));
+        setLogradouro(info.endereco_logradouro || "");
+        setNumero(info.endereco_numero || "");
+        setComplemento(info.endereco_complemento || "");
+        setBairro(info.endereco_bairro || "");
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [farmId]);
+
+  async function handleCepChange(value) {
+    const masked = maskCEP(value);
+    setCep(masked);
+    if (onlyDigits(masked).length === 8) {
+      setBuscandoCep(true);
+      try {
+        const endereco = await buscarEnderecoPorCEP(masked);
+        if (endereco) {
+          setLogradouro(endereco.logradouro);
+          setBairro(endereco.bairro);
+        }
+      } catch {
+        // segue permitindo preenchimento manual
+      } finally {
+        setBuscandoCep(false);
+      }
+    }
+  }
+
+  async function save() {
+    if (tipoPessoa === "juridica" && !isValidCNPJ(cnpj)) {
+      setError("CNPJ inválido. Confira os números digitados.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.updateFarmLegalInfo(farmId, {
+        tipo_pessoa: tipoPessoa,
+        cnpj: tipoPessoa === "juridica" ? onlyDigits(cnpj) : null,
+        razao_social: tipoPessoa === "juridica" ? razaoSocial : null,
+        car_numero: carNumero, matricula_imovel: matricula,
+        area_total_ha: areaTotal ? Number(areaTotal) : null,
+        endereco_cep: onlyDigits(cep), endereco_logradouro: logradouro, endereco_numero: numero,
+        endereco_complemento: complemento, endereco_bairro: bairro,
+      });
+      setNotice("Dados legais da propriedade atualizados.");
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <p style={{ fontSize: 13, color: COLORS.soilLight, marginBottom: 20 }}>Carregando...</p>;
+
+  return (
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 24 }}>
+      <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Dados legais da propriedade</p>
+      <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
+        Usados para compor contratos futuros. O CNPJ e a razão social (quando pessoa jurídica) aparecem no perfil público como selo de confiança; os demais dados ficam sempre privados.
+      </p>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {[{ id: "fisica", label: "Produtor pessoa física (CPF)" }, { id: "juridica", label: "Empresa (CNPJ)" }].map((opt) => (
+          <button key={opt.id} type="button" onClick={() => setTipoPessoa(opt.id)} style={{
+            flex: 1, padding: "9px 0", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+            border: `1px solid ${tipoPessoa === opt.id ? COLORS.leaf : COLORS.line}`,
+            background: tipoPessoa === opt.id ? COLORS.leaf : "#fff",
+            color: tipoPessoa === opt.id ? "#fff" : COLORS.soilLight,
+          }}>{opt.label}</button>
+        ))}
+      </div>
+
+      {tipoPessoa === "juridica" && (
+        <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <Field label="CNPJ" value={cnpj} onChange={(v) => setCnpj(maskCNPJ(v))} required style={{ width: 200 }} />
+          <div style={{ flex: 1 }}><Field label="Razão social" value={razaoSocial} onChange={setRazaoSocial} required /></div>
+        </div>
+      )}
+      {tipoPessoa === "fisica" && (
+        <p style={{ fontSize: 11.5, color: COLORS.soilLight, marginBottom: 12 }}>
+          O CPF do produtor já está cadastrado na aba "Documentos" do perfil pessoal.
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+        <div style={{ flex: 1 }}><Field label="CAR (Cadastro Ambiental Rural)" value={carNumero} onChange={setCarNumero} placeholder="Opcional" /></div>
+        <div style={{ flex: 1 }}><Field label="Matrícula do imóvel" value={matricula} onChange={setMatricula} placeholder="Opcional" /></div>
+        <Field label="Área total (ha)" type="number" value={areaTotal} onChange={setAreaTotal} placeholder="Opcional" style={{ width: 140 }} />
+      </div>
+
+      <p style={{ fontSize: 12, fontWeight: 600, color: COLORS.soil, margin: "8px 0 8px" }}>Endereço da propriedade</p>
+      <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+        <Field label={buscandoCep ? "CEP (buscando...)" : "CEP"} value={cep} onChange={handleCepChange} placeholder="00000-000" required style={{ width: 140 }} />
+        <div style={{ flex: 1 }}><Field label="Logradouro / estrada / rodovia" value={logradouro} onChange={setLogradouro} required /></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <Field label="Número / km" value={numero} onChange={setNumero} required style={{ width: 120 }} />
+        <div style={{ flex: 1 }}><Field label="Complemento" value={complemento} onChange={setComplemento} placeholder="Opcional" /></div>
+        <div style={{ flex: 1 }}><Field label="Bairro / zona rural" value={bairro} onChange={setBairro} required /></div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onClose} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1px solid ${COLORS.line}`, background: "#fff", color: COLORS.soilLight, fontSize: 13.5, cursor: "pointer" }}>
+          Cancelar
+        </button>
+        <button onClick={save} disabled={saving} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: COLORS.orange, color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1 }}>
+          {saving ? "Salvando..." : "Salvar dados legais"}
         </button>
       </div>
     </div>

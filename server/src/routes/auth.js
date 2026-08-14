@@ -5,6 +5,7 @@ const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
+const { onlyDigits, isValidCPF, isValidCNPJ } = require("../validators");
 
 const router = express.Router();
 
@@ -164,6 +165,69 @@ router.patch("/profile", requireAuth, asyncHandler(async (req, res) => {
 
   const token = signToken(rows[0]);
   res.json({ token, user: publicUser(rows[0]) });
+}));
+
+// Qualificação legal completa da pessoa (CPF/CNPJ, RG, endereço etc) —
+// usada para compor contratos futuros. Sempre privada: só o próprio
+// usuário e o admin acessam esses dados.
+router.get("/legal-info", requireAuth, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT tipo_pessoa, cpf, cnpj, rg, rg_orgao_emissor, nacionalidade, estado_civil,
+            profissao, endereco_cep, endereco_logradouro, endereco_numero,
+            endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf
+     FROM users WHERE id = $1`,
+    [req.user.id]
+  );
+  res.json({ legalInfo: rows[0] || null });
+}));
+
+router.patch("/legal-info", requireAuth, asyncHandler(async (req, res) => {
+  const {
+    tipo_pessoa, cpf, cnpj, rg, rg_orgao_emissor, nacionalidade, estado_civil, profissao,
+    endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento,
+    endereco_bairro, endereco_cidade, endereco_uf,
+  } = req.body || {};
+
+  if (!["fisica", "juridica"].includes(tipo_pessoa)) {
+    return res.status(400).json({ error: "Tipo de pessoa inválido." });
+  }
+
+  let cpfLimpo = null;
+  let cnpjLimpo = null;
+  if (tipo_pessoa === "fisica") {
+    if (!isValidCPF(cpf || "")) return res.status(400).json({ error: "CPF inválido." });
+    cpfLimpo = onlyDigits(cpf);
+  } else {
+    if (!isValidCNPJ(cnpj || "")) return res.status(400).json({ error: "CNPJ inválido." });
+    cnpjLimpo = onlyDigits(cnpj);
+  }
+
+  if (!rg || !String(rg).trim()) return res.status(400).json({ error: "Informe o RG (ou documento equivalente)." });
+  if (!endereco_cep || onlyDigits(endereco_cep).length !== 8) return res.status(400).json({ error: "CEP inválido." });
+  if (!endereco_logradouro || !endereco_numero || !endereco_bairro || !endereco_cidade || !endereco_uf) {
+    return res.status(400).json({ error: "Preencha o endereço completo (logradouro, número, bairro, cidade e UF)." });
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE users SET
+       tipo_pessoa = $1, cpf = $2, cnpj = $3, rg = $4, rg_orgao_emissor = $5,
+       nacionalidade = $6, estado_civil = $7, profissao = $8,
+       endereco_cep = $9, endereco_logradouro = $10, endereco_numero = $11,
+       endereco_complemento = $12, endereco_bairro = $13, endereco_cidade = $14, endereco_uf = $15
+     WHERE id = $16
+     RETURNING tipo_pessoa, cpf, cnpj, rg, rg_orgao_emissor, nacionalidade, estado_civil,
+               profissao, endereco_cep, endereco_logradouro, endereco_numero,
+               endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf`,
+    [
+      tipo_pessoa, cpfLimpo, cnpjLimpo, String(rg).trim(), rg_orgao_emissor || null,
+      nacionalidade || "Brasileira", estado_civil || null, profissao || null,
+      onlyDigits(endereco_cep), endereco_logradouro, endereco_numero,
+      endereco_complemento || null, endereco_bairro, endereco_cidade, endereco_uf,
+      req.user.id,
+    ]
+  );
+
+  res.json({ legalInfo: rows[0] });
 }));
 
 router.patch("/password", requireAuth, asyncHandler(async (req, res) => {

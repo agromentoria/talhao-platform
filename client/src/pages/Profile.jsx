@@ -8,7 +8,7 @@ import { api } from "../api";
 import {
   maskCPF, isValidCPF, maskCNPJ, isValidCNPJ, maskPhone, isValidPhone,
   isValidEmail, isValidRandomKey, onlyDigits, BRAZILIAN_BANKS, maskAgencia,
-  isValidAgencia, maskConta, isValidConta,
+  isValidAgencia, maskConta, isValidConta, maskCEP, buscarEnderecoPorCEP,
 } from "../utils/validators";
 
 const MAX_AVATAR_BYTES = 1_200_000;
@@ -229,6 +229,7 @@ export default function Profile() {
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 22, WebkitOverflowScrolling: "touch" }}>
         {[
           { id: "conta", label: "Conta" },
+          { id: "documentos", label: "Documentos" },
           { id: "recebimento", label: "Dados para recebimento" },
           { id: "atalhos", label: "Atalhos" },
         ].map((t) => {
@@ -289,6 +290,8 @@ export default function Profile() {
           </Link>
         </>
       )}
+
+      {tab === "documentos" && <LegalInfoForm />}
 
       {/* Dados para recebimento */}
       {tab === "recebimento" && (
@@ -424,9 +427,9 @@ export default function Profile() {
   );
 }
 
-function TextField({ icon: Icon, label, value, onChange, type = "text", required, minLength, placeholder, inputMode }) {
+function TextField({ icon: Icon, label, value, onChange, type = "text", required, minLength, placeholder, inputMode, style }) {
   return (
-    <div>
+    <div style={style}>
       <label style={{ fontSize: 11.5, color: COLORS.soilLight, display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
         {Icon && <Icon size={12} />} {label}
       </label>
@@ -440,3 +443,181 @@ function TextField({ icon: Icon, label, value, onChange, type = "text", required
 }
 
 const selectStyle = { width: "100%", marginTop: 4, padding: "10px 12px", borderRadius: 10, border: `1px solid ${COLORS.line}`, fontSize: 14, background: "#fff", fontFamily: "inherit" };
+
+function LegalInfoForm() {
+  const [tipoPessoa, setTipoPessoa] = useState("fisica");
+  const [cpf, setCpf] = useState("");
+  const [cnpj, setCnpj] = useState("");
+  const [rg, setRg] = useState("");
+  const [rgOrgao, setRgOrgao] = useState("");
+  const [nacionalidade, setNacionalidade] = useState("Brasileira");
+  const [estadoCivil, setEstadoCivil] = useState("");
+  const [profissao, setProfissao] = useState("");
+  const [cep, setCep] = useState("");
+  const [logradouro, setLogradouro] = useState("");
+  const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [uf, setUf] = useState("");
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    api.getLegalInfo()
+      .then((data) => {
+        const info = data.legalInfo;
+        if (!info) return;
+        setTipoPessoa(info.tipo_pessoa || "fisica");
+        if (info.cpf) setCpf(maskCPF(info.cpf));
+        if (info.cnpj) setCnpj(maskCNPJ(info.cnpj));
+        setRg(info.rg || "");
+        setRgOrgao(info.rg_orgao_emissor || "");
+        setNacionalidade(info.nacionalidade || "Brasileira");
+        setEstadoCivil(info.estado_civil || "");
+        setProfissao(info.profissao || "");
+        if (info.endereco_cep) setCep(maskCEP(info.endereco_cep));
+        setLogradouro(info.endereco_logradouro || "");
+        setNumero(info.endereco_numero || "");
+        setComplemento(info.endereco_complemento || "");
+        setBairro(info.endereco_bairro || "");
+        setCidade(info.endereco_cidade || "");
+        setUf(info.endereco_uf || "");
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleCepChange(value) {
+    const masked = maskCEP(value);
+    setCep(masked);
+    if (onlyDigits(masked).length === 8) {
+      setBuscandoCep(true);
+      try {
+        const endereco = await buscarEnderecoPorCEP(masked);
+        if (endereco) {
+          setLogradouro(endereco.logradouro);
+          setBairro(endereco.bairro);
+          setCidade(endereco.cidade);
+          setUf(endereco.uf);
+        }
+      } catch {
+        // silencioso — usuário ainda pode preencher manualmente
+      } finally {
+        setBuscandoCep(false);
+      }
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(""); setSuccess("");
+
+    if (tipoPessoa === "fisica" && !isValidCPF(cpf)) {
+      setError("CPF inválido. Confira os números digitados.");
+      return;
+    }
+    if (tipoPessoa === "juridica" && !isValidCNPJ(cnpj)) {
+      setError("CNPJ inválido. Confira os números digitados.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.updateLegalInfo({
+        tipo_pessoa: tipoPessoa,
+        cpf: tipoPessoa === "fisica" ? onlyDigits(cpf) : null,
+        cnpj: tipoPessoa === "juridica" ? onlyDigits(cnpj) : null,
+        rg, rg_orgao_emissor: rgOrgao, nacionalidade, estado_civil: estadoCivil, profissao,
+        endereco_cep: onlyDigits(cep), endereco_logradouro: logradouro, endereco_numero: numero,
+        endereco_complemento: complemento, endereco_bairro: bairro, endereco_cidade: cidade, endereco_uf: uf,
+      });
+      setSuccess("Documentos salvos com sucesso.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>;
+
+  return (
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+      <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Documentos e endereço</p>
+      <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
+        Esses dados ficam sempre privados — visíveis só para você e para a administração — e são usados para compor contratos futuros.
+      </p>
+
+      <ErrorBanner message={error} />
+      {success && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 12 }}>{success}</p>}
+
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[{ id: "fisica", label: "Pessoa física (CPF)" }, { id: "juridica", label: "Pessoa jurídica (CNPJ)" }].map((opt) => (
+            <button key={opt.id} type="button" onClick={() => setTipoPessoa(opt.id)} style={{
+              flex: 1, padding: "9px 0", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+              border: `1px solid ${tipoPessoa === opt.id ? COLORS.leaf : COLORS.line}`,
+              background: tipoPessoa === opt.id ? COLORS.leaf : "#fff",
+              color: tipoPessoa === opt.id ? "#fff" : COLORS.soilLight,
+            }}>{opt.label}</button>
+          ))}
+        </div>
+
+        {tipoPessoa === "fisica" ? (
+          <TextField label="CPF" value={cpf} onChange={(v) => setCpf(maskCPF(v))} placeholder="000.000.000-00" required inputMode="numeric" />
+        ) : (
+          <TextField label="CNPJ" value={cnpj} onChange={(v) => setCnpj(maskCNPJ(v))} placeholder="00.000.000/0000-00" required inputMode="numeric" />
+        )}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <TextField label="RG (ou documento equivalente)" value={rg} onChange={setRg} required style={{ flex: 1 }} />
+          <TextField label="Órgão emissor" value={rgOrgao} onChange={setRgOrgao} placeholder="Ex: SSP-GO" style={{ flex: 1 }} />
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <TextField label="Nacionalidade" value={nacionalidade} onChange={setNacionalidade} style={{ flex: 1 }} />
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Estado civil</label>
+            <select value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)} style={selectStyle}>
+              <option value="">Selecione</option>
+              <option value="solteiro">Solteiro(a)</option>
+              <option value="casado">Casado(a)</option>
+              <option value="uniao_estavel">União estável</option>
+              <option value="divorciado">Divorciado(a)</option>
+              <option value="viuvo">Viúvo(a)</option>
+            </select>
+          </div>
+        </div>
+
+        <TextField label="Profissão" value={profissao} onChange={setProfissao} />
+
+        <p style={{ fontSize: 12, fontWeight: 600, color: COLORS.soil, margin: "8px 0 0" }}>Endereço</p>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <TextField label={buscandoCep ? "CEP (buscando...)" : "CEP"} value={cep} onChange={handleCepChange} placeholder="00000-000" required inputMode="numeric" style={{ width: 140 }} />
+          <TextField label="Logradouro" value={logradouro} onChange={setLogradouro} required style={{ flex: 1 }} />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <TextField label="Número" value={numero} onChange={setNumero} required style={{ width: 100 }} />
+          <TextField label="Complemento" value={complemento} onChange={setComplemento} placeholder="Apto, bloco..." style={{ flex: 1 }} />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <TextField label="Bairro" value={bairro} onChange={setBairro} required style={{ flex: 1 }} />
+          <TextField label="Cidade" value={cidade} onChange={setCidade} required style={{ flex: 1 }} />
+          <TextField label="UF" value={uf} onChange={(v) => setUf(v.toUpperCase().slice(0, 2))} required style={{ width: 70 }} />
+        </div>
+
+        <button type="submit" disabled={saving} style={{
+          marginTop: 6, padding: "11px 0", borderRadius: 10, border: "none", background: COLORS.orange,
+          color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1,
+        }}>
+          {saving ? "Salvando..." : "Salvar documentos"}
+        </button>
+      </form>
+    </div>
+  );
+}

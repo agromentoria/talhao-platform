@@ -42,6 +42,10 @@ export const api = {
   // farms
   listFarms: () => request("/farms", { auth: false }),
   getFarm: (id) => request(`/farms/${id}`),
+  getLegalInfo: () => request("/auth/legal-info"),
+  updateLegalInfo: (payload) => request("/auth/legal-info", { method: "PATCH", body: payload }),
+  getFarmLegalInfo: (id) => request(`/farms/${id}/legal-info`),
+  updateFarmLegalInfo: (id, payload) => request(`/farms/${id}/legal-info`, { method: "PATCH", body: payload }),
   getFarmProfile: (id) => request(`/farms/${id}/profile`, { auth: false }),
   updateFarmProfile: (id, payload) => request(`/farms/${id}/profile`, { method: "PATCH", body: payload }),
   farmCharacteristicsCatalog: () => request("/farm-characteristics", { auth: false }),

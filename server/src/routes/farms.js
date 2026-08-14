@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
+const { onlyDigits, isValidCNPJ } = require("../validators");
 
 const router = express.Router();
 
@@ -35,11 +36,18 @@ router.get("/", asyncHandler(async (req, res) => {
 // ser dono nem admin (diferente do GET /:id, que traz dados de gestão)
 router.get("/:id/profile", asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT id, name, location, descricao, premiacoes, status FROM farms WHERE id = $1",
+    "SELECT id, name, location, descricao, premiacoes, status, tipo_pessoa, cnpj, razao_social FROM farms WHERE id = $1",
     [req.params.id]
   );
   const farm = rows[0];
   if (!farm) return res.status(404).json({ error: "Fazenda não encontrada." });
+
+  // CNPJ é dado público no Brasil e funciona como selo de confiança;
+  // já CPF (produtor pessoa física) nunca é exposto publicamente
+  if (farm.tipo_pessoa !== "juridica") {
+    farm.cnpj = null;
+    farm.razao_social = null;
+  }
 
   const { rows: caracteristicas } = await pool.query(
     `SELECT c.key, c.label, c.categoria, c.pontos
@@ -116,6 +124,84 @@ router.patch("/:id/profile", requireAuth, requireRole("fazenda", "admin"), async
 
   const { estrelas } = await calcularEstrelas(farm.id);
   res.json({ ok: true, estrelas });
+}));
+
+// Dados legais/da propriedade — necessários para contratos futuros.
+// Separado do perfil "de marketing" (descrição/prêmios): aqui é CNPJ,
+// razão social, CAR, matrícula e endereço da propriedade. Sempre
+// privado (só dono e admin), exceto o CNPJ/razão social que também
+// aparecem no perfil público como selo de confiança.
+router.get("/:id/legal-info", requireAuth, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT tipo_pessoa, cnpj, razao_social, car_numero, matricula_imovel, area_total_ha,
+            endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro
+     FROM farms WHERE id = $1`,
+    [req.params.id]
+  );
+  const farm = rows[0];
+  if (!farm) return res.status(404).json({ error: "Fazenda não encontrada." });
+
+  const isOwner = req.user.role === "fazenda" && req.user.farm_id === Number(req.params.id);
+  if (!isOwner && req.user.role !== "admin") {
+    return res.status(403).json({ error: "Você não tem acesso a esses dados." });
+  }
+  res.json({ legalInfo: farm });
+}));
+
+router.patch("/:id/legal-info", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const {
+    tipo_pessoa, cnpj, razao_social, car_numero, matricula_imovel, area_total_ha,
+    endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro,
+  } = req.body || {};
+
+  const existing = await pool.query("SELECT * FROM farms WHERE id = $1", [req.params.id]);
+  const farm = existing.rows[0];
+  if (!farm) return res.status(404).json({ error: "Fazenda não encontrada." });
+
+  const isOwner = req.user.role === "fazenda" && req.user.farm_id === farm.id;
+  if (!isOwner && req.user.role !== "admin") {
+    return res.status(403).json({ error: "Você só pode editar os dados da sua própria fazenda." });
+  }
+
+  if (!["fisica", "juridica"].includes(tipo_pessoa)) {
+    return res.status(400).json({ error: "Tipo de pessoa inválido." });
+  }
+
+  let cnpjLimpo = null;
+  if (tipo_pessoa === "juridica") {
+    if (!isValidCNPJ(cnpj || "")) return res.status(400).json({ error: "CNPJ inválido." });
+    if (!razao_social || !String(razao_social).trim()) return res.status(400).json({ error: "Informe a razão social." });
+    cnpjLimpo = onlyDigits(cnpj);
+  }
+
+  if (!endereco_cep || onlyDigits(endereco_cep).length !== 8) {
+    return res.status(400).json({ error: "CEP da propriedade inválido." });
+  }
+  if (!endereco_logradouro || !endereco_numero || !endereco_bairro) {
+    return res.status(400).json({ error: "Preencha o endereço completo da propriedade." });
+  }
+
+  const area = area_total_ha != null && area_total_ha !== "" ? Number(area_total_ha) : null;
+  if (area != null && (Number.isNaN(area) || area <= 0)) {
+    return res.status(400).json({ error: "Área total inválida." });
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE farms SET
+       tipo_pessoa = $1, cnpj = $2, razao_social = $3, car_numero = $4, matricula_imovel = $5,
+       area_total_ha = $6, endereco_cep = $7, endereco_logradouro = $8, endereco_numero = $9,
+       endereco_complemento = $10, endereco_bairro = $11
+     WHERE id = $12
+     RETURNING tipo_pessoa, cnpj, razao_social, car_numero, matricula_imovel, area_total_ha,
+               endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro`,
+    [
+      tipo_pessoa, cnpjLimpo, razao_social || null, car_numero || null, matricula_imovel || null,
+      area, onlyDigits(endereco_cep), endereco_logradouro, endereco_numero,
+      endereco_complemento || null, endereco_bairro, farm.id,
+    ]
+  );
+
+  res.json({ legalInfo: rows[0] });
 }));
 
 router.get("/status/pendentes", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {

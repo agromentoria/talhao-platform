@@ -31,6 +31,24 @@ CREATE TABLE IF NOT EXISTS farms (
 ALTER TABLE farms ADD COLUMN IF NOT EXISTS descricao TEXT;
 ALTER TABLE farms ADD COLUMN IF NOT EXISTS premiacoes TEXT;
 
+-- Dados legais/da propriedade — necessários para contratos futuros
+-- (CPR, termos de investimento etc). tipo_pessoa define se a fazenda
+-- opera no CPF do próprio produtor ("fisica") ou tem CNPJ próprio
+-- ("juridica"). CNPJ e razão social são exibidos publicamente como
+-- selo de confiança (dado público no Brasil); os demais campos
+-- (endereço, CAR, matrícula) ficam visíveis só para o dono e o admin.
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS tipo_pessoa TEXT DEFAULT 'fisica';
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS cnpj TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS razao_social TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS car_numero TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS matricula_imovel TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS area_total_ha REAL;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS endereco_cep TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS endereco_logradouro TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS endereco_numero TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS endereco_complemento TEXT;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS endereco_bairro TEXT;
+
 -- Catálogo de características técnicas que uma fazenda pode ter
 -- (irrigação, agricultura de precisão, maquinário, certificações etc).
 -- Cada característica vale uma quantidade de pontos, e a nota em
@@ -65,6 +83,27 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_data TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+
+-- Qualificação legal completa da pessoa — necessária para contratos
+-- futuros (CPR, termos de investimento etc). tipo_pessoa permite que
+-- mesmo um investidor seja uma pessoa jurídica (ex: um fundo pequeno),
+-- embora o caso comum seja pessoa física. Todos esses campos são
+-- sempre privados — nunca expostos em nenhuma rota pública.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tipo_pessoa TEXT DEFAULT 'fisica';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cpf TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cnpj TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rg TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rg_orgao_emissor TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS nacionalidade TEXT DEFAULT 'Brasileira';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS estado_civil TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profissao TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_cep TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_logradouro TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_numero TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_complemento TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_bairro TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_cidade TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_uf TEXT;
 
 DO $$
 BEGIN

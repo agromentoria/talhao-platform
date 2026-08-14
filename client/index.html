@@ -9,20 +9,53 @@
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
       * { box-sizing: border-box; }
+      html, body { height: 100%; }
       body {
         margin: 0;
         font-family: 'Inter', system-ui, sans-serif;
         background-color: #EADFCD;
+        position: relative;
+      }
+
+      /* Fundo fixo: um elemento próprio em vez de background-attachment:fixed
+         no body, porque essa propriedade não funciona de forma confiável no
+         Safari do iPhone (rola junto com o conteúdo mesmo marcada como fixa).
+         Usando um elemento position:fixed atrás de tudo, o fundo realmente
+         fica parado enquanto o conteúdo do app rola por cima, em qualquer
+         navegador. */
+      #app-background {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1;
+        background-color: #EADFCD;
         background-image: url('/bg-farm-cream.svg');
         background-repeat: no-repeat;
-        background-size: cover;
-        background-attachment: fixed;
         background-position: top center;
+        background-size: cover;
       }
+
+      /* A ilustração mobile é vertical (retrato) — "cover" nessa proporção
+         já funciona bem para telas de celular. No desktop usamos uma arte
+         própria (quadrada), com "cover" + topo/centro: isso preenche a
+         largura toda e ancora no alto, cortando só o excesso de baixo se
+         sobrar altura — mantém a transição visual fluida entre os dois
+         tamanhos de tela. */
+      @media (min-width: 900px) {
+        #app-background {
+          background-image: url('/bg-farm-desktop.svg');
+          background-size: cover;
+          background-position: top center;
+        }
+      }
+
       input::placeholder { font-family: 'Inter', system-ui, sans-serif; }
     </style>
   </head>
   <body>
+    <div id="app-background"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

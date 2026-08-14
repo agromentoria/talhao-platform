@@ -44,6 +44,7 @@ export default function Profile() {
   const [payoutSuccess, setPayoutSuccess] = useState("");
   const [savingPayout, setSavingPayout] = useState(false);
   const [loadingPayout, setLoadingPayout] = useState(true);
+  const [tab, setTab] = useState("conta");
 
   useEffect(() => {
     api.getPayoutAccount()
@@ -225,34 +226,72 @@ export default function Profile() {
       </div>
       {avatarError && <ErrorBanner message={avatarError} />}
 
-      {user.role === "fazenda" && (
-        <Link to="/fazenda" style={{
-          display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-          borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
-        }}>
-          <Building2 size={16} /> Ir para o painel da fazenda
-        </Link>
-      )}
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 22, WebkitOverflowScrolling: "touch" }}>
+        {[
+          { id: "conta", label: "Conta" },
+          { id: "recebimento", label: "Dados para recebimento" },
+          { id: "atalhos", label: "Atalhos" },
+        ].map((t) => {
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: "8px 14px", borderRadius: 20, whiteSpace: "nowrap",
+              border: `1px solid ${active ? COLORS.leaf : COLORS.line}`, background: active ? COLORS.leaf : "#fff",
+              color: active ? "#fff" : COLORS.soilLight, fontSize: 12.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+            }}>
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
 
-      {user.role === "fazenda" && (
-        <Link to="/fazenda/carteira" style={{
-          display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-          borderRadius: 12, padding: "12px 16px", marginBottom: 24, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
-        }}>
-          <CreditCard size={16} /> Ver carteira (vendas e recebimentos)
-        </Link>
-      )}
+      {tab === "atalhos" && (
+        <>
+          {user.role === "fazenda" && (
+            <Link to="/fazenda" style={{
+              display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
+              borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
+            }}>
+              <Building2 size={16} /> Ir para o painel da fazenda
+            </Link>
+          )}
 
-      {user.role === "investidor" && (
-        <Link to="/pagamentos" style={{
-          display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-          borderRadius: 12, padding: "12px 16px", marginBottom: 24, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
-        }}>
-          <CreditCard size={16} /> Gerenciar cartões salvos para compras
-        </Link>
+          {user.role === "fazenda" && (
+            <Link to="/fazenda/carteira" style={{
+              display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
+              borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
+            }}>
+              <CreditCard size={16} /> Ver carteira (vendas e recebimentos)
+            </Link>
+          )}
+
+          {user.role === "investidor" && (
+            <Link to="/pagamentos" style={{
+              display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
+              borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
+            }}>
+              <CreditCard size={16} /> Gerenciar cartões salvos para compras
+            </Link>
+          )}
+
+          <Link to="/conversas" style={{
+            display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
+            borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
+          }}>
+            <Mail size={16} /> Ver conversas
+          </Link>
+
+          <Link to="/avisos" style={{
+            display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
+            borderRadius: 12, padding: "12px 16px", textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
+          }}>
+            <User size={16} /> Ver avisos
+          </Link>
+        </>
       )}
 
       {/* Dados para recebimento */}
+      {tab === "recebimento" && (
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Dados para recebimento</p>
         <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
@@ -341,8 +380,11 @@ export default function Profile() {
           </>
         )}
       </div>
+      )}
 
       {/* Dados de contato */}
+      {tab === "conta" && (
+        <>
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 14px" }}>Dados de contato</p>
         <ErrorBanner message={profileError} />
@@ -376,6 +418,8 @@ export default function Profile() {
           </button>
         </form>
       </div>
+        </>
+      )}
     </div>
   );
 }

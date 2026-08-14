@@ -19,6 +19,14 @@ const TYPE_ICON = {
   solicitacao_rejeitada: XCircle,
 };
 
+const CATEGORY_FILTERS = [
+  { id: "todos", label: "Todos", match: () => true },
+  { id: "nao_lidos", label: "Não lidos", match: (n) => !n.read_at },
+  { id: "financeiro", label: "Financeiro", match: (n) => ["compra_confirmada", "novo_investimento", "pagamento_recebido", "repasse_recebido", "transacao_admin"].includes(n.type) },
+  { id: "talhoes", label: "Talhões", match: (n) => ["novo_talhao", "atualizacao_safra", "lembrete_fase", "solicitacao_colheita", "solicitacao_rejeitada"].includes(n.type) },
+  { id: "avisos", label: "Avisos gerais", match: (n) => ["aviso_fazenda", "aviso_admin"].includes(n.type) },
+];
+
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
   if (diff < 60) return "agora há pouco";
@@ -33,6 +41,7 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState("todos");
 
   function load() {
     api.myNotifications()
@@ -69,6 +78,8 @@ export default function Notifications() {
   }
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
+  const activeFilter = CATEGORY_FILTERS.find((f) => f.id === categoryFilter) || CATEGORY_FILTERS[0];
+  const filteredNotifications = notifications.filter((n) => activeFilter.match(n));
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 720, margin: "0 auto" }}>
@@ -88,13 +99,32 @@ export default function Notifications() {
 
       {(user?.role === "fazenda" || user?.role === "admin") && <SendBroadcast onSent={load} />}
 
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 16, WebkitOverflowScrolling: "touch" }}>
+        {CATEGORY_FILTERS.map((f) => {
+          const count = notifications.filter((n) => f.match(n)).length;
+          const active = categoryFilter === f.id;
+          return (
+            <button key={f.id} onClick={() => setCategoryFilter(f.id)} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 20, whiteSpace: "nowrap",
+              border: `1px solid ${active ? COLORS.leaf : COLORS.line}`, background: active ? COLORS.leaf : "#fff",
+              color: active ? "#fff" : COLORS.soilLight, fontSize: 12.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+            }}>
+              {f.label} <span style={{ opacity: 0.8 }}>({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
       {loading && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>}
       {!loading && notifications.length === 0 && (
         <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum aviso por aqui ainda.</p>
       )}
+      {!loading && notifications.length > 0 && filteredNotifications.length === 0 && (
+        <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum aviso nesse filtro.</p>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {notifications.map((n) => {
+        {filteredNotifications.map((n) => {
           const commodityIcon = (n.type === "novo_talhao" || n.type === "atualizacao_safra") && n.plot_grao
             ? GRAIN_ICONS[n.plot_grao]
             : null;

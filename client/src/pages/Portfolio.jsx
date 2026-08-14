@@ -5,10 +5,17 @@ import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, unitPlural, fmtBRL } from "..
 import { ProgressBar, ErrorBanner } from "../components/Shared";
 import { api } from "../api";
 
+const STATUS_FILTERS = [
+  { id: "todos", label: "Todos", match: () => true },
+  { id: "ativos", label: "Em andamento", match: (s) => s === "ativo" },
+  { id: "pagos", label: "Colhidos e pagos", match: (s) => s === "pago" },
+];
+
 export default function Portfolio() {
   const [investments, setInvestments] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("todos");
 
   useEffect(() => {
     api.myInvestments()
@@ -20,6 +27,9 @@ export default function Portfolio() {
   const totalInvestido = investments.reduce((s, i) => s + i.valor_investido, 0);
   const totalRecebido = investments.filter(i => i.status === "pago").reduce((s, i) => s + (i.valor_liquido || 0), 0);
   const ativos = investments.filter((i) => i.status === "ativo").length;
+
+  const activeFilter = STATUS_FILTERS.find((f) => f.id === statusFilter) || STATUS_FILTERS[0];
+  const filteredInvestments = investments.filter((i) => activeFilter.match(i.status));
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
@@ -43,15 +53,34 @@ export default function Portfolio() {
         ))}
       </div>
 
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 16, WebkitOverflowScrolling: "touch" }}>
+        {STATUS_FILTERS.map((f) => {
+          const count = investments.filter((i) => f.match(i.status)).length;
+          const active = statusFilter === f.id;
+          return (
+            <button key={f.id} onClick={() => setStatusFilter(f.id)} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 20, whiteSpace: "nowrap",
+              border: `1px solid ${active ? COLORS.leaf : COLORS.line}`, background: active ? COLORS.leaf : "#fff",
+              color: active ? "#fff" : COLORS.soilLight, fontSize: 12.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+            }}>
+              {f.label} <span style={{ opacity: 0.8 }}>({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
       {loading && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>}
       {!loading && investments.length === 0 && (
         <p style={{ fontSize: 13, color: COLORS.soilLight }}>
           Você ainda não investiu em nenhum talhão. <Link to="/" style={{ color: COLORS.leaf }}>Ver talhões disponíveis</Link>
         </p>
       )}
+      {!loading && investments.length > 0 && filteredInvestments.length === 0 && (
+        <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum investimento nesse filtro.</p>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {investments.map((inv) => {
+        {filteredInvestments.map((inv) => {
           const color = GRAIN_COLORS[inv.grao] || COLORS.leaf;
           return (
             <Link key={inv.id} to={`/talhao/${inv.plot_id}`} style={{ textDecoration: "none" }}>

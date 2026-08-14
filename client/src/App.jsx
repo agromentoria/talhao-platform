@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import TopNav from "./components/TopNav";
 import BottomNav from "./components/BottomNav";
 import ErrorBoundary from "./components/ErrorBoundary";
+import LoadingScreen from "./components/LoadingScreen";
 import Marketplace from "./pages/Marketplace";
 import PlotDetail from "./pages/PlotDetail";
 import Login from "./pages/Login";
@@ -18,22 +19,27 @@ import { useAuth } from "./context/AuthContext";
 import { COLORS } from "./theme";
 
 function RequireRole({ role, children }) {
-  const { user, loading } = useAuth();
-  if (loading) return <div style={{ padding: 32, color: COLORS.soilLight, fontSize: 13 }}>Carregando...</div>;
+  const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== role) return <Navigate to="/" replace />;
   return children;
 }
 
 function RequireAuth({ children }) {
-  const { user, loading } = useAuth();
-  if (loading) return <div style={{ padding: 32, color: COLORS.soilLight, fontSize: 13 }}>Carregando...</div>;
+  const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }
 
 export default function App() {
   const location = useLocation();
+  const { loading } = useAuth();
+
+  // enquanto verifica se já existe uma sessão salva, mostra a tela de
+  // carregamento cheia em vez do app — evita qualquer piscar de menu
+  // errado (deslogado -> logado) na primeira renderização
+  if (loading) return <LoadingScreen />;
+
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
       <TopNav />

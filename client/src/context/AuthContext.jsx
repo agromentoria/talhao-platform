@@ -21,17 +21,33 @@ export function AuthProvider({ children }) {
       .catch(() => {});
   }, []);
 
+  // tempo mínimo que a tela de carregamento fica visível — sem isso, quando
+  // não há sessão salva a verificação termina instantaneamente e a tela
+  // pisca por uma fração de segundo, praticamente invisível
+  const TEMPO_MINIMO_CARREGAMENTO = 700;
+
   useEffect(() => {
+    const inicio = Date.now();
+    function finalizarCarregamento() {
+      const decorrido = Date.now() - inicio;
+      const faltam = TEMPO_MINIMO_CARREGAMENTO - decorrido;
+      if (faltam > 0) {
+        setTimeout(() => setLoading(false), faltam);
+      } else {
+        setLoading(false);
+      }
+    }
+
     const token = localStorage.getItem("talhao_token");
     if (!token) {
-      setLoading(false);
+      finalizarCarregamento();
       return;
     }
     api
       .me()
       .then((data) => setUser(data.user))
       .catch(() => clearToken())
-      .finally(() => setLoading(false));
+      .finally(finalizarCarregamento);
   }, []);
 
   useEffect(() => {

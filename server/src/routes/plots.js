@@ -4,8 +4,11 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers, getFarmInvestorIds, getPlotInvestorIds } = require("../notify");
 const { getAppCommissionPct, getFaseMultiplier } = require("../settings");
+const { validatePhotoData } = require("../validators");
 
 const router = express.Router();
+
+const MAX_PLOT_PHOTOS = 6;
 
 const FASES = [
   "Preparo do solo",
@@ -82,7 +85,12 @@ router.get("/:id", asyncHandler(async (req, res) => {
     [req.params.id]
   );
 
-  res.json({ plot, historico: historico.rows, app_commission_pct: appCommissionPct });
+  const fotos = await pool.query(
+    "SELECT id, data, position FROM photos WHERE plot_id = $1 ORDER BY position, id",
+    [req.params.id]
+  );
+
+  res.json({ plot, historico: historico.rows, app_commission_pct: appCommissionPct, fotos: fotos.rows });
 }));
 
 router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
@@ -152,6 +160,49 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   });
 
   res.status(201).json({ plot });
+}));
+
+// Fotos do talhão: fotos da lavoura/safra daquele ciclo específico, exibidas
+// na página pública do talhão. Mesmo padrão de armazenamento das fotos da
+// fazenda — base64 direto no banco, sem serviço de storage externo.
+router.post("/:id/photos", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const { data } = req.body || {};
+
+  const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
+  const plot = existing.rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+
+  const owned = await getFarmOwned(plot.farm_id, req.user);
+  if (owned.error) return res.status(403).json({ error: owned.error });
+
+  const photoError = validatePhotoData(data);
+  if (photoError) return res.status(400).json({ error: photoError });
+
+  const { rows: countRows } = await pool.query("SELECT COUNT(*)::int as total FROM photos WHERE plot_id = $1", [plot.id]);
+  if (countRows[0].total >= MAX_PLOT_PHOTOS) {
+    return res.status(409).json({ error: `Limite de ${MAX_PLOT_PHOTOS} fotos por talhão atingido. Exclua alguma foto antes de adicionar outra.` });
+  }
+
+  const { rows } = await pool.query(
+    "INSERT INTO photos (plot_id, data, position) VALUES ($1, $2, $3) RETURNING id, data, position",
+    [plot.id, data, countRows[0].total]
+  );
+
+  res.status(201).json({ photo: rows[0] });
+}));
+
+router.delete("/:id/photos/:photoId", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
+  const plot = existing.rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+
+  const owned = await getFarmOwned(plot.farm_id, req.user);
+  if (owned.error) return res.status(403).json({ error: owned.error });
+
+  const { rowCount } = await pool.query("DELETE FROM photos WHERE id = $1 AND plot_id = $2", [req.params.photoId, plot.id]);
+  if (!rowCount) return res.status(404).json({ error: "Foto não encontrada." });
+
+  res.json({ ok: true });
 }));
 
 router.patch("/:id/progress", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {

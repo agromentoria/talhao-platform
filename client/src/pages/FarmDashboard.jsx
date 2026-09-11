@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText, Image as ImageIcon } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, ICONS, FASES, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
-import { ProgressBar, ErrorBanner } from "../components/Shared";
+import { ProgressBar, ErrorBanner, PhotoGallery } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../utils/validators";
@@ -15,6 +15,27 @@ const STATUS_FILTERS = [
   { id: "arquivados", label: "Arquivados", match: (s) => s === "arquivado" },
   { id: "todos", label: "Todos", match: () => true },
 ];
+
+// tamanho máximo de imagem aceito nos uploads de foto (fazenda e talhão),
+// mesma faixa usada no avatar de perfil
+const MAX_PHOTO_BYTES = 1_200_000;
+
+function readPhotoFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("Escolha um arquivo de imagem (JPG, PNG ou WEBP)."));
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      reject(new Error("Imagem muito grande. Escolha um arquivo de até 1,2 MB."));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Não foi possível ler essa imagem. Tente outra."));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function FarmDashboard() {
   const { user } = useAuth();
@@ -256,6 +277,8 @@ const STATUS_LABEL = {
   aguardando_aprovacao: "aguardando aprovação",
 };
 
+const MAX_PLOT_PHOTOS = 6;
+
 function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
   const [fase, setFase] = useState(plot.fase_atual);
@@ -268,6 +291,46 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
   const [showRestart, setShowRestart] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [expanded, setExpanded] = useState(false);
+
+  const [fotos, setFotos] = useState([]);
+  const [fotosLoaded, setFotosLoaded] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!expanded || fotosLoaded) return;
+    api.getPlot(plot.id)
+      .then((data) => { setFotos(data.fotos || []); setFotosLoaded(true); })
+      .catch(() => setFotosLoaded(true));
+  }, [expanded, fotosLoaded, plot.id]);
+
+  async function handleAddPhoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoError("");
+    setUploadingPhoto(true);
+    try {
+      const dataUrl = await readPhotoFile(file);
+      const { photo } = await api.addPlotPhoto(plot.id, dataUrl);
+      setFotos((f) => [...f, photo]);
+    } catch (err) {
+      setPhotoError(err.message);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handleDeletePhoto(photoId) {
+    setPhotoError("");
+    try {
+      await api.deletePlotPhoto(plot.id, photoId);
+      setFotos((f) => f.filter((p) => p.id !== photoId));
+    } catch (err) {
+      setPhotoError(err.message);
+    }
+  }
 
   const nuncaVendido = plot.cotas_disponiveis === plot.cotas_totais;
   const podeExcluir = plot.status === "pago" || nuncaVendido;
@@ -365,6 +428,22 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
       {expanded && (
         <>
           <div style={{ marginTop: 14 }}><ProgressBar value={progresso} color={color} /></div>
+
+          <div style={{ marginTop: 14 }}>
+            <label style={{ fontSize: 11.5, color: COLORS.soilLight, display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+              <ImageIcon size={13} /> Fotos do talhão ({fotos.length}/{MAX_PLOT_PHOTOS})
+            </label>
+            <input ref={photoInputRef} type="file" accept="image/*" onChange={handleAddPhoto} style={{ display: "none" }} />
+            <PhotoGallery
+              photos={fotos}
+              onDelete={handleDeletePhoto}
+              onAdd={() => photoInputRef.current?.click()}
+              adding={uploadingPhoto}
+              maxReached={fotos.length >= MAX_PLOT_PHOTOS}
+              emptyLabel="Nenhuma foto deste talhão ainda."
+            />
+            {photoError && <p style={{ fontSize: 11, color: COLORS.danger, margin: "6px 0 0" }}>{photoError}</p>}
+          </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 14, marginTop: 10 }}>
             {finalizado && (
@@ -625,11 +704,17 @@ function StarRating({ value }) {
   );
 }
 
+const MAX_FARM_PHOTOS = 8;
+
 function FarmProfileEditor({ farmId, onClose, setNotice, setError }) {
   const [catalog, setCatalog] = useState([]);
   const [selected, setSelected] = useState([]);
   const [descricao, setDescricao] = useState("");
   const [premiacoes, setPremiacoes] = useState("");
+  const [fotos, setFotos] = useState([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -640,10 +725,38 @@ function FarmProfileEditor({ farmId, onClose, setNotice, setError }) {
         setDescricao(profileData.farm.descricao || "");
         setPremiacoes(profileData.farm.premiacoes || "");
         setSelected(profileData.caracteristicas.map((c) => c.key));
+        setFotos(profileData.fotos || []);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [farmId]);
+
+  async function handleAddPhoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoError("");
+    setUploadingPhoto(true);
+    try {
+      const dataUrl = await readPhotoFile(file);
+      const { photo } = await api.addFarmPhoto(farmId, dataUrl);
+      setFotos((f) => [...f, photo]);
+    } catch (err) {
+      setPhotoError(err.message);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handleDeletePhoto(photoId) {
+    setPhotoError("");
+    try {
+      await api.deleteFarmPhoto(farmId, photoId);
+      setFotos((f) => f.filter((p) => p.id !== photoId));
+    } catch (err) {
+      setPhotoError(err.message);
+    }
+  }
 
   const totalPontos = catalog.reduce((s, c) => s + c.pontos, 0) || 1;
   const pontosSelecionados = catalog.filter((c) => selected.includes(c.key)).reduce((s, c) => s + c.pontos, 0);
@@ -693,6 +806,25 @@ function FarmProfileEditor({ farmId, onClose, setNotice, setError }) {
         placeholder="Ex: Prêmio Produtor Sustentável 2024, certificação X, reconhecimento Y..."
         style={{ ...inputStyle, marginTop: 5, marginBottom: 18, resize: "vertical", fontFamily: "inherit" }}
       />
+
+      <label style={{ fontSize: 12, color: COLORS.soilLight, display: "flex", alignItems: "center", gap: 5 }}>
+        <ImageIcon size={13} /> Fotos da fazenda ({fotos.length}/{MAX_FARM_PHOTOS})
+      </label>
+      <p style={{ fontSize: 11, color: COLORS.soilLight, margin: "4px 0 8px", lineHeight: 1.5 }}>
+        Fotos da propriedade que aparecem para o investidor em "Sobre a fazenda".
+      </p>
+      <input ref={photoInputRef} type="file" accept="image/*" onChange={handleAddPhoto} style={{ display: "none" }} />
+      <div style={{ marginBottom: 8 }}>
+        <PhotoGallery
+          photos={fotos}
+          onDelete={handleDeletePhoto}
+          onAdd={() => photoInputRef.current?.click()}
+          adding={uploadingPhoto}
+          maxReached={fotos.length >= MAX_FARM_PHOTOS}
+        />
+      </div>
+      {photoError && <p style={{ fontSize: 11.5, color: COLORS.danger, margin: "0 0 14px" }}>{photoError}</p>}
+      {!photoError && <div style={{ marginBottom: 18 }} />}
 
       {categorias.map((cat) => (
         <div key={cat} style={{ marginBottom: 14 }}>

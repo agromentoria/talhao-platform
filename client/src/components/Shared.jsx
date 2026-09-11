@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, TrendingUp, Share2, Star } from "lucide-react";
+import { MapPin, TrendingUp, Share2, Star, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL, fmtBRL } from "../theme";
 
 export function ProgressBar({ value, color = COLORS.leaf, height = 6 }) {
@@ -138,6 +138,135 @@ export function ShareButton({ title, text, url, style, compact }) {
       <Share2 size={15} />
       {copied ? "Link copiado!" : "Compartilhar com amigos"}
     </button>
+  );
+}
+
+// Galeria de fotos reaproveitável: tira de miniaturas roláveis + lightbox
+// simples ao clicar. Usada tanto no perfil da fazenda quanto na página do
+// talhão, em modo somente-leitura (público) ou com upload/exclusão (fazenda).
+// - photos: [{ id, data }]
+// - onAdd: se informado, mostra um botão "+" ao final da tira
+// - onDelete: se informado, mostra um "×" sobre cada miniatura
+export function PhotoGallery({ photos = [], onAdd, adding, maxReached, onDelete, emptyLabel = "Nenhuma foto ainda." }) {
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  function showRelative(delta) {
+    setLightboxIndex((i) => {
+      if (i === null) return i;
+      const total = photos.length;
+      return (i + delta + total) % total;
+    });
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
+        {photos.map((p, i) => (
+          <div key={p.id} style={{ position: "relative", flexShrink: 0 }}>
+            <img
+              src={p.data}
+              alt=""
+              onClick={() => setLightboxIndex(i)}
+              style={{ width: 88, height: 88, borderRadius: 10, objectFit: "cover", cursor: "pointer", display: "block" }}
+            />
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
+                title="Excluir foto"
+                style={{
+                  position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%",
+                  background: COLORS.danger, color: "#fff", border: "2px solid #fff", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        ))}
+
+        {onAdd && !maxReached && (
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={adding}
+            title="Adicionar foto"
+            style={{
+              width: 88, height: 88, borderRadius: 10, border: `1.5px dashed ${COLORS.line}`, background: COLORS.bg,
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              cursor: adding ? "default" : "pointer", color: COLORS.soilLight, opacity: adding ? 0.6 : 1,
+            }}
+          >
+            <Plus size={22} />
+          </button>
+        )}
+
+        {photos.length === 0 && !onAdd && (
+          <p style={{ fontSize: 12, color: COLORS.soilLight, margin: 0 }}>{emptyLabel}</p>
+        )}
+      </div>
+
+      {lightboxIndex !== null && photos[lightboxIndex] && (
+        <div
+          onClick={() => setLightboxIndex(null)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(20,16,10,0.85)", zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); }}
+            title="Fechar"
+            style={{
+              position: "absolute", top: 18, right: 18, width: 36, height: 36, borderRadius: "50%",
+              background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <X size={18} />
+          </button>
+
+          {photos.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); showRelative(-1); }}
+              title="Foto anterior"
+              style={{
+                position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: "50%",
+                background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+
+          <img
+            src={photos[lightboxIndex].data}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8, boxShadow: "0 10px 40px rgba(0,0,0,0.4)" }}
+          />
+
+          {photos.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); showRelative(1); }}
+              title="Próxima foto"
+              style={{
+                position: "absolute", right: 18, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: "50%",
+                background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <ChevronRight size={20} />
+            </button>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 

@@ -359,6 +359,25 @@ CREATE TABLE IF NOT EXISTS platform_settings (
 
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS unidade TEXT;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ;
+
+-- Fotos da fazenda (perfil, vitrine de confiança) e do talhão (lavoura/safra
+-- daquele ciclo). Mesma estratégia de avatar_data/comprovante_imagem: base64
+-- direto no Postgres, sem serviço de storage externo. Cada linha pertence a
+-- exatamente uma fazenda OU um talhão, nunca aos dois.
+CREATE TABLE IF NOT EXISTS photos (
+  id SERIAL PRIMARY KEY,
+  farm_id INTEGER REFERENCES farms(id),
+  plot_id INTEGER REFERENCES plots(id),
+  data TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (
+    (farm_id IS NOT NULL AND plot_id IS NULL) OR
+    (farm_id IS NULL AND plot_id IS NOT NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_photos_farm ON photos(farm_id, position);
+CREATE INDEX IF NOT EXISTS idx_photos_plot ON photos(plot_id, position);
 `;
 
 const COMMODITY_DEFAULTS = [

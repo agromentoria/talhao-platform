@@ -2,9 +2,11 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
-const { onlyDigits, isValidCNPJ } = require("../validators");
+const { onlyDigits, isValidCNPJ, validatePhotoData } = require("../validators");
 
 const router = express.Router();
+
+const MAX_FARM_PHOTOS = 8;
 
 // calcula a nota em estrelas (0 a 5, uma casa decimal) a partir dos
 // pontos das características que a fazenda marcou, em relação ao total
@@ -59,7 +61,12 @@ router.get("/:id/profile", asyncHandler(async (req, res) => {
 
   const { estrelas } = await calcularEstrelas(farm.id);
 
-  res.json({ farm, caracteristicas, estrelas });
+  const { rows: fotos } = await pool.query(
+    "SELECT id, data, position FROM photos WHERE farm_id = $1 ORDER BY position, id",
+    [farm.id]
+  );
+
+  res.json({ farm, caracteristicas, estrelas, fotos });
 }));
 
 router.get("/:id", requireAuth, asyncHandler(async (req, res) => {
@@ -124,6 +131,53 @@ router.patch("/:id/profile", requireAuth, requireRole("fazenda", "admin"), async
 
   const { estrelas } = await calcularEstrelas(farm.id);
   res.json({ ok: true, estrelas });
+}));
+
+// Fotos da fazenda: galeria exibida no perfil público ("Sobre a fazenda").
+// Mesmo padrão de avatar_data/comprovante_imagem — base64 direto no banco,
+// sem serviço de storage externo.
+router.post("/:id/photos", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const { data } = req.body || {};
+
+  const existing = await pool.query("SELECT * FROM farms WHERE id = $1", [req.params.id]);
+  const farm = existing.rows[0];
+  if (!farm) return res.status(404).json({ error: "Fazenda não encontrada." });
+
+  const isOwner = req.user.role === "fazenda" && req.user.farm_id === farm.id;
+  if (!isOwner && req.user.role !== "admin") {
+    return res.status(403).json({ error: "Você só pode adicionar fotos à sua própria fazenda." });
+  }
+
+  const photoError = validatePhotoData(data);
+  if (photoError) return res.status(400).json({ error: photoError });
+
+  const { rows: countRows } = await pool.query("SELECT COUNT(*)::int as total FROM photos WHERE farm_id = $1", [farm.id]);
+  if (countRows[0].total >= MAX_FARM_PHOTOS) {
+    return res.status(409).json({ error: `Limite de ${MAX_FARM_PHOTOS} fotos por fazenda atingido. Exclua alguma foto antes de adicionar outra.` });
+  }
+
+  const { rows } = await pool.query(
+    "INSERT INTO photos (farm_id, data, position) VALUES ($1, $2, $3) RETURNING id, data, position",
+    [farm.id, data, countRows[0].total]
+  );
+
+  res.status(201).json({ photo: rows[0] });
+}));
+
+router.delete("/:id/photos/:photoId", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const existing = await pool.query("SELECT * FROM farms WHERE id = $1", [req.params.id]);
+  const farm = existing.rows[0];
+  if (!farm) return res.status(404).json({ error: "Fazenda não encontrada." });
+
+  const isOwner = req.user.role === "fazenda" && req.user.farm_id === farm.id;
+  if (!isOwner && req.user.role !== "admin") {
+    return res.status(403).json({ error: "Você só pode excluir fotos da sua própria fazenda." });
+  }
+
+  const { rowCount } = await pool.query("DELETE FROM photos WHERE id = $1 AND farm_id = $2", [req.params.photoId, farm.id]);
+  if (!rowCount) return res.status(404).json({ error: "Foto não encontrada." });
+
+  res.json({ ok: true });
 }));
 
 // Dados legais/da propriedade — necessários para contratos futuros.

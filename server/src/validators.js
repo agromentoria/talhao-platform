@@ -65,6 +65,22 @@ function validatePixKey(tipo, chave) {
   return null;
 }
 
+// tamanho máximo de uma imagem em base64 (data URL) aceita em qualquer
+// upload de foto do app — mesma faixa usada para avatar e comprovante,
+// ~1,2 MB de imagem já convertida para base64
+const MAX_PHOTO_DATA_LENGTH = 1_700_000;
+
+function validatePhotoData(data) {
+  if (typeof data !== "string" || !data.startsWith("data:image/")) {
+    return "Envie uma imagem válida (JPG, PNG ou WEBP).";
+  }
+  if (data.length > MAX_PHOTO_DATA_LENGTH) {
+    return "Imagem muito grande. Escolha um arquivo de até 1,2 MB.";
+  }
+  return null;
+}
+
 module.exports = {
   onlyDigits, isValidCPF, isValidCNPJ, isValidPhone, isValidEmail, isValidRandomKey, validatePixKey,
+  MAX_PHOTO_DATA_LENGTH, validatePhotoData,
 };

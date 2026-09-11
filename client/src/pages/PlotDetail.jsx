@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, MapPin, QrCode, CreditCard, Plus, Star, Award } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
-import { ErrorBanner, ShareButton } from "../components/Shared";
+import { ErrorBanner, ShareButton, PhotoGallery } from "../components/Shared";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -112,6 +112,13 @@ export default function PlotDetail() {
 
       <div className="plot-detail-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {plot.fotos && plot.fotos.length > 0 && (
+            <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 12px" }}>Fotos do talhão</p>
+              <PhotoGallery photos={plot.fotos} />
+            </div>
+          )}
 
           <div className="fase-stepper" style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
             <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 16px" }}>Etapas da safra</p>
@@ -314,8 +321,8 @@ function FarmProfileCard({ farmId, estrelas }) {
   }, [farmId]);
 
   if (error || !data) return null;
-  const { farm, caracteristicas } = data;
-  if (!farm.descricao && !farm.premiacoes && caracteristicas.length === 0) return null;
+  const { farm, caracteristicas, fotos = [] } = data;
+  if (!farm.descricao && !farm.premiacoes && caracteristicas.length === 0 && fotos.length === 0) return null;
 
   const estrelasNum = Number(estrelas) || 0;
   const categorias = [...new Set(caracteristicas.map((c) => c.categoria))];
@@ -336,6 +343,10 @@ function FarmProfileCard({ farmId, estrelas }) {
           </div>
         )}
       </div>
+
+      {fotos.length > 0 && (
+        <div style={{ margin: "10px 0" }}><PhotoGallery photos={fotos} /></div>
+      )}
 
       {farm.descricao && (
         <p style={{ fontSize: 12.5, color: COLORS.soil, margin: "10px 0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{farm.descricao}</p>

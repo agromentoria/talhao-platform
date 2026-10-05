@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { User, Lock } from "lucide-react";
-import { COLORS } from "../theme";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { ErrorBanner } from "../components/Shared";
+import { homeFor } from "../config/navigation";
+import { Page } from "../components/layout/Page";
+import { Button, ErrorBanner } from "../components/ui";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -19,9 +22,8 @@ export default function Login() {
     setLoading(true);
     try {
       const user = await login(email, password);
-      if (user.role === "admin") navigate("/admin");
-      else if (user.role === "fazenda") navigate("/fazenda");
-      else navigate("/carteira");
+      // volta para onde a pessoa queria ir antes de pedir login
+      navigate(location.state?.from || homeFor(user), { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -30,40 +32,39 @@ export default function Login() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: "40px auto", padding: "0 24px", textAlign: "center" }}>
-      <img src="/logo-icon.svg" alt="" style={{ width: 96, height: 96, margin: "0 auto 12px" }} />
-      <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 28, color: COLORS.leaf, marginBottom: 6, fontWeight: 700 }}>
-        Entrar no <span style={{ color: COLORS.leaf }}>talhão</span>
-      </h1>
-      <p style={{ fontSize: 13.5, color: COLORS.soilLight, marginBottom: 26, lineHeight: 1.5 }}>
-        Acesse sua conta de investidor, fazenda ou administração.
-      </p>
+    <Page title="Entrar" width="narrow">
+      <div style={{ maxWidth: 400, margin: "0 auto", textAlign: "center" }}>
+        <img src="/logo-icon.svg" alt="" width={96} height={96} style={{ margin: "8px auto 12px" }} />
+        <h1 className="page-title" style={{ color: "var(--success-text)" }}>Entrar no Meu Talhão</h1>
+        <p className="page-subtitle" style={{ margin: "6px auto 24px" }}>Use sua conta de investidor, fazenda ou administração.</p>
 
-      <ErrorBanner message={error} />
+        <ErrorBanner message={error} style={{ textAlign: "left" }} />
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14, textAlign: "left" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", borderRadius: 14, padding: "13px 16px", boxShadow: "0 2px 8px rgba(52,37,25,0.08)" }}>
-          <User size={17} color={COLORS.clay} />
-          <input type="email" required placeholder="Digite seu e-mail" value={email} onChange={(e) => setEmail(e.target.value)}
-            style={{ flex: 1, border: "none", outline: "none", fontSize: 14, color: COLORS.soil }} />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", borderRadius: 14, padding: "13px 16px", boxShadow: "0 2px 8px rgba(52,37,25,0.08)" }}>
-          <Lock size={17} color={COLORS.clay} />
-          <input type="password" required placeholder="Digite sua senha" value={password} onChange={(e) => setPassword(e.target.value)}
-            style={{ flex: 1, border: "none", outline: "none", fontSize: 14, color: COLORS.soil }} />
-        </div>
-        <button type="submit" disabled={loading} style={{
-          marginTop: 10, padding: "15px 0", borderRadius: 14, border: "none", background: COLORS.orange,
-          color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: "'Baloo 2', cursive", cursor: "pointer",
-          opacity: loading ? 0.7 : 1, boxShadow: "0 4px 12px rgba(221,130,9,0.35)",
-        }}>
-          {loading ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} className="stack" style={{ textAlign: "left" }} noValidate={false}>
+          <label className="sr-only" htmlFor="login-email">E-mail</label>
+          <div className="input-group">
+            <Mail size={18} aria-hidden />
+            <input id="login-email" className="input" type="email" required autoComplete="username" inputMode="email"
+              autoCapitalize="none" spellCheck={false} placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <label className="sr-only" htmlFor="login-password">Senha</label>
+          <div className="input-group">
+            <Lock size={18} aria-hidden />
+            <input id="login-password" className="input" type={showPassword ? "text" : "password"} required autoComplete="current-password"
+              placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button type="button" className="icon-btn" onClick={() => setShowPassword((s) => !s)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPassword}>
+              {showPassword ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+            </button>
+          </div>
+          <Button type="submit" size="lg" block loading={loading} style={{ marginTop: 8 }}>
+            {loading ? "Entrando…" : "Entrar"}
+          </Button>
+        </form>
 
-      <p style={{ fontSize: 13, color: COLORS.soilLight, marginTop: 22 }}>
-        Não tem uma conta? <Link to="/cadastro" style={{ color: COLORS.orange, fontWeight: 700 }}>Cadastre-se</Link>
-      </p>
-    </div>
+        <p className="text-sm text-2" style={{ marginTop: 24 }}>
+          Ainda não tem conta? <Link to="/cadastro" state={location.state} style={{ fontWeight: 700 }}>Criar conta</Link>
+        </p>
+      </div>
+    </Page>
   );
 }

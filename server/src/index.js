@@ -16,6 +16,34 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_JWT_SECRET) {
     process.exit(1);
   }
   console.warn("[aviso] JWT_SECRET não definida — usando um valor de exemplo apenas para ambiente local.");
+  // sem isso o login quebrava com erro 500 ("secretOrPrivateKey must have a value")
+  process.env.JWT_SECRET = DEFAULT_JWT_SECRET;
+}
+
+// CLIENT_ORIGIN aceita uma lista separada por vírgula. Além do domínio web,
+// os apps nativos (Capacitor) fazem requisições a partir de origens próprias:
+// iOS usa "capacitor://localhost" e Android usa "https://localhost". Essas
+// duas são liberadas automaticamente para o app das lojas funcionar.
+function buildCorsOptions() {
+  const configured = (process.env.CLIENT_ORIGIN || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  if (configured.length === 0) {
+    if (process.env.NODE_ENV === "production") {
+      console.warn("[aviso] CLIENT_ORIGIN não definida — CORS liberado só para os apps nativos.");
+    } else {
+      return { origin: true }; // ambiente local: qualquer origem
+    }
+  }
+  const allowed = new Set([...configured, "capacitor://localhost", "https://localhost", "http://localhost"]);
+  return {
+    origin(origin, callback) {
+      // requisições sem Origin (curl, apps de servidor, health checks) passam
+      if (!origin || allowed.has(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+  };
 }
 
 async function start() {
@@ -38,13 +66,14 @@ async function start() {
 
   const app = express();
 
+  // Atrás de proxy (Render, Railway, Fly, Nginx) o IP real vem em
+  // X-Forwarded-For. Sem isso todos os usuários "pareciam" ter o mesmo IP e
+  // dividiam o mesmo limite de requisições — o app travava com pouco uso.
+  app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 1));
+  app.disable("x-powered-by");
+
   app.use(helmet());
-  app.use(
-    cors({
-      origin: process.env.CLIENT_ORIGIN || "*",
-      credentials: true,
-    })
-  );
+  app.use(cors(buildCorsOptions()));
   app.use(express.json({ limit: "2mb" })); // acomoda foto de perfil em base64
 
   const globalLimiter = rateLimit({

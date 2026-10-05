@@ -28,7 +28,7 @@ router.get("/overview", asyncHandler(async (req, res) => {
   const fazendasAtivas = (await pool.query("SELECT COUNT(*) as n FROM farms WHERE status = 'aprovada'")).rows[0].n;
   const fazendasPendentes = (await pool.query("SELECT COUNT(*) as n FROM farms WHERE status = 'pendente'")).rows[0].n;
   const talhoesAtivos = (await pool.query("SELECT COUNT(*) as n FROM plots WHERE status IN ('captacao','em_andamento')")).rows[0].n;
-  const investidores = (await pool.query("SELECT COUNT(*) as n FROM users WHERE role = 'investidor'")).rows[0].n;
+  const investidores = (await pool.query("SELECT COUNT(*) as n FROM users WHERE role = 'investidor' AND deleted_at IS NULL")).rows[0].n;
 
   res.json({
     totalCaptado: Number(totalCaptado),

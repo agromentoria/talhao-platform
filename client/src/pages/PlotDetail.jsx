@@ -1,88 +1,106 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, MapPin, QrCode, CreditCard, Plus, Star, Award } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { MapPin, QrCode, CreditCard, Plus, Minus, Star, Award } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL, unitPlural, fmtBRL } from "../theme";
-import { ErrorBanner, ShareButton, PhotoGallery } from "../components/Shared";
-import { api } from "../api";
+import { GRAIN_COLORS, FASES, FASE_ICONS, UNIT_LABEL } from "../config/theme";
+import { fmtBRL, fmtNumber, unitPlural } from "../lib/format";
+import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { Page, PageHeader } from "../components/layout/Page";
+import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
+import { ShareButton, PhotoGallery, GrainThumb } from "../components/domain";
 
 export default function PlotDetail() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const dialog = useDialog();
+  const toast = useToast();
 
   const [plot, setPlot] = useState(null);
+  const [fotos, setFotos] = useState([]);
   const [historico, setHistorico] = useState([]);
   const [appCommission, setAppCommission] = useState(5);
+  const [loadError, setLoadError] = useState("");
   const [cotas, setCotas] = useState(1);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [buying, setBuying] = useState(false);
 
   const [cards, setCards] = useState([]);
   const [paymentType, setPaymentType] = useState("pix");
   const [selectedCardId, setSelectedCardId] = useState(null);
 
-  function load() {
-    api.getPlot(id).then((data) => {
+  const load = useCallback(() => {
+    return api.getPlot(id).then((data) => {
       setPlot(data.plot);
-      setHistorico(data.historico.map((h) => ({ dia: FASES[h.fase_atual], v: h.progresso })));
+      // a API devolve as fotos fora do objeto do talhão (antes elas nunca apareciam)
+      setFotos(data.fotos || []);
+      setHistorico(data.historico.map((h) => ({ fase: FASES[h.fase_atual], v: h.progresso })));
       setAppCommission(data.app_commission_pct);
-    }).catch((err) => setError(err.message));
-  }
+    }).catch((err) => setLoadError(err.message));
+  }, [id]);
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    if (user?.role === "investidor") {
-      api.paymentMethods().then((data) => {
-        setCards(data.methods);
-        const defaultCard = data.methods.find((m) => m.is_default);
-        if (defaultCard) {
-          setPaymentType(defaultCard.type === "credito" ? "cartao_credito" : "cartao_debito");
-          setSelectedCardId(defaultCard.id);
-        }
-      }).catch(() => {});
-    }
+    if (user?.role !== "investidor") return;
+    api.paymentMethods().then((data) => {
+      setCards(data.methods);
+      const def = data.methods.find((m) => m.is_default);
+      if (def) setSelectedCardId(def.id);
+    }).catch(() => {});
   }, [user]);
 
-  if (error && !plot) return <div style={{ padding: 32 }}><ErrorBanner message={error} /></div>;
-  if (!plot) return <div style={{ padding: 32, color: COLORS.soilLight, fontSize: 13 }}>Carregando...</div>;
+  if (loadError && !plot) {
+    return (
+      <Page title="Talhão" back="/">
+        <EmptyState image="/icons/icon_talhao_meu_talhao.svg" title="Talhão não encontrado" action={<Button to="/">Ver talhões abertos</Button>}>{loadError}</EmptyState>
+      </Page>
+    );
+  }
+  if (!plot) return <Page title="Talhão" back="/"><Loading /></Page>;
 
-  const grainColor = GRAIN_COLORS[plot.grao] || COLORS.leaf;
-  const custoTotal = cotas * plot.cota_valor;
-  // preço estimado de venda ajustado pelo retorno médio esperado da safra —
-  // usado só como estimativa exibida ao investidor antes da compra; o valor
-  // real na colheita depende do retorno_final que a fazenda informar
+  const grainColor = GRAIN_COLORS[plot.grao] || GRAIN_COLORS.Soja;
+  const unidade = UNIT_LABEL[plot.unidade] || "cota";
+  const maxCotas = Math.max(1, plot.cotas_disponiveis);
+  const qtd = Math.min(Math.max(1, cotas), maxCotas);
+  const custoTotal = qtd * plot.cota_valor;
+  // mesmo cálculo do pagamento real no servidor (harvestPayout.js):
+  // preço de venda projetado = preço de referência × (1 + retorno estimado)
   const precoVendaProjetado = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
-  const retornoBruto = cotas * precoVendaProjetado;
+  const margemPorUnidade = precoVendaProjetado - plot.cota_valor;
+  const retornoBruto = qtd * precoVendaProjetado;
   const lucroBruto = retornoBruto - custoTotal;
   const comissaoFazenda = Math.max(0, lucroBruto) * (plot.commission_pct / 100);
   const comissaoApp = Math.max(0, lucroBruto) * (appCommission / 100);
-  const lucroLiquido = lucroBruto - comissaoFazenda - comissaoApp;
-  const chartData = historico.length ? historico : FASES.map((f) => ({ dia: f, v: 0 }));
-  const colhido = plot.status === "pago" || plot.status === "colhido";
+  const recebimentoLiquido = retornoBruto - comissaoFazenda - comissaoApp;
+  const lucroLiquido = recebimentoLiquido - custoTotal;
+  const chartData = historico.length ? historico : [{ fase: FASES[0], v: 0 }];
+  const colhido = ["pago", "colhido", "arquivado", "aguardando_aprovacao"].includes(plot.status);
+  const esgotado = plot.cotas_disponiveis === 0;
+  const isInvestor = !user || user.role === "investidor";
 
   async function handleBuy() {
-    setError(""); setSuccess("");
-    if (!user) { navigate("/login"); return; }
-    if (user.role !== "investidor") {
-      setError("Apenas contas de investidor podem comprar cotas.");
-      return;
-    }
-    if (colhido) {
-      setError("Este talhão já foi colhido e não está mais disponível para investimento.");
-      return;
-    }
-    if (paymentType !== "pix" && !selectedCardId) {
-      setError("Selecione um cartão ou adicione um novo para continuar.");
-      return;
-    }
+    setError("");
+    if (!user) { navigate("/login", { state: { from: location.pathname } }); return; }
+    if (user.role !== "investidor") { setError("Apenas contas de investidor podem comprar."); return; }
+    if (paymentType === "cartao" && !selectedCardId) { setError("Escolha um cartão ou cadastre um novo."); return; }
+
+    const card = cards.find((c) => c.id === selectedCardId);
+    const ok = await dialog.confirm({
+      title: "Confirmar investimento",
+      message: `${qtd} ${unitPlural(plot.unidade, qtd)} de ${plot.grao} em ${plot.nome} por ${fmtBRL(custoTotal)}, pagos ${paymentType === "pix" ? "via Pix" : `no cartão ${card?.brand} final ${card?.last4}`}. Os valores de retorno são estimativas.`,
+      confirmLabel: `Pagar ${fmtBRL(custoTotal)}`,
+    });
+    if (!ok) return;
+
     setBuying(true);
     try {
-      await api.invest(plot.id, cotas, paymentType, paymentType === "pix" ? null : selectedCardId);
-      setSuccess(`Compra confirmada: ${cotas} ${unitPlural(plot.unidade, cotas)} por ${fmtBRL(custoTotal)}.`);
+      const tipo = paymentType === "pix" ? "pix" : card?.type === "debito" ? "cartao_debito" : "cartao_credito";
+      await api.invest(plot.id, qtd, tipo, paymentType === "pix" ? null : selectedCardId);
+      toast(`Compra confirmada: ${qtd} ${unitPlural(plot.unidade, qtd)} por ${fmtBRL(custoTotal)}`);
+      setCotas(1);
       load();
     } catch (err) {
       setError(err.message);
@@ -91,344 +109,304 @@ export default function PlotDetail() {
     }
   }
 
+  const share = (
+    <ShareButton
+      title={`${plot.nome} · ${plot.grao} — Meu Talhão`}
+      text={`Dá uma olhada nesse talhão de ${plot.grao} na Meu Talhão — dá pra investir direto na safra e acompanhar até a colheita!`}
+    />
+  );
+
   return (
-    <div className="plot-detail-container" style={{ padding: "24px 32px", maxWidth: 1000, margin: "0 auto" }}>
-      <Link to="/" style={{ display: "flex", alignItems: "center", gap: 6, color: COLORS.soilLight, fontSize: 13, textDecoration: "none", marginBottom: 18, width: "fit-content" }}>
-        <ArrowLeft size={15} /> Voltar aos talhões
-      </Link>
+    <Page title={plot.nome} back="/" width="medium">
+      <PageHeader
+        back="/"
+        backLabel="Talhões"
+        leading={<GrainThumb grao={plot.grao} size="lg" />}
+        title={plot.nome}
+        subtitle={
+          <>
+            <MapPin size={14} aria-hidden style={{ display: "inline", verticalAlign: "-2px", marginRight: 4 }} />
+            {plot.farm_name}, {plot.farm_location} · {fmtNumber(plot.area_ha)} ha · safra {plot.safra}
+          </>
+        }
+      />
 
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#fff", boxShadow: "0 2px 6px rgba(58,46,34,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <img src={GRAIN_ICONS[plot.grao]} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: grainColor }}>{plot.grao}</span>
-        </div>
-        <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: 0 }}>{plot.nome} · {plot.farm_name}</h1>
-        <p style={{ fontSize: 13, color: COLORS.soilLight, margin: "4px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
-          <MapPin size={13} /> {plot.farm_location} · {plot.area_ha} ha · safra {plot.safra}
-        </p>
-      </div>
-
-      <div className="plot-detail-grid">
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-          {plot.fotos && plot.fotos.length > 0 && (
-            <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 12px" }}>Fotos do talhão</p>
-              <PhotoGallery photos={plot.fotos} />
-            </div>
+      <div className="split">
+        <div className="stack-lg">
+          {fotos.length > 0 && (
+            <section className="card" aria-labelledby="fotos-t">
+              <h2 id="fotos-t" className="card-title" style={{ marginBottom: 10 }}>Fotos do talhão</h2>
+              <PhotoGallery photos={fotos} />
+            </section>
           )}
 
-          <div className="fase-stepper" style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 16px" }}>Etapas da safra</p>
-            <div className="fase-stepper-track" style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", gap: 0 }}>
+          <section className="card" aria-labelledby="etapas-t">
+            <h2 id="etapas-t" className="card-title" style={{ marginBottom: 16 }}>Etapas da safra</h2>
+            <ol className="stepper" style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {FASES.map((f, i) => {
-                const done = i < plot.fase_atual;
-                const current = i === plot.fase_atual;
+                const state = i < plot.fase_atual ? "is-done" : i === plot.fase_atual ? "is-current" : "is-todo";
                 return (
-                  <div key={f} style={{ display: "flex", alignItems: "flex-start", flex: i < FASES.length - 1 ? 1 : "none", minWidth: 0 }}>
-                    <div className="fase-step" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 76 }}>
-                      <div style={{
-                        width: 46, height: 46, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                        background: current ? "#fff" : done ? `${COLORS.leaf}22` : COLORS.bg,
-                        border: current ? `2px solid ${COLORS.wheat}` : done ? `2px solid ${COLORS.leaf}` : `2px solid ${COLORS.line}`,
-                        opacity: done || current ? 1 : 0.5,
-                      }}>
-                        <img src={FASE_ICONS[i]} alt="" style={{ width: 26, height: 26, objectFit: "contain" }} />
-                      </div>
-                      <span style={{ fontSize: 10.5, color: done || current ? COLORS.soil : COLORS.soilLight, textAlign: "center", lineHeight: 1.3, fontWeight: current ? 600 : 400 }}>{f}</span>
-                    </div>
-                    {i < FASES.length - 1 && <div style={{ flex: 1, height: 2, background: i < plot.fase_atual ? COLORS.leaf : COLORS.line, marginTop: 22 }} />}
-                  </div>
+                  <li key={f} className={`step ${state}`} aria-current={i === plot.fase_atual ? "step" : undefined}>
+                    <span className="step-dot"><img src={FASE_ICONS[i]} alt="" /></span>
+                    <span className="step-label">{f}</span>
+                  </li>
                 );
               })}
-            </div>
-          </div>
+            </ol>
+          </section>
 
-          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Preço sobe conforme a safra avança</p>
-            <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
-              Quem investe mais cedo paga menos por {UNIT_LABEL[plot.unidade]} e tem mais espaço de lucro. Quem investe mais perto da colheita paga um preço mais próximo do valor estimado de venda — corre menos risco, mas o potencial de lucro é menor.
+          <section className="card" aria-labelledby="preco-t">
+            <h2 id="preco-t" className="card-title">Preço sobe conforme a safra avança</h2>
+            <p className="card-desc" style={{ marginBottom: 16 }}>
+              Quem entra mais cedo paga menos por {unidade} e tem mais espaço de lucro. Mais perto da colheita o preço se aproxima do valor de venda: menos risco, retorno menor.
             </p>
-            <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+            <div className="grid-stats">
               <div>
-                <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>Preço atual (fase: {FASES[plot.fase_atual]})</p>
-                <p style={{ fontSize: 20, fontWeight: 700, color: COLORS.orange, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{fmtBRL(plot.cota_valor)}</p>
+                <p className="label-xs">Preço agora ({FASES[plot.fase_atual]})</p>
+                <p className="stat-value text-primary" style={{ marginTop: 2 }}>{fmtBRL(plot.cota_valor)}</p>
               </div>
               <div>
-                <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>Preço estimado de venda na colheita</p>
-                <p style={{ fontSize: 20, fontWeight: 700, color: COLORS.soil, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{fmtBRL(plot.preco_venda_estimado)}</p>
+                <p className="label-xs">Venda projetada na colheita</p>
+                <p className="stat-value" style={{ marginTop: 2 }}>{fmtBRL(precoVendaProjetado)}</p>
               </div>
               <div>
-                <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>Margem bruta potencial hoje</p>
-                <p style={{ fontSize: 20, fontWeight: 700, color: COLORS.leaf, margin: 0, fontFamily: "'Baloo 2', cursive" }}>
-                  {fmtBRL(plot.preco_venda_estimado - plot.cota_valor)}
-                </p>
+                <p className="label-xs">Margem bruta por {unidade}</p>
+                <p className={`stat-value ${margemPorUnidade >= 0 ? "text-success" : "text-danger"}`} style={{ marginTop: 2 }}>{fmtBRL(margemPorUnidade)}</p>
               </div>
             </div>
-          </div>
+            <p className="text-xs text-3" style={{ marginTop: 12 }}>
+              Referência de mercado: {fmtBRL(plot.preco_venda_estimado)} por {unidade}, com retorno estimado de {plot.previsao_retorno}% informado pela fazenda.
+            </p>
+          </section>
 
-          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 6px" }}>Progresso da safra</p>
-            <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 10px" }}>Atualizado pela fazenda conforme o andamento em campo.</p>
-            <div style={{ height: 160 }}>
+          <section className="card" aria-labelledby="prog-t">
+            <h2 id="prog-t" className="card-title">Progresso da safra</h2>
+            <p className="card-desc" style={{ marginBottom: 10 }}>Atualizado pela fazenda conforme o andamento em campo. Hoje: {plot.progresso}%.</p>
+            <div style={{ height: 170 }} aria-hidden>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={grainColor} stopOpacity={0.35} />
                       <stop offset="100%" stopColor={grainColor} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="dia" tick={{ fontSize: 11, fill: COLORS.soilLight }} axisLine={{ stroke: COLORS.line }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: COLORS.soilLight }} axisLine={false} tickLine={false} width={34} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${COLORS.line}` }} formatter={(v) => [`${v}%`, "progresso"]} />
-                  <Area type="monotone" dataKey="v" stroke={grainColor} strokeWidth={2} fill="url(#g1)" />
+                  <XAxis dataKey="fase" tick={{ fontSize: 11, fill: "#584A3C" }} axisLine={{ stroke: "#DDCDB4" }} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#584A3C" }} axisLine={false} tickLine={false} width={46} tickFormatter={(v) => `${v}%`} ticks={[0, 25, 50, 75, 100]} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #DDCDB4" }} formatter={(v) => [`${v}%`, "progresso"]} />
+                  <Area type="monotone" dataKey="v" stroke={grainColor} strokeWidth={2.5} fill="url(#g1)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </section>
 
-          <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 12px" }}>Como a comissão funciona</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: COLORS.soilLight }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Comissão da fazenda ({plot.farm_name})</span><span style={{ color: COLORS.soil, fontWeight: 500 }}>{plot.commission_pct}%</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Comissão do Talhão (plataforma)</span><span style={{ color: COLORS.soil, fontWeight: 500 }}>{appCommission}%</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${COLORS.line}`, paddingTop: 8 }}><span>Sua parte do lucro na venda do grão</span><span style={{ color: COLORS.leaf, fontWeight: 600 }}>{100 - plot.commission_pct - appCommission}%</span></div>
-            </div>
-          </div>
+          <section className="card" aria-labelledby="com-t">
+            <h2 id="com-t" className="card-title" style={{ marginBottom: 12 }}>Como a comissão funciona</h2>
+            <dl className="kv" style={{ margin: 0 }}>
+              <div><dt>Comissão da fazenda ({plot.farm_name})</dt><dd>{plot.commission_pct}% do lucro</dd></div>
+              <div><dt>Comissão do Meu Talhão</dt><dd>{appCommission}% do lucro</dd></div>
+              <div className="total"><dt>Sua parte do lucro</dt><dd className="text-success">{100 - plot.commission_pct - appCommission}%</dd></div>
+            </dl>
+            <p className="text-xs text-3" style={{ marginTop: 10 }}>As comissões incidem só sobre o lucro, nunca sobre o valor investido.</p>
+          </section>
 
           <FarmProfileCard farmId={plot.farm_id} estrelas={plot.farm_estrelas} />
-
           <FarmTrackRecord farmId={plot.farm_id} farmName={plot.farm_name} />
         </div>
 
-        <div>
-          <div className="invest-panel" style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, position: "sticky", top: 20 }}>
+        <aside className="split-aside" id="investir" aria-labelledby="investir-t">
+          <div className="card" style={{ background: "var(--surface-raised)", boxShadow: "var(--shadow-2)" }}>
             {colhido ? (
               <>
-                <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Talhão colhido</p>
-                <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
-                  Este talhão já concluiu seu ciclo{plot.status === "pago" ? " e os investidores já foram pagos" : ""}. Não está mais disponível para novos investimentos.
+                <h2 id="investir-t" className="card-title">Talhão colhido</h2>
+                <p className="card-desc" style={{ marginBottom: 14 }}>
+                  Este talhão concluiu o ciclo{plot.status === "pago" ? " e os investidores já foram pagos" : ""}. Não aceita novos investimentos.
                 </p>
                 {plot.retorno_final != null && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderTop: `1px solid ${COLORS.line}`, paddingTop: 12 }}>
-                    <span style={{ color: COLORS.soilLight }}>Retorno final da safra</span>
-                    <span style={{ fontWeight: 700, color: COLORS.leaf }}>{plot.retorno_final}%</span>
-                  </div>
+                  <dl className="kv"><div className="total"><dt>Retorno final da safra</dt><dd className="text-success">{plot.retorno_final}%</dd></div></dl>
                 )}
               </>
             ) : (
               <>
-                <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Investir neste talhão</p>
-                <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px" }}>{plot.cotas_disponiveis.toLocaleString("pt-BR")} de {plot.cotas_totais.toLocaleString("pt-BR")} {unitPlural(plot.unidade, plot.cotas_totais)} disponíveis nesta fase</p>
+                <h2 id="investir-t" className="card-title">Investir neste talhão</h2>
+                <p className="card-desc" style={{ marginBottom: 16 }}>
+                  {fmtNumber(plot.cotas_disponiveis)} de {fmtNumber(plot.cotas_totais)} {unitPlural(plot.unidade, plot.cotas_totais)} disponíveis nesta fase
+                </p>
 
                 <ErrorBanner message={error} />
-                {success && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 10 }}>{success}</p>}
 
-                <label style={{ fontSize: 12, color: COLORS.soilLight }}>Quantidade de {unitPlural(plot.unidade, 2)}</label>
-                <input type="number" min={1} max={plot.cotas_disponiveis} value={cotas}
-                  onChange={(e) => setCotas(Math.max(1, Math.min(plot.cotas_disponiveis, Number(e.target.value) || 1)))}
-                  style={{ width: "100%", marginTop: 6, marginBottom: 14, padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 14 }} />
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 14 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Valor investido</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(custoTotal)}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Retorno bruto estimado</span><span style={{ fontWeight: 600, color: COLORS.soil }}>{fmtBRL(retornoBruto)}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: COLORS.soilLight }}>Lucro líquido estimado</span><span style={{ fontWeight: 600, color: COLORS.leaf }}>{fmtBRL(lucroLiquido)}</span></div>
+                <p className="field-label" id="qtd-label" style={{ marginBottom: 6 }}>Quantidade de {unitPlural(plot.unidade, 2)}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }} role="group" aria-labelledby="qtd-label">
+                  <IconButton label="Diminuir" icon={Minus} variant="surface" onClick={() => setCotas(Math.max(1, qtd - 1))} disabled={qtd <= 1 || esgotado} />
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    aria-labelledby="qtd-label"
+                    min={1}
+                    max={maxCotas}
+                    value={cotas}
+                    disabled={esgotado}
+                    onChange={(e) => setCotas(e.target.value === "" ? "" : Math.max(1, Math.min(maxCotas, Math.floor(Number(e.target.value) || 1))))}
+                    onBlur={() => setCotas(qtd)}
+                    style={{ textAlign: "center", fontWeight: 700, flex: 1 }}
+                  />
+                  <IconButton label="Aumentar" icon={Plus} variant="surface" onClick={() => setCotas(Math.min(maxCotas, qtd + 1))} disabled={qtd >= maxCotas || esgotado} />
                 </div>
 
-                {(!user || user.role === "investidor") && (
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: 12, color: COLORS.soilLight, display: "block", marginBottom: 6 }}>Forma de pagamento</label>
-                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                      <button type="button" onClick={() => setPaymentType("pix")} style={{
-                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 0",
-                        borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
-                        border: `1px solid ${paymentType === "pix" ? COLORS.leaf : COLORS.line}`,
-                        background: paymentType === "pix" ? COLORS.leaf : "#fff",
-                        color: paymentType === "pix" ? "#fff" : COLORS.soilLight,
-                      }}><QrCode size={13} /> Pix</button>
-                      <button type="button" onClick={() => { setPaymentType(cards[0] ? (cards[0].type === "credito" ? "cartao_credito" : "cartao_debito") : "cartao_credito"); setSelectedCardId(cards[0]?.id || null); }} style={{
-                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 0",
-                        borderRadius: 8, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
-                        border: `1px solid ${paymentType !== "pix" ? COLORS.leaf : COLORS.line}`,
-                        background: paymentType !== "pix" ? COLORS.leaf : "#fff",
-                        color: paymentType !== "pix" ? "#fff" : COLORS.soilLight,
-                      }}><CreditCard size={13} /> Cartão</button>
-                    </div>
+                <dl className="kv" style={{ margin: "0 0 16px" }}>
+                  <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
+                  <div><dt>Recebimento estimado</dt><dd>{fmtBRL(recebimentoLiquido)}</dd></div>
+                  <div className="total"><dt>Lucro líquido estimado</dt><dd className={lucroLiquido >= 0 ? "text-success" : "text-danger"}>{fmtBRL(lucroLiquido)}</dd></div>
+                </dl>
 
-                    {paymentType === "pix" && (
-                      <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0, lineHeight: 1.4 }}>
-                        Pagamento via Pix processado na confirmação da compra.
-                      </p>
-                    )}
-
-                    {paymentType !== "pix" && (
-                      cards.length > 0 ? (
-                        <select value={selectedCardId || ""} onChange={(e) => setSelectedCardId(Number(e.target.value))} style={{
-                          width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${COLORS.line}`, fontSize: 13, fontFamily: "inherit",
-                        }}>
-                          {cards.map((c) => (
-                            <option key={c.id} value={c.id}>{c.brand} •••• {c.last4} ({c.type === "credito" ? "crédito" : "débito"})</option>
-                          ))}
-                        </select>
+                {isInvestor && (
+                  <div style={{ marginBottom: 16 }}>
+                    <p className="field-label" style={{ marginBottom: 6 }}>Forma de pagamento</p>
+                    <Segmented label="Forma de pagamento" value={paymentType} onChange={setPaymentType}
+                      options={[{ id: "pix", label: "Pix", icon: QrCode }, { id: "cartao", label: "Cartão", icon: CreditCard }]} />
+                    <div style={{ marginTop: 10 }}>
+                      {paymentType === "pix" ? (
+                        <p className="text-xs text-2">O Pix é gerado na confirmação da compra.</p>
+                      ) : cards.length > 0 ? (
+                        <SelectField label="Cartão" value={selectedCardId || ""} onChange={(v) => setSelectedCardId(Number(v))}>
+                          {cards.map((c) => <option key={c.id} value={c.id}>{c.brand} final {c.last4} ({c.type === "credito" ? "crédito" : "débito"})</option>)}
+                        </SelectField>
+                      ) : user ? (
+                        <Button variant="ghost" icon={Plus} to="/pagamentos">Cadastrar um cartão</Button>
                       ) : (
-                        <Link to="/pagamentos" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: COLORS.orange, fontWeight: 600, textDecoration: "none" }}>
-                          <Plus size={13} /> Adicionar um cartão para pagar
-                        </Link>
-                      )
-                    )}
+                        <p className="text-xs text-2">Entre na sua conta para escolher um cartão.</p>
+                      )}
+                    </div>
                   </div>
                 )}
 
-                <button onClick={handleBuy} disabled={buying || plot.cotas_disponiveis === 0} style={{
-                  width: "100%", padding: "11px 0", borderRadius: 9, border: "none",
-                  background: plot.cotas_disponiveis === 0 ? COLORS.line : COLORS.orange,
-                  color: plot.cotas_disponiveis === 0 ? COLORS.soilLight : "#fff", fontSize: 14, fontWeight: 500,
-                  cursor: plot.cotas_disponiveis === 0 ? "not-allowed" : "pointer",
-                }}>
-                  {plot.cotas_disponiveis === 0 ? "Esgotado" : buying ? "Processando..." : `Comprar ${cotas} ${unitPlural(plot.unidade, cotas)} — ${fmtBRL(custoTotal)}`}
-                </button>
-                <p style={{ fontSize: 10.5, color: COLORS.soilLight, marginTop: 10, lineHeight: 1.5 }}>
-                  Valores e retornos são estimativas e variam conforme a fase da safra e o preço do grão na colheita.
+                {user && !isInvestor ? (
+                  <Banner tone="info">Somente contas de investidor podem comprar talhões.</Banner>
+                ) : (
+                  <Button size="lg" block onClick={handleBuy} loading={buying} disabled={esgotado}>
+                    {esgotado ? "Esgotado nesta fase" : !user ? "Entrar para investir" : `Investir ${fmtBRL(custoTotal)}`}
+                  </Button>
+                )}
+                <p className="text-xs text-3" style={{ marginTop: 10, lineHeight: 1.5 }}>
+                  Retornos são estimativas e dependem da produção e do preço do grão na colheita. Investimentos no agro têm risco.
                 </p>
               </>
             )}
-
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${COLORS.line}` }}>
-              <ShareButton
-                title={`${plot.nome} · ${plot.grao} — Meu Talhão`}
-                text={`Dá uma olhada nesse talhão de ${plot.grao} na Meu Talhão — dá pra investir direto na safra e acompanhar até a colheita!`}
-              />
-              <p style={{ fontSize: 10.5, color: COLORS.soilLight, marginTop: 8, textAlign: "center" }}>
-                Indique para amigos investirem com você
-              </p>
-            </div>
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>{share}</div>
           </div>
-        </div>
+        </aside>
       </div>
+
+      {/* atalho fixo no celular: o painel de compra fica no fim da página */}
+      {!colhido && (
+        <MobileInvestBar price={fmtBRL(plot.cota_valor)} unidade={unidade} />
+      )}
+    </Page>
+  );
+}
+
+function MobileInvestBar({ price, unidade }) {
+  const [panelVisible, setPanelVisible] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById("investir");
+    if (!el || !("IntersectionObserver" in window)) return;
+    const io = new IntersectionObserver(([entry]) => setPanelVisible(entry.isIntersecting), { threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  if (panelVisible) return null;
+  return (
+    <div className="mobile-invest-bar">
+      <div>
+        <p className="label-xs">{unidade} por</p>
+        <p style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--fs-lg)", lineHeight: 1.1 }}>{price}</p>
+      </div>
+      <Button onClick={() => document.getElementById("investir")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Investir</Button>
     </div>
+  );
+}
+
+function Stars({ value }) {
+  const full = Math.floor(value);
+  const half = value - full >= 0.5;
+  return (
+    <span className="rating" aria-label={`Nota ${value.toFixed(1)} de 5`}>
+      {[0, 1, 2, 3, 4].map((i) => {
+        const on = i < full || (i === full && half);
+        return <Star key={i} size={15} fill={on ? "var(--brand-orange)" : "none"} color={on ? "var(--brand-orange)" : "var(--border-strong)"} aria-hidden />;
+      })}
+      <span style={{ marginLeft: 3 }}>{value.toFixed(1)}</span>
+    </span>
   );
 }
 
 function FarmProfileCard({ farmId, estrelas }) {
   const [data, setData] = useState(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    api.getFarmProfile(farmId).then(setData).catch((err) => setError(err.message));
-  }, [farmId]);
-
-  if (error || !data) return null;
-  const { farm, caracteristicas, fotos = [] } = data;
+  useEffect(() => { api.getFarmProfile(farmId).then(setData).catch(() => {}); }, [farmId]);
+  if (!data) return null;
+  const { farm, caracteristicas = [], fotos = [] } = data;
   if (!farm.descricao && !farm.premiacoes && caracteristicas.length === 0 && fotos.length === 0) return null;
-
-  const estrelasNum = Number(estrelas) || 0;
+  const nota = Number(estrelas) || 0;
   const categorias = [...new Set(caracteristicas.map((c) => c.categoria))];
-  const full = Math.floor(estrelasNum);
-  const hasHalf = estrelasNum - full >= 0.5;
 
   return (
-    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: 0 }}>Sobre {farm.name}</p>
-        {estrelasNum > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {[0, 1, 2, 3, 4].map((i) => {
-              const filled = i < full || (i === full && hasHalf);
-              return <Star key={i} size={15} fill={filled ? COLORS.orange : "none"} color={filled ? COLORS.orange : COLORS.line} />;
-            })}
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.soil, marginLeft: 3 }}>{estrelasNum.toFixed(1)}</span>
-          </div>
-        )}
+    <section className="card" aria-labelledby="sobre-t">
+      <div className="card-head" style={{ marginBottom: 8 }}>
+        <h2 id="sobre-t" className="card-title">Sobre {farm.name}</h2>
+        {nota > 0 && <Stars value={nota} />}
       </div>
-
-      {fotos.length > 0 && (
-        <div style={{ margin: "10px 0" }}><PhotoGallery photos={fotos} /></div>
-      )}
-
-      {farm.descricao && (
-        <p style={{ fontSize: 12.5, color: COLORS.soil, margin: "10px 0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{farm.descricao}</p>
-      )}
-
+      {fotos.length > 0 && <div style={{ margin: "8px 0 12px" }}><PhotoGallery photos={fotos} /></div>}
+      {farm.descricao && <p className="text-sm" style={{ lineHeight: 1.6, whiteSpace: "pre-wrap", marginBottom: 12 }}>{farm.descricao}</p>}
       {farm.premiacoes && (
-        <div style={{ display: "flex", gap: 8, background: "#FBF3E1", border: "1px solid #E8C97A", borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
-          <Award size={16} color={COLORS.orangeDark} style={{ flexShrink: 0, marginTop: 1 }} />
-          <p style={{ fontSize: 12, color: COLORS.soil, margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{farm.premiacoes}</p>
-        </div>
+        <Banner tone="warning" style={{ marginBottom: 12 }}>
+          <span style={{ display: "flex", gap: 6, whiteSpace: "pre-wrap" }}><Award size={16} aria-hidden style={{ flexShrink: 0, marginTop: 2 }} />{farm.premiacoes}</span>
+        </Banner>
       )}
-
       {categorias.map((cat) => (
         <div key={cat} style={{ marginBottom: 10 }}>
-          <p style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.soilLight, textTransform: "uppercase", margin: "0 0 6px" }}>{cat}</p>
+          <h3 className="text-xs text-2" style={{ fontFamily: "var(--font-body)", fontWeight: 700, marginBottom: 6 }}>{cat}</h3>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {caracteristicas.filter((c) => c.categoria === cat).map((c) => (
-              <span key={c.key} style={{ fontSize: 11.5, padding: "4px 10px", borderRadius: 20, background: COLORS.bg, color: COLORS.soil }}>
-                {c.label}
-              </span>
-            ))}
+            {caracteristicas.filter((c) => c.categoria === cat).map((c) => <span key={c.key} className="badge">{c.label}</span>)}
           </div>
         </div>
       ))}
-    </div>
+    </section>
   );
 }
 
 function FarmTrackRecord({ farmId, farmName }) {
   const [data, setData] = useState(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    api.farmTrackRecord(farmId).then(setData).catch((err) => setError(err.message));
-  }, [farmId]);
-
-  if (error || !data) return null;
+  useEffect(() => { api.farmTrackRecord(farmId).then(setData).catch(() => {}); }, [farmId]);
+  if (!data) return null;
   const { resumo, historico } = data;
 
   return (
-    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-      <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Histórico de {farmName}</p>
-      <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
-        Comparação entre o retorno prometido e o que foi realmente entregue nas colheitas anteriores desta fazenda.
-      </p>
-
+    <section className="card" aria-labelledby="hist-t">
+      <h2 id="hist-t" className="card-title">Histórico de {farmName}</h2>
+      <p className="card-desc" style={{ marginBottom: 14 }}>Retorno prometido comparado ao entregue nas colheitas anteriores.</p>
       {resumo.totalColhidos === 0 ? (
-        <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: 0 }}>
-          Esta fazenda ainda não finalizou nenhuma colheita na plataforma — não há histórico para comparar ainda.
-        </p>
+        <p className="text-sm text-2">Esta fazenda ainda não concluiu colheitas na plataforma.</p>
       ) : (
         <>
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 14 }}>
-            <div>
-              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>colheitas finalizadas</p>
-              <p style={{ fontSize: 18, fontWeight: 700, color: COLORS.soil, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{resumo.totalColhidos}</p>
-            </div>
-            <div>
-              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>cumpriu o prometido</p>
-              <p style={{ fontSize: 18, fontWeight: 700, color: resumo.cumpriuPromessaPct >= 50 ? COLORS.leaf : COLORS.danger, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{resumo.cumpriuPromessaPct}%</p>
-            </div>
-            <div>
-              <p style={{ fontSize: 11, color: COLORS.soilLight, margin: 0 }}>desvio médio</p>
-              <p style={{ fontSize: 18, fontWeight: 700, color: resumo.desvioMedio >= 0 ? COLORS.leaf : COLORS.danger, margin: 0, fontFamily: "'Baloo 2', cursive" }}>
-                {resumo.desvioMedio >= 0 ? "+" : ""}{resumo.desvioMedio} p.p.
-              </p>
-            </div>
+          <div className="grid-stats" style={{ marginBottom: 14 }}>
+            <div><p className="label-xs">Colheitas concluídas</p><p className="stat-value" style={{ marginTop: 2 }}>{resumo.totalColhidos}</p></div>
+            <div><p className="label-xs">Cumpriu o prometido</p><p className={`stat-value ${resumo.cumpriuPromessaPct >= 50 ? "text-success" : "text-danger"}`} style={{ marginTop: 2 }}>{resumo.cumpriuPromessaPct}%</p></div>
+            <div><p className="label-xs">Desvio médio</p><p className={`stat-value ${resumo.desvioMedio >= 0 ? "text-success" : "text-danger"}`} style={{ marginTop: 2 }}>{resumo.desvioMedio >= 0 ? "+" : ""}{resumo.desvioMedio} p.p.</p></div>
           </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {historico.slice(0, 5).map((h) => (
-              <div key={h.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "6px 0", borderTop: `1px solid ${COLORS.line}` }}>
-                <span style={{ color: COLORS.soilLight }}>{h.nome} · {h.grao} · {h.safra}</span>
+              <li key={h.id} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4, fontSize: "var(--fs-sm)", padding: "8px 0", borderTop: "1px solid var(--border)" }}>
+                <span className="text-2">{h.nome} · {h.grao} · {h.safra}</span>
                 <span>
-                  <span style={{ color: COLORS.soilLight }}>prometeu {h.previsao_retorno}% </span>
-                  <span style={{ color: h.cumpriu ? COLORS.leaf : COLORS.danger, fontWeight: 600 }}>entregou {h.retorno_final}%</span>
+                  <span className="text-2">prometeu {h.previsao_retorno}% · </span>
+                  <strong className={h.cumpriu ? "text-success" : "text-danger"}>entregou {h.retorno_final}%</strong>
                 </span>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </>
       )}
-    </div>
+    </section>
   );
 }

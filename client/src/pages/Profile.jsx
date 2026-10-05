@@ -1,541 +1,119 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { Camera, User, Mail, Phone, Lock, Building2, CreditCard, Landmark, QrCode } from "lucide-react";
-import { COLORS } from "../theme";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Camera, UserRound, Mail, Phone, Lock, Tractor, CreditCard, QrCode, Landmark, MessageCircle, Bell, Coins, ChevronRight, LogOut, FileText, Shield, Trash2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { ErrorBanner } from "../components/Shared";
-import { api } from "../api";
+import { ROLE_LABEL } from "../config/theme";
+import { api } from "../lib/api";
+import { readImageFile } from "../lib/files";
 import {
   maskCPF, isValidCPF, maskCNPJ, isValidCNPJ, maskPhone, isValidPhone,
   isValidEmail, isValidRandomKey, onlyDigits, BRAZILIAN_BANKS, maskAgencia,
   isValidAgencia, maskConta, isValidConta, maskCEP, buscarEnderecoPorCEP,
-} from "../utils/validators";
+} from "../lib/validators";
+import { Page, PageHeader } from "../components/layout/Page";
+import { Avatar } from "../components/layout/AppShell";
+import { Button, ErrorBanner, Loading, Segmented, TextField, SelectField, Tabs, Dialog, useDialog, useToast } from "../components/ui";
 
-const MAX_AVATAR_BYTES = 1_200_000;
+const TABS = [
+  { id: "conta", label: "Conta" },
+  { id: "documentos", label: "Documentos" },
+  { id: "recebimento", label: "Recebimento" },
+  { id: "mais", label: "Mais" },
+];
 
 export default function Profile() {
-  const { user, updateSession } = useAuth();
-
-  const [name, setName] = useState(user?.name || "");
-  const [email, setEmail] = useState(user?.email || "");
-  const [phone, setPhone] = useState(user?.phone || "");
-  const [profileError, setProfileError] = useState("");
-  const [profileSuccess, setProfileSuccess] = useState("");
-  const [savingProfile, setSavingProfile] = useState(false);
-
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordSuccess, setPasswordSuccess] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
+  const { user, updateSession, logout } = useAuth();
+  const navigate = useNavigate();
+  const dialog = useDialog();
+  const toast = useToast();
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some((t) => t.id === params.get("aba")) ? params.get("aba") : "conta";
+  const setTab = (id) => setParams(id === "conta" ? {} : { aba: id }, { replace: true });
 
   const [avatarError, setAvatarError] = useState("");
   const [savingAvatar, setSavingAvatar] = useState(false);
   const fileInputRef = useRef(null);
 
-  const [payoutMethod, setPayoutMethod] = useState("pix");
-  const [pixTipo, setPixTipo] = useState("cpf");
-  const [pixChave, setPixChave] = useState("");
-  const [banco, setBanco] = useState("");
-  const [agencia, setAgencia] = useState("");
-  const [conta, setConta] = useState("");
-  const [titular, setTitular] = useState("");
-  const [payoutError, setPayoutError] = useState("");
-  const [payoutSuccess, setPayoutSuccess] = useState("");
-  const [savingPayout, setSavingPayout] = useState(false);
-  const [loadingPayout, setLoadingPayout] = useState(true);
-  const [tab, setTab] = useState("conta");
-
-  useEffect(() => {
-    api.getPayoutAccount()
-      .then((data) => {
-        if (data.account) {
-          const acc = data.account;
-          setTitular(acc.titular || "");
-          if (acc.pix_chave) {
-            setPayoutMethod("pix");
-            setPixTipo(acc.pix_tipo || "cpf");
-            setPixChave(acc.pix_chave || "");
-          } else if (acc.banco) {
-            setPayoutMethod("banco");
-            setBanco(acc.banco || "");
-            setAgencia(maskAgencia(acc.agencia || ""));
-            setConta(maskConta(acc.conta || ""));
-          }
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingPayout(false));
-  }, []);
-
   if (!user) return null;
 
   async function handleAvatarChange(e) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     setAvatarError("");
-
-    if (!file.type.startsWith("image/")) {
-      setAvatarError("Escolha um arquivo de imagem (JPG, PNG ou WEBP).");
-      return;
-    }
-    if (file.size > MAX_AVATAR_BYTES) {
-      setAvatarError("Imagem muito grande. Escolha um arquivo de até 1,2 MB.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      setSavingAvatar(true);
-      try {
-        const data = await api.updateAvatar(reader.result);
-        updateSession(data);
-      } catch (err) {
-        setAvatarError(err.message);
-      } finally {
-        setSavingAvatar(false);
-      }
-    };
-    reader.onerror = () => setAvatarError("Não foi possível ler essa imagem. Tente outra.");
-    reader.readAsDataURL(file);
-  }
-
-  async function handleProfileSubmit(e) {
-    e.preventDefault();
-    setProfileError("");
-    setProfileSuccess("");
-    setSavingProfile(true);
+    setSavingAvatar(true);
     try {
-      const data = await api.updateProfile({ name, email, phone });
-      updateSession(data);
-      setProfileSuccess("Dados atualizados.");
+      const dataUrl = await readImageFile(file, { maxSide: 512 });
+      updateSession(await api.updateAvatar(dataUrl));
+      toast("Foto atualizada");
     } catch (err) {
-      setProfileError(err.message);
+      setAvatarError(err.message);
     } finally {
-      setSavingProfile(false);
+      setSavingAvatar(false);
     }
   }
 
-  async function handlePasswordSubmit(e) {
-    e.preventDefault();
-    setPasswordError("");
-    setPasswordSuccess("");
-    setSavingPassword(true);
-    try {
-      await api.updatePassword(currentPassword, newPassword);
-      setPasswordSuccess("Senha alterada com sucesso.");
-      setCurrentPassword("");
-      setNewPassword("");
-    } catch (err) {
-      setPasswordError(err.message);
-    } finally {
-      setSavingPassword(false);
-    }
+  async function handleLogout() {
+    const ok = await dialog.confirm({ title: "Sair da conta?", message: "Você precisará entrar de novo para ver seus dados.", confirmLabel: "Sair" });
+    if (!ok) return;
+    logout();
+    navigate("/", { replace: true });
   }
-
-  function pixKeyError() {
-    if (payoutMethod !== "pix") return null;
-    if (!pixChave) return "Informe a chave Pix.";
-    if (pixTipo === "cpf" && !isValidCPF(pixChave)) return "CPF inválido. Confira os números digitados.";
-    if (pixTipo === "cnpj" && !isValidCNPJ(pixChave)) return "CNPJ inválido. Confira os números digitados.";
-    if (pixTipo === "telefone" && !isValidPhone(pixChave)) return "Telefone inválido. Informe DDD + número.";
-    if (pixTipo === "email" && !isValidEmail(pixChave)) return "E-mail inválido.";
-    if (pixTipo === "aleatoria" && !isValidRandomKey(pixChave)) return "Chave aleatória inválida — deve ter o formato gerado pelo seu banco (32 caracteres).";
-    return null;
-  }
-
-  function bankAccountError() {
-    if (payoutMethod !== "banco") return null;
-    if (!banco) return "Selecione o banco.";
-    if (!isValidAgencia(agencia)) return "Agência inválida — informe de 3 a 5 dígitos.";
-    if (!isValidConta(conta)) return "Conta inválida — informe de 4 a 13 dígitos (com o dígito verificador).";
-    return null;
-  }
-
-  function handlePixChaveChange(value) {
-    if (pixTipo === "cpf") setPixChave(maskCPF(value));
-    else if (pixTipo === "cnpj") setPixChave(maskCNPJ(value));
-    else if (pixTipo === "telefone") setPixChave(maskPhone(value));
-    else setPixChave(value);
-  }
-
-  async function handlePayoutSubmit(e) {
-    e.preventDefault();
-    setPayoutError("");
-    setPayoutSuccess("");
-
-    const keyError = pixKeyError() || bankAccountError();
-    if (keyError) {
-      setPayoutError(keyError);
-      return;
-    }
-
-    setSavingPayout(true);
-    try {
-      const payload = payoutMethod === "pix"
-        ? { pix_tipo: pixTipo, pix_chave: pixTipo === "cpf" || pixTipo === "cnpj" || pixTipo === "telefone" ? onlyDigits(pixChave) : pixChave, titular }
-        : { banco, agencia: onlyDigits(agencia), conta: onlyDigits(conta), titular };
-      await api.savePayoutAccount(payload);
-      setPayoutSuccess("Dados de recebimento salvos.");
-    } catch (err) {
-      setPayoutError(err.message);
-    } finally {
-      setSavingPayout(false);
-    }
-  }
-
-  const roleLabel = { admin: "Administrador", fazenda: "Fazenda", investidor: "Investidor" }[user.role];
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 640, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Seu perfil</h1>
-      <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "0 0 24px" }}>
-        {roleLabel} · gerencie seus dados de contato, foto e senha.
-      </p>
+    <Page title="Perfil" width="narrow">
+      <PageHeader title="Seu perfil" subtitle={`${ROLE_LABEL[user.role]} · dados de contato, documentos e recebimento.`} />
 
-      {/* Avatar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 26 }}>
-        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={savingAvatar}
-          style={{
-            width: 80, height: 80, borderRadius: 18, background: "#fff", border: "none", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", padding: 0,
-            boxShadow: "0 2px 8px rgba(58,46,34,0.1)", flexShrink: 0,
-          }}
-          title="Trocar foto de perfil"
-        >
-          {user.avatar_data ? (
-            <img src={user.avatar_data} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          ) : (
-            <User size={34} color={COLORS.clay} />
-          )}
-          <div style={{
-            position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: "50%",
-            background: COLORS.orange, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff",
-          }}>
-            <Camera size={12} color="#fff" />
-          </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} hidden />
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={savingAvatar} aria-label="Trocar foto de perfil"
+          style={{ position: "relative", border: "none", background: "none", padding: 0, borderRadius: "50%" }}>
+          <Avatar user={user} size={76} />
+          <span style={{ position: "absolute", bottom: 0, right: 0, width: 28, height: 28, borderRadius: "50%", background: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff" }}>
+            {savingAvatar ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Camera size={13} color="#fff" aria-hidden />}
+          </span>
         </button>
-        <div>
-          <p style={{ fontWeight: 600, fontSize: 15, color: COLORS.soil, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{user.name}</p>
-          <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{savingAvatar ? "Enviando foto..." : "Toque na foto para trocar"}</p>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--fs-xl)", lineHeight: 1.2 }} className="truncate">{user.name}</p>
+          <p className="text-sm text-2 truncate">{user.email}</p>
         </div>
       </div>
-      {avatarError && <ErrorBanner message={avatarError} />}
+      <ErrorBanner message={avatarError} />
 
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 22, WebkitOverflowScrolling: "touch" }}>
-        {[
-          { id: "conta", label: "Conta" },
-          { id: "documentos", label: "Documentos" },
-          { id: "recebimento", label: "Dados para recebimento" },
-          { id: "atalhos", label: "Atalhos" },
-        ].map((t) => {
-          const active = tab === t.id;
-          return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: "8px 14px", borderRadius: 20, whiteSpace: "nowrap",
-              border: `1px solid ${active ? COLORS.leaf : COLORS.line}`, background: active ? COLORS.leaf : "#fff",
-              color: active ? "#fff" : COLORS.soilLight, fontSize: 12.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
-            }}>
-              {t.label}
-            </button>
-          );
-        })}
+      <Tabs label="Seções do perfil" tabs={TABS} value={tab} onChange={setTab} />
+
+      <div role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        {tab === "conta" && <AccountTab />}
+        {tab === "documentos" && <LegalInfoForm />}
+        {tab === "recebimento" && <PayoutForm />}
+        {tab === "mais" && <MoreTab onLogout={handleLogout} />}
       </div>
-
-      {tab === "atalhos" && (
-        <>
-          {user.role === "fazenda" && (
-            <Link to="/fazenda" style={{
-              display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-              borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
-            }}>
-              <Building2 size={16} /> Ir para o painel da fazenda
-            </Link>
-          )}
-
-          {user.role === "fazenda" && (
-            <Link to="/fazenda/carteira" style={{
-              display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-              borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
-            }}>
-              <CreditCard size={16} /> Ver carteira (vendas e recebimentos)
-            </Link>
-          )}
-
-          {user.role === "investidor" && (
-            <Link to="/pagamentos" style={{
-              display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-              borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
-            }}>
-              <CreditCard size={16} /> Gerenciar cartões salvos para compras
-            </Link>
-          )}
-
-          <Link to="/conversas" style={{
-            display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-            borderRadius: 12, padding: "12px 16px", marginBottom: 12, textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
-          }}>
-            <Mail size={16} /> Ver conversas
-          </Link>
-
-          <Link to="/avisos" style={{
-            display: "flex", alignItems: "center", gap: 8, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-            borderRadius: 12, padding: "12px 16px", textDecoration: "none", color: COLORS.soil, fontSize: 13.5, fontWeight: 500,
-          }}>
-            <User size={16} /> Ver avisos
-          </Link>
-        </>
-      )}
-
-      {tab === "documentos" && <LegalInfoForm />}
-
-      {/* Dados para recebimento */}
-      {tab === "recebimento" && (
-      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Dados para recebimento</p>
-        <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 14px", lineHeight: 1.5 }}>
-          {user.role === "investidor" && "Conta onde você recebe o lucro das suas colheitas."}
-          {user.role === "fazenda" && "Conta onde sua fazenda recebe a comissão sobre as colheitas."}
-          {user.role === "admin" && "Conta onde a administração recebe a comissão da plataforma."}
-        </p>
-
-        {!loadingPayout && (
-          <>
-            <ErrorBanner message={payoutError} />
-            {payoutSuccess && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 12 }}>{payoutSuccess}</p>}
-
-            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              <button type="button" onClick={() => setPayoutMethod("pix")} style={{
-                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0",
-                borderRadius: 10, fontSize: 13, cursor: "pointer", fontWeight: 600,
-                border: `1px solid ${payoutMethod === "pix" ? COLORS.leaf : COLORS.line}`,
-                background: payoutMethod === "pix" ? COLORS.leaf : "#fff",
-                color: payoutMethod === "pix" ? "#fff" : COLORS.soilLight,
-              }}><QrCode size={14} /> Pix</button>
-              <button type="button" onClick={() => setPayoutMethod("banco")} style={{
-                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0",
-                borderRadius: 10, fontSize: 13, cursor: "pointer", fontWeight: 600,
-                border: `1px solid ${payoutMethod === "banco" ? COLORS.leaf : COLORS.line}`,
-                background: payoutMethod === "banco" ? COLORS.leaf : "#fff",
-                color: payoutMethod === "banco" ? "#fff" : COLORS.soilLight,
-              }}><Landmark size={14} /> Conta bancária</button>
-            </div>
-
-            <form onSubmit={handlePayoutSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {payoutMethod === "pix" ? (
-                <>
-                  <div>
-                    <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Tipo de chave</label>
-                    <select value={pixTipo} onChange={(e) => { setPixTipo(e.target.value); setPixChave(""); }} style={selectStyle}>
-                      <option value="cpf">CPF</option>
-                      <option value="cnpj">CNPJ</option>
-                      <option value="email">E-mail</option>
-                      <option value="telefone">Telefone</option>
-                      <option value="aleatoria">Chave aleatória</option>
-                    </select>
-                  </div>
-                  <TextField
-                    label="Chave Pix"
-                    value={pixChave}
-                    onChange={handlePixChaveChange}
-                    required
-                    type={pixTipo === "email" ? "email" : "text"}
-                    inputMode={pixTipo === "cpf" || pixTipo === "cnpj" || pixTipo === "telefone" ? "numeric" : "text"}
-                    placeholder={
-                      pixTipo === "cpf" ? "000.000.000-00" :
-                      pixTipo === "cnpj" ? "00.000.000/0000-00" :
-                      pixTipo === "telefone" ? "(00) 00000-0000" :
-                      pixTipo === "email" ? "seuemail@exemplo.com" :
-                      "00000000-0000-0000-0000-000000000000"
-                    }
-                  />
-                </>
-              ) : (
-                <>
-                  <div>
-                    <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Banco</label>
-                    <select value={banco} onChange={(e) => setBanco(e.target.value)} required style={selectStyle}>
-                      <option value="">Selecione o banco</option>
-                      {BRAZILIAN_BANKS.map((b) => (
-                        <option key={b.code} value={`${b.code} - ${b.name}`}>{b.code} - {b.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <TextField label="Agência" value={agencia} onChange={(v) => setAgencia(maskAgencia(v))} placeholder="0000-0" required inputMode="numeric" />
-                    <TextField label="Conta (com dígito)" value={conta} onChange={(v) => setConta(maskConta(v))} placeholder="00000-0" required inputMode="numeric" />
-                  </div>
-                </>
-              )}
-              <TextField label="Nome do titular da conta" value={titular} onChange={setTitular} required />
-
-              <button type="submit" disabled={savingPayout} style={{
-                marginTop: 4, padding: "11px 0", borderRadius: 10, border: "none", background: COLORS.orange,
-                color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", opacity: savingPayout ? 0.7 : 1,
-              }}>
-                {savingPayout ? "Salvando..." : "Salvar dados de recebimento"}
-              </button>
-            </form>
-          </>
-        )}
-      </div>
-      )}
-
-      {/* Dados de contato */}
-      {tab === "conta" && (
-        <>
-      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 14px" }}>Dados de contato</p>
-        <ErrorBanner message={profileError} />
-        {profileSuccess && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 12 }}>{profileSuccess}</p>}
-        <form onSubmit={handleProfileSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <TextField icon={User} label="Nome completo" value={name} onChange={setName} required />
-          <TextField icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} required />
-          <TextField icon={Phone} label="Telefone / WhatsApp" value={phone} onChange={(v) => setPhone(maskPhone(v))} placeholder="(00) 00000-0000" inputMode="numeric" />
-          <button type="submit" disabled={savingProfile} style={{
-            marginTop: 4, padding: "11px 0", borderRadius: 10, border: "none", background: COLORS.orange,
-            color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", opacity: savingProfile ? 0.7 : 1,
-          }}>
-            {savingProfile ? "Salvando..." : "Salvar dados"}
-          </button>
-        </form>
-      </div>
-
-      {/* Senha */}
-      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 14px" }}>Alterar senha</p>
-        <ErrorBanner message={passwordError} />
-        {passwordSuccess && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 12 }}>{passwordSuccess}</p>}
-        <form onSubmit={handlePasswordSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <TextField icon={Lock} label="Senha atual" type="password" value={currentPassword} onChange={setCurrentPassword} required />
-          <TextField icon={Lock} label="Nova senha (mínimo 8 caracteres)" type="password" value={newPassword} onChange={setNewPassword} required minLength={8} />
-          <button type="submit" disabled={savingPassword} style={{
-            marginTop: 4, padding: "11px 0", borderRadius: 10, border: `1px solid ${COLORS.line}`, background: "#fff",
-            color: COLORS.soil, fontSize: 14, fontWeight: 600, cursor: "pointer", opacity: savingPassword ? 0.7 : 1,
-          }}>
-            {savingPassword ? "Alterando..." : "Alterar senha"}
-          </button>
-        </form>
-      </div>
-        </>
-      )}
-    </div>
+    </Page>
   );
 }
 
-function TextField({ icon: Icon, label, value, onChange, type = "text", required, minLength, placeholder, inputMode, style }) {
-  return (
-    <div style={style}>
-      <label style={{ fontSize: 11.5, color: COLORS.soilLight, display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
-        {Icon && <Icon size={12} />} {label}
-      </label>
-      <input
-        type={type} required={required} minLength={minLength} value={value} placeholder={placeholder} inputMode={inputMode}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${COLORS.line}`, fontSize: 14, background: "#fff" }}
-      />
-    </div>
-  );
-}
-
-const selectStyle = { width: "100%", marginTop: 4, padding: "10px 12px", borderRadius: 10, border: `1px solid ${COLORS.line}`, fontSize: 14, background: "#fff", fontFamily: "inherit" };
-
-function LegalInfoForm() {
-  const [tipoPessoa, setTipoPessoa] = useState("fisica");
-  const [cpf, setCpf] = useState("");
-  const [cnpj, setCnpj] = useState("");
-  const [rg, setRg] = useState("");
-  const [rgOrgao, setRgOrgao] = useState("");
-  const [nacionalidade, setNacionalidade] = useState("Brasileira");
-  const [estadoCivil, setEstadoCivil] = useState("");
-  const [profissao, setProfissao] = useState("");
-  const [cep, setCep] = useState("");
-  const [logradouro, setLogradouro] = useState("");
-  const [numero, setNumero] = useState("");
-  const [complemento, setComplemento] = useState("");
-  const [bairro, setBairro] = useState("");
-  const [cidade, setCidade] = useState("");
-  const [uf, setUf] = useState("");
-  const [buscandoCep, setBuscandoCep] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+// ---------- Conta ----------
+function AccountTab() {
+  const { user, updateSession } = useAuth();
+  const toast = useToast();
+  const [name, setName] = useState(user.name || "");
+  const [email, setEmail] = useState(user.email || "");
+  const [phone, setPhone] = useState(user.phone ? maskPhone(user.phone) : "");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    api.getLegalInfo()
-      .then((data) => {
-        const info = data.legalInfo;
-        if (!info) return;
-        setTipoPessoa(info.tipo_pessoa || "fisica");
-        if (info.cpf) setCpf(maskCPF(info.cpf));
-        if (info.cnpj) setCnpj(maskCNPJ(info.cnpj));
-        setRg(info.rg || "");
-        setRgOrgao(info.rg_orgao_emissor || "");
-        setNacionalidade(info.nacionalidade || "Brasileira");
-        setEstadoCivil(info.estado_civil || "");
-        setProfissao(info.profissao || "");
-        if (info.endereco_cep) setCep(maskCEP(info.endereco_cep));
-        setLogradouro(info.endereco_logradouro || "");
-        setNumero(info.endereco_numero || "");
-        setComplemento(info.endereco_complemento || "");
-        setBairro(info.endereco_bairro || "");
-        setCidade(info.endereco_cidade || "");
-        setUf(info.endereco_uf || "");
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [pwError, setPwError] = useState("");
+  const [savingPw, setSavingPw] = useState(false);
 
-  async function handleCepChange(value) {
-    const masked = maskCEP(value);
-    setCep(masked);
-    if (onlyDigits(masked).length === 8) {
-      setBuscandoCep(true);
-      try {
-        const endereco = await buscarEnderecoPorCEP(masked);
-        if (endereco) {
-          setLogradouro(endereco.logradouro);
-          setBairro(endereco.bairro);
-          setCidade(endereco.cidade);
-          setUf(endereco.uf);
-        }
-      } catch {
-        // silencioso — usuário ainda pode preencher manualmente
-      } finally {
-        setBuscandoCep(false);
-      }
-    }
-  }
-
-  async function handleSubmit(e) {
+  async function saveProfile(e) {
     e.preventDefault();
-    setError(""); setSuccess("");
-
-    if (tipoPessoa === "fisica" && !isValidCPF(cpf)) {
-      setError("CPF inválido. Confira os números digitados.");
-      return;
-    }
-    if (tipoPessoa === "juridica" && !isValidCNPJ(cnpj)) {
-      setError("CNPJ inválido. Confira os números digitados.");
-      return;
-    }
-
+    setError("");
     setSaving(true);
     try {
-      await api.updateLegalInfo({
-        tipo_pessoa: tipoPessoa,
-        cpf: tipoPessoa === "fisica" ? onlyDigits(cpf) : null,
-        cnpj: tipoPessoa === "juridica" ? onlyDigits(cnpj) : null,
-        rg, rg_orgao_emissor: rgOrgao, nacionalidade, estado_civil: estadoCivil, profissao,
-        endereco_cep: onlyDigits(cep), endereco_logradouro: logradouro, endereco_numero: numero,
-        endereco_complemento: complemento, endereco_bairro: bairro, endereco_cidade: cidade, endereco_uf: uf,
-      });
-      setSuccess("Documentos salvos com sucesso.");
+      updateSession(await api.updateProfile({ name, email: email.trim(), phone }));
+      toast("Dados atualizados");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -543,81 +121,342 @@ function LegalInfoForm() {
     }
   }
 
-  if (loading) return <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>;
+  async function savePassword(e) {
+    e.preventDefault();
+    setPwError("");
+    setSavingPw(true);
+    try {
+      await api.updatePassword(currentPassword, newPassword);
+      setCurrentPassword(""); setNewPassword("");
+      toast("Senha alterada");
+    } catch (err) {
+      setPwError(err.message);
+    } finally {
+      setSavingPw(false);
+    }
+  }
 
   return (
-    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-      <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 4px" }}>Documentos e endereço</p>
-      <p style={{ fontSize: 11.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
-        Esses dados ficam sempre privados — visíveis só para você e para a administração — e são usados para compor contratos futuros.
-      </p>
+    <div className="stack-lg">
+      <section className="card">
+        <h2 className="card-title" style={{ marginBottom: 14 }}>Dados de contato</h2>
+        <ErrorBanner message={error} />
+        <form onSubmit={saveProfile} className="stack">
+          <TextField icon={UserRound} label="Nome completo" value={name} onChange={setName} required autoComplete="name" />
+          <TextField icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} required autoComplete="email" inputMode="email" autoCapitalize="none" />
+          <TextField icon={Phone} label="Telefone ou WhatsApp" value={phone} onChange={(v) => setPhone(maskPhone(v))} placeholder="(00) 00000-0000" inputMode="tel" autoComplete="tel-national" />
+          <Button type="submit" loading={saving} style={{ alignSelf: "flex-start" }}>Salvar dados</Button>
+        </form>
+      </section>
 
-      <ErrorBanner message={error} />
-      {success && <p style={{ fontSize: 12.5, color: COLORS.leaf, marginBottom: 12 }}>{success}</p>}
-
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {[{ id: "fisica", label: "Pessoa física (CPF)" }, { id: "juridica", label: "Pessoa jurídica (CNPJ)" }].map((opt) => (
-            <button key={opt.id} type="button" onClick={() => setTipoPessoa(opt.id)} style={{
-              flex: 1, padding: "9px 0", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
-              border: `1px solid ${tipoPessoa === opt.id ? COLORS.leaf : COLORS.line}`,
-              background: tipoPessoa === opt.id ? COLORS.leaf : "#fff",
-              color: tipoPessoa === opt.id ? "#fff" : COLORS.soilLight,
-            }}>{opt.label}</button>
-          ))}
-        </div>
-
-        {tipoPessoa === "fisica" ? (
-          <TextField label="CPF" value={cpf} onChange={(v) => setCpf(maskCPF(v))} placeholder="000.000.000-00" required inputMode="numeric" />
-        ) : (
-          <TextField label="CNPJ" value={cnpj} onChange={(v) => setCnpj(maskCNPJ(v))} placeholder="00.000.000/0000-00" required inputMode="numeric" />
-        )}
-
-        <div style={{ display: "flex", gap: 10 }}>
-          <TextField label="RG (ou documento equivalente)" value={rg} onChange={setRg} required style={{ flex: 1 }} />
-          <TextField label="Órgão emissor" value={rgOrgao} onChange={setRgOrgao} placeholder="Ex: SSP-GO" style={{ flex: 1 }} />
-        </div>
-
-        <div style={{ display: "flex", gap: 10 }}>
-          <TextField label="Nacionalidade" value={nacionalidade} onChange={setNacionalidade} style={{ flex: 1 }} />
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Estado civil</label>
-            <select value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)} style={selectStyle}>
-              <option value="">Selecione</option>
-              <option value="solteiro">Solteiro(a)</option>
-              <option value="casado">Casado(a)</option>
-              <option value="uniao_estavel">União estável</option>
-              <option value="divorciado">Divorciado(a)</option>
-              <option value="viuvo">Viúvo(a)</option>
-            </select>
-          </div>
-        </div>
-
-        <TextField label="Profissão" value={profissao} onChange={setProfissao} />
-
-        <p style={{ fontSize: 12, fontWeight: 600, color: COLORS.soil, margin: "8px 0 0" }}>Endereço</p>
-
-        <div style={{ display: "flex", gap: 10 }}>
-          <TextField label={buscandoCep ? "CEP (buscando...)" : "CEP"} value={cep} onChange={handleCepChange} placeholder="00000-000" required inputMode="numeric" style={{ width: 140 }} />
-          <TextField label="Logradouro" value={logradouro} onChange={setLogradouro} required style={{ flex: 1 }} />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <TextField label="Número" value={numero} onChange={setNumero} required style={{ width: 100 }} />
-          <TextField label="Complemento" value={complemento} onChange={setComplemento} placeholder="Apto, bloco..." style={{ flex: 1 }} />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <TextField label="Bairro" value={bairro} onChange={setBairro} required style={{ flex: 1 }} />
-          <TextField label="Cidade" value={cidade} onChange={setCidade} required style={{ flex: 1 }} />
-          <TextField label="UF" value={uf} onChange={(v) => setUf(v.toUpperCase().slice(0, 2))} required style={{ width: 70 }} />
-        </div>
-
-        <button type="submit" disabled={saving} style={{
-          marginTop: 6, padding: "11px 0", borderRadius: 10, border: "none", background: COLORS.orange,
-          color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1,
-        }}>
-          {saving ? "Salvando..." : "Salvar documentos"}
-        </button>
-      </form>
+      <section className="card">
+        <h2 className="card-title" style={{ marginBottom: 14 }}>Alterar senha</h2>
+        <ErrorBanner message={pwError} />
+        <form onSubmit={savePassword} className="stack">
+          {/* campo oculto ajuda o gerenciador de senhas (iCloud Keychain / Google) a associar a conta */}
+          <input type="text" name="username" autoComplete="username" value={user.email} readOnly hidden />
+          <TextField icon={Lock} label="Senha atual" type="password" value={currentPassword} onChange={setCurrentPassword} required autoComplete="current-password" />
+          <TextField icon={Lock} label="Nova senha" hint="Mínimo de 8 caracteres." type="password" value={newPassword} onChange={setNewPassword} required minLength={8} autoComplete="new-password" />
+          <Button type="submit" variant="secondary" loading={savingPw} style={{ alignSelf: "flex-start" }}>Alterar senha</Button>
+        </form>
+      </section>
     </div>
+  );
+}
+
+// ---------- Mais: atalhos, documentos legais, sair e excluir conta ----------
+function MoreTab({ onLogout }) {
+  const { user } = useAuth();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const links = [
+    user.role === "fazenda" && { to: "/fazenda", icon: Tractor, label: "Painel da fazenda" },
+    user.role === "fazenda" && { to: "/fazenda/carteira", icon: Coins, label: "Carteira (vendas e recebimentos)" },
+    user.role === "investidor" && { to: "/pagamentos", icon: CreditCard, label: "Formas de pagamento" },
+    { to: "/conversas", icon: MessageCircle, label: "Conversas" },
+    { to: "/avisos", icon: Bell, label: "Avisos" },
+    { to: "/termos", icon: FileText, label: "Termos de uso" },
+    { to: "/privacidade", icon: Shield, label: "Política de privacidade" },
+  ].filter(Boolean);
+
+  return (
+    <div className="stack-lg">
+      <ul className="list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {links.map((l) => (
+          <li key={l.to}>
+            <Link to={l.to} className="list-item" style={{ minHeight: 56 }}>
+              <l.icon size={20} aria-hidden style={{ color: "var(--text-2)" }} />
+              <span className="list-item-body list-item-title">{l.label}</span>
+              <ChevronRight size={18} aria-hidden style={{ color: "var(--text-3)" }} />
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <Button variant="secondary" icon={LogOut} block onClick={onLogout}>Sair da conta</Button>
+
+      <section className="card" style={{ borderColor: "#e9b9b9" }}>
+        <h2 className="card-title">Excluir conta</h2>
+        <p className="card-desc" style={{ marginBottom: 14 }}>
+          Remove seus dados pessoais, fotos, cartões e dados de recebimento. Registros financeiros já concluídos são mantidos de forma anonimizada pelo prazo exigido em lei.
+        </p>
+        <Button variant="danger-ghost" icon={Trash2} onClick={() => setDeleteOpen(true)}>Excluir minha conta</Button>
+      </section>
+
+      <DeleteAccountDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} />
+    </div>
+  );
+}
+
+function DeleteAccountDialog({ open, onClose }) {
+  const { deleteAccount, user } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleDelete(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await deleteAccount(password);
+      toast("Sua conta foi excluída");
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} title="Excluir conta definitivamente?">
+      <form onSubmit={handleDelete} className="stack">
+        <p>Esta ação não pode ser desfeita. {user.role === "investidor" ? "Se você tiver investimentos em andamento, a exclusão só fica disponível depois que as colheitas forem pagas." : user.role === "fazenda" ? "Fazendas com talhões em captação ou em andamento precisam concluir ou encerrar esses talhões antes." : ""}</p>
+        <ErrorBanner message={error} />
+        <input type="text" name="username" autoComplete="username" value={user.email} readOnly hidden />
+        <TextField label="Digite sua senha para confirmar" type="password" value={password} onChange={setPassword} required autoComplete="current-password" />
+        <div className="dialog-actions" style={{ marginTop: 4 }}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" variant="danger" loading={loading} disabled={!password}>Excluir conta</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+// ---------- Recebimento ----------
+function PayoutForm() {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [method, setMethod] = useState("pix");
+  const [pixTipo, setPixTipo] = useState("cpf");
+  const [pixChave, setPixChave] = useState("");
+  const [banco, setBanco] = useState("");
+  const [agencia, setAgencia] = useState("");
+  const [conta, setConta] = useState("");
+  const [titular, setTitular] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getPayoutAccount()
+      .then(({ account: acc }) => {
+        if (!acc) return;
+        setTitular(acc.titular || "");
+        if (acc.pix_chave) {
+          setMethod("pix");
+          const tipo = acc.pix_tipo || "cpf";
+          setPixTipo(tipo);
+          setPixChave(tipo === "cpf" ? maskCPF(acc.pix_chave) : tipo === "cnpj" ? maskCNPJ(acc.pix_chave) : tipo === "telefone" ? maskPhone(acc.pix_chave) : acc.pix_chave);
+        } else if (acc.banco) {
+          setMethod("banco");
+          setBanco(acc.banco);
+          setAgencia(maskAgencia(acc.agencia || ""));
+          setConta(maskConta(acc.conta || ""));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function validate() {
+    if (method === "pix") {
+      if (!pixChave) return "Informe a chave Pix.";
+      if (pixTipo === "cpf" && !isValidCPF(pixChave)) return "CPF inválido. Confira os números.";
+      if (pixTipo === "cnpj" && !isValidCNPJ(pixChave)) return "CNPJ inválido. Confira os números.";
+      if (pixTipo === "telefone" && !isValidPhone(pixChave)) return "Telefone inválido. Informe DDD e número.";
+      if (pixTipo === "email" && !isValidEmail(pixChave)) return "E-mail inválido.";
+      if (pixTipo === "aleatoria" && !isValidRandomKey(pixChave)) return "Chave aleatória inválida: use o código de 32 caracteres gerado pelo banco.";
+      return null;
+    }
+    if (!banco) return "Escolha o banco.";
+    if (!isValidAgencia(agencia)) return "Agência inválida: informe de 3 a 5 dígitos.";
+    if (!isValidConta(conta)) return "Conta inválida: informe de 4 a 13 dígitos, com o dígito verificador.";
+    return null;
+  }
+
+  function onChaveChange(v) {
+    if (pixTipo === "cpf") setPixChave(maskCPF(v));
+    else if (pixTipo === "cnpj") setPixChave(maskCNPJ(v));
+    else if (pixTipo === "telefone") setPixChave(maskPhone(v));
+    else setPixChave(v.trim());
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    const err = validate();
+    if (err) { setError(err); return; }
+    setSaving(true);
+    try {
+      const numeric = ["cpf", "cnpj", "telefone"].includes(pixTipo);
+      await api.savePayoutAccount(method === "pix"
+        ? { pix_tipo: pixTipo, pix_chave: numeric ? onlyDigits(pixChave) : pixChave, titular }
+        : { banco, agencia: onlyDigits(agencia), conta: onlyDigits(conta), titular });
+      toast("Dados de recebimento salvos");
+    } catch (er) {
+      setError(er.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <Loading />;
+
+  const placeholder = { cpf: "000.000.000-00", cnpj: "00.000.000/0000-00", telefone: "(00) 00000-0000", email: "nome@exemplo.com", aleatoria: "00000000-0000-0000-0000-000000000000" }[pixTipo];
+
+  return (
+    <section className="card">
+      <h2 className="card-title">Dados para recebimento</h2>
+      <p className="card-desc" style={{ marginBottom: 16 }}>
+        {{ investidor: "Conta onde você recebe o resultado das colheitas.", fazenda: "Conta onde a fazenda recebe a comissão das colheitas.", admin: "Conta onde a plataforma recebe a comissão." }[user.role]}
+      </p>
+      <ErrorBanner message={error} />
+      <form onSubmit={handleSubmit} className="stack">
+        <Segmented label="Forma de recebimento" value={method} onChange={setMethod} options={[{ id: "pix", label: "Pix", icon: QrCode }, { id: "banco", label: "Conta bancária", icon: Landmark }]} />
+        {method === "pix" ? (
+          <>
+            <SelectField label="Tipo de chave" value={pixTipo} onChange={(v) => { setPixTipo(v); setPixChave(""); }}
+              options={[{ value: "cpf", label: "CPF" }, { value: "cnpj", label: "CNPJ" }, { value: "email", label: "E-mail" }, { value: "telefone", label: "Telefone" }, { value: "aleatoria", label: "Chave aleatória" }]} />
+            <TextField label="Chave Pix" value={pixChave} onChange={onChaveChange} required placeholder={placeholder}
+              type={pixTipo === "email" ? "email" : "text"} inputMode={["cpf", "cnpj"].includes(pixTipo) ? "numeric" : pixTipo === "telefone" ? "tel" : pixTipo === "email" ? "email" : "text"} autoCapitalize="none" />
+          </>
+        ) : (
+          <>
+            <SelectField label="Banco" value={banco} onChange={setBanco} required>
+              <option value="">Escolha o banco</option>
+              {BRAZILIAN_BANKS.map((b) => <option key={b.code} value={`${b.code} - ${b.name}`}>{b.code} - {b.name}</option>)}
+            </SelectField>
+            <div className="row">
+              <TextField label="Agência" value={agencia} onChange={(v) => setAgencia(maskAgencia(v))} placeholder="0000" required inputMode="numeric" />
+              <TextField label="Conta com dígito" value={conta} onChange={(v) => setConta(maskConta(v))} placeholder="00000-0" required inputMode="numeric" />
+            </div>
+          </>
+        )}
+        <TextField label="Nome do titular" value={titular} onChange={setTitular} required autoComplete="name" />
+        <Button type="submit" loading={saving} style={{ alignSelf: "flex-start" }}>Salvar dados de recebimento</Button>
+      </form>
+    </section>
+  );
+}
+
+// ---------- Documentos ----------
+function LegalInfoForm() {
+  const toast = useToast();
+  const [f, setF] = useState({
+    tipoPessoa: "fisica", cpf: "", cnpj: "", rg: "", rgOrgao: "", nacionalidade: "Brasileira", estadoCivil: "", profissao: "",
+    cep: "", logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", uf: "",
+  });
+  const set = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.getLegalInfo().then(({ legalInfo: i }) => {
+      if (!i) return;
+      setF({
+        tipoPessoa: i.tipo_pessoa || "fisica", cpf: i.cpf ? maskCPF(i.cpf) : "", cnpj: i.cnpj ? maskCNPJ(i.cnpj) : "",
+        rg: i.rg || "", rgOrgao: i.rg_orgao_emissor || "", nacionalidade: i.nacionalidade || "Brasileira",
+        estadoCivil: i.estado_civil || "", profissao: i.profissao || "", cep: i.endereco_cep ? maskCEP(i.endereco_cep) : "",
+        logradouro: i.endereco_logradouro || "", numero: i.endereco_numero || "", complemento: i.endereco_complemento || "",
+        bairro: i.endereco_bairro || "", cidade: i.endereco_cidade || "", uf: i.endereco_uf || "",
+      });
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  async function onCep(v) {
+    const masked = maskCEP(v);
+    set("cep")(masked);
+    if (onlyDigits(masked).length !== 8) return;
+    setBuscandoCep(true);
+    try {
+      const end = await buscarEnderecoPorCEP(masked);
+      if (end) setF((s) => ({ ...s, logradouro: end.logradouro, bairro: end.bairro, cidade: end.cidade, uf: end.uf }));
+    } catch { /* preenchimento manual continua possível */ } finally { setBuscandoCep(false); }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    if (f.tipoPessoa === "fisica" && !isValidCPF(f.cpf)) { setError("CPF inválido. Confira os números."); return; }
+    if (f.tipoPessoa === "juridica" && !isValidCNPJ(f.cnpj)) { setError("CNPJ inválido. Confira os números."); return; }
+    setSaving(true);
+    try {
+      await api.updateLegalInfo({
+        tipo_pessoa: f.tipoPessoa,
+        cpf: f.tipoPessoa === "fisica" ? onlyDigits(f.cpf) : null,
+        cnpj: f.tipoPessoa === "juridica" ? onlyDigits(f.cnpj) : null,
+        rg: f.rg, rg_orgao_emissor: f.rgOrgao, nacionalidade: f.nacionalidade, estado_civil: f.estadoCivil, profissao: f.profissao,
+        endereco_cep: onlyDigits(f.cep), endereco_logradouro: f.logradouro, endereco_numero: f.numero,
+        endereco_complemento: f.complemento, endereco_bairro: f.bairro, endereco_cidade: f.cidade, endereco_uf: f.uf,
+      });
+      toast("Documentos salvos");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <Loading />;
+
+  return (
+    <section className="card">
+      <h2 className="card-title">Documentos e endereço</h2>
+      <p className="card-desc" style={{ marginBottom: 16 }}>Ficam privados, visíveis só para você e para a administração, e são usados nos contratos.</p>
+      <ErrorBanner message={error} />
+      <form onSubmit={handleSubmit} className="form-grid">
+        <div className="span-all">
+          <Segmented label="Tipo de pessoa" value={f.tipoPessoa} onChange={set("tipoPessoa")} options={[{ id: "fisica", label: "Pessoa física" }, { id: "juridica", label: "Pessoa jurídica" }]} />
+        </div>
+        {f.tipoPessoa === "fisica"
+          ? <TextField label="CPF" value={f.cpf} onChange={(v) => set("cpf")(maskCPF(v))} placeholder="000.000.000-00" required inputMode="numeric" />
+          : <TextField label="CNPJ" value={f.cnpj} onChange={(v) => set("cnpj")(maskCNPJ(v))} placeholder="00.000.000/0000-00" required inputMode="numeric" />}
+        <TextField label="RG ou documento equivalente" value={f.rg} onChange={set("rg")} required />
+        <TextField label="Órgão emissor" value={f.rgOrgao} onChange={set("rgOrgao")} placeholder="Ex.: SSP-GO" />
+        <TextField label="Nacionalidade" value={f.nacionalidade} onChange={set("nacionalidade")} />
+        <SelectField label="Estado civil" value={f.estadoCivil} onChange={set("estadoCivil")}
+          options={[{ value: "", label: "Selecione" }, { value: "solteiro", label: "Solteiro(a)" }, { value: "casado", label: "Casado(a)" }, { value: "uniao_estavel", label: "União estável" }, { value: "divorciado", label: "Divorciado(a)" }, { value: "viuvo", label: "Viúvo(a)" }]} />
+        <TextField label="Profissão" value={f.profissao} onChange={set("profissao")} autoComplete="organization-title" />
+
+        <h3 className="span-all card-title" style={{ marginTop: 8 }}>Endereço</h3>
+        <TextField label="CEP" hint={buscandoCep ? "Buscando endereço…" : undefined} value={f.cep} onChange={onCep} placeholder="00000-000" required inputMode="numeric" autoComplete="postal-code" />
+        <TextField label="Logradouro" value={f.logradouro} onChange={set("logradouro")} required autoComplete="address-line1" />
+        <TextField label="Número" value={f.numero} onChange={set("numero")} required inputMode="numeric" />
+        <TextField label="Complemento" value={f.complemento} onChange={set("complemento")} placeholder="Apto, bloco…" autoComplete="address-line2" />
+        <TextField label="Bairro" value={f.bairro} onChange={set("bairro")} required />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 10 }}>
+          <TextField label="Cidade" value={f.cidade} onChange={set("cidade")} required autoComplete="address-level2" />
+          <TextField label="UF" value={f.uf} onChange={(v) => set("uf")(v.toUpperCase().slice(0, 2))} required autoComplete="address-level1" />
+        </div>
+        <div className="span-all"><Button type="submit" loading={saving}>Salvar documentos</Button></div>
+      </form>
+    </section>
   );
 }

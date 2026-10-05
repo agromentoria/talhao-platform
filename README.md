@@ -74,9 +74,47 @@ automaticamente — não precisa rodar nenhum script de migração à parte.
 
 ```
 talhao-platform/
-├── server/     API (Node.js + Express + Postgres)
-└── client/     Interface web (React + Vite)
+├── server/                 API (Node.js + Express + Postgres)
+│   └── src/
+│       ├── routes/         uma rota por assunto (auth, plots, farms, investments…)
+│       ├── middleware/     autenticação e tratamento de erros
+│       ├── db.js           esquema do banco (criado/atualizado ao iniciar)
+│       └── format.js       formatação de valores em R$ para os avisos
+├── client/                 Interface (React + Vite) — web, PWA, iOS e Android
+│   ├── src/
+│   │   ├── app/            App, rotas (carregadas sob demanda) e guardas de acesso
+│   │   ├── components/
+│   │   │   ├── ui/         Button, campos, chips, abas, Dialog, Toast, Banner…
+│   │   │   ├── layout/     AppShell (abas/trilho/barra lateral), Page, PageHeader
+│   │   │   └── domain/     PlotCard, PhotoGallery, ShareButton, CityStateSelect
+│   │   ├── config/         theme.js (constantes) e navigation.js (menus por perfil)
+│   │   ├── context/        sessão do usuário (AuthContext)
+│   │   ├── lib/            api, storage, format, validators, files, native, pwa
+│   │   ├── pages/          uma tela por arquivo (+ legal/ privacidade e termos)
+│   │   └── styles/         tokens.css, base.css, layout.css, components.css
+│   ├── public/app-icons/   ícones PNG (PWA, Apple, lojas) e splash
+│   ├── ios/  android/      projetos nativos (Capacitor)
+│   └── capacitor.config.json
+└── docs/LOJAS.md           guia de publicação na App Store e no Google Play
 ```
+
+### Design system
+
+Cores, tipografia, espaçamentos, raios e medidas de navegação ficam em
+`client/src/styles/tokens.css`. As cores de ação foram ajustadas para contraste
+AA (texto branco sobre laranja `#B26000` e verde `#557A22`); as cores originais da
+marca continuam nas ilustrações e destaques. Para uma tela nova, use `Page` +
+`PageHeader` e os componentes de `components/ui` — evite estilos embutidos.
+
+### Navegação por tamanho de tela
+
+| Janela | Largura | Navegação |
+|---|---|---|
+| Celular | < 600 px | barra superior (com voltar nas telas internas) + abas inferiores (máx. 5) |
+| Tablet | 600–1199 px | trilho lateral com ícones |
+| Desktop | ≥ 1200 px | barra lateral com usuário e botão Sair |
+
+Os itens de menu de cada perfil estão num único lugar: `client/src/config/navigation.js`.
 
 ## Rodando localmente
 
@@ -99,8 +137,12 @@ automaticamente na primeira execução, com o e-mail e senha definidos no
 ```bash
 cd client
 npm install
-npm run dev
+npm run dev        # interface em http://localhost:5173
+npm run lint       # verificação do código
+npm run build      # versão de produção (gera também o PWA)
 ```
+
+Apps nativos: veja `docs/LOJAS.md` (`npm run cap:ios` / `npm run cap:android`).
 
 A interface sobe em `http://localhost:5173` e já conversa com a API local.
 
@@ -147,7 +189,9 @@ Render para "Starter" (elimina esse soneca) sem mexer em nada do código.
 5. **Deploy site** — você recebe uma URL tipo
    `https://talhao-platform.netlify.app`.
 6. Volte no Render e defina `CLIENT_ORIGIN` com essa URL do Netlify, para
-   liberar o CORS entre os dois.
+   liberar o CORS entre os dois (aceita vários endereços separados por vírgula).
+7. Como o app usa rotas próprias (`/talhao/12`, `/perfil`…), crie o arquivo
+   `client/public/_redirects` com `/*  /index.html  200` — já incluído no projeto.
 
 ## Integrando com o site atual em Joomla
 
@@ -163,16 +207,14 @@ bloqueante para publicar agora.
 
 Já aplicada a identidade oficial do Meu Talhão:
 
-- Logos em `client/public/` (`logo-horizontal.svg` no cabeçalho,
-  `logo-icon.svg` nas telas de login/cadastro e como favicon).
-- Paleta de cores real em `client/src/theme.js`, extraída de
-  `paleta_de_Cores_meutalhao.svg`: verde (#668C2D / #445F1C), dourado
-  (#F9B000 / #DD8209), creme de fundo (#EADFCD) e marrom para texto
-  (#3A2E22 / #6A5B4C).
+- Logos em `client/public/` (`logo-header.svg` nas barras de navegação,
+  `logo-icon.svg` no login/cadastro, trilho do tablet e ícones do app).
+- Paleta em `client/src/styles/tokens.css` (interface) e
+  `client/src/config/theme.js` (gráficos e ícones).
+- Fontes Baloo 2 e Inter embutidas no app (`@fontsource`), sem Google Fonts.
 
-Se a marca for atualizada no futuro, troque os arquivos SVG em
-`client/public/` e os valores em `theme.js` — nenhuma outra parte do
-sistema precisa mudar.
+Se a marca mudar, troque os SVGs em `client/public/`, regenere os PNGs de
+`client/public/app-icons/` e ajuste `tokens.css`.
 
 ## Repositório no GitHub
 
@@ -186,8 +228,7 @@ de dentro da pasta `talhao-platform/`.
 
 ## Próximos passos sugeridos
 
-- Upload de fotos do talhão/fazenda.
-- Notificações por e-mail (fazenda publica talhão, safra muda de fase,
+- Notificações por e-mail e push (fazenda publica talhão, safra muda de fase,
   colheita é paga).
 - Integração de pagamento real (Pix/cartão) para compra de cotas e repasse
   às fazendas/investidores.

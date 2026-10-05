@@ -104,6 +104,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_complemento TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_bairro TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_cidade TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco_uf TEXT;
+-- exclusão de conta pelo próprio usuário (exigência da Apple e do Google):
+-- os dados pessoais são apagados/anonimizados e a linha fica marcada, para
+-- preservar o histórico financeiro exigido por lei.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 DO $$
 BEGIN

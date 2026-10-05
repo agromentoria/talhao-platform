@@ -1,109 +1,81 @@
 import { useEffect, useState } from "react";
 import { CreditCard, Trash2, Star, Plus, ShieldCheck } from "lucide-react";
-import { COLORS } from "../theme";
-import { ErrorBanner } from "../components/Shared";
-import { api } from "../api";
-import { maskCardNumber, detectCardBrand, maskCVV, onlyDigits, cardExpiryYearOptions, CARD_EXPIRY_MONTHS } from "../utils/validators";
+import { api } from "../lib/api";
+import { maskCardNumber, detectCardBrand, maskCVV, cvvLength, onlyDigits, cardExpiryYearOptions, CARD_EXPIRY_MONTHS } from "../lib/validators";
+import { Page, PageHeader } from "../components/layout/Page";
+import { Button, IconButton, Banner, ErrorBanner, EmptyState, Loading, Segmented, TextField, SelectField, Dialog, Badge, useDialog, useToast } from "../components/ui";
 
-const BRAND_COLORS = {
-  Visa: "#1A1F71",
-  Mastercard: "#EB001B",
-  "American Express": "#2E77BC",
-  Elo: "#000000",
-  Cartão: COLORS.clay,
-};
+const BRAND_COLORS = { Visa: "#1A1F71", Mastercard: "#C2410C", "American Express": "#2E77BC", Elo: "#111111", Hipercard: "#B3131B" };
 
 export default function PaymentMethods() {
+  const dialog = useDialog();
+  const toast = useToast();
   const [methods, setMethods] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
   function load() {
-    api.paymentMethods()
+    return api.paymentMethods()
       .then((data) => setMethods(data.methods))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }
-
   useEffect(() => { load(); }, []);
 
-  async function handleRemove(id) {
-    if (!confirm("Remover este cartão?")) return;
-    try {
-      await api.removePaymentMethod(id);
-      load();
-    } catch (err) {
-      setError(err.message);
-    }
+  async function handleRemove(m) {
+    const ok = await dialog.confirm({ title: "Remover cartão?", message: `${m.brand} final ${m.last4} deixa de aparecer nas suas compras.`, confirmLabel: "Remover", destructive: true });
+    if (!ok) return;
+    try { await api.removePaymentMethod(m.id); toast("Cartão removido"); load(); } catch (err) { setError(err.message); }
   }
 
-  async function handleSetDefault(id) {
-    try {
-      await api.setDefaultPaymentMethod(id);
-      load();
-    } catch (err) {
-      setError(err.message);
-    }
+  async function handleSetDefault(m) {
+    try { await api.setDefaultPaymentMethod(m.id); toast("Cartão padrão atualizado"); load(); } catch (err) { setError(err.message); }
   }
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 640, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Formas de pagamento</h1>
-      <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "0 0 20px" }}>Cartões salvos para suas compras de cotas.</p>
-
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#FBF3E1", border: "1px solid #E8C97A", borderRadius: 10, padding: "10px 14px", marginBottom: 20 }}>
-        <ShieldCheck size={15} color={COLORS.orangeDark} style={{ marginTop: 1, flexShrink: 0 }} />
-        <p style={{ fontSize: 11.5, color: COLORS.soil, margin: 0, lineHeight: 1.5 }}>
-          Guardamos apenas os últimos 4 dígitos, a bandeira e a validade do seu cartão. O número completo e o código de segurança nunca ficam salvos.
-        </p>
-      </div>
-
+    <Page title="Formas de pagamento" back="/perfil" width="narrow">
+      <PageHeader
+        title="Formas de pagamento"
+        subtitle="Cartões salvos para suas compras."
+        back="/perfil"
+        backLabel="Perfil"
+        actions={methods.length > 0 && <Button icon={Plus} onClick={() => setShowForm(true)}>Adicionar cartão</Button>}
+      />
+      <Banner tone="info" style={{ marginBottom: 20 }}>
+        <span style={{ display: "flex", gap: 8 }}><ShieldCheck size={16} aria-hidden style={{ flexShrink: 0, marginTop: 2 }} />
+          Guardamos só os 4 últimos dígitos, a bandeira e a validade. O número completo e o código de segurança nunca ficam salvos.</span>
+      </Banner>
       <ErrorBanner message={error} />
 
-      {loading && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-        {methods.map((m) => (
-          <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 14, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: "14px 16px" }}>
-            <div style={{ width: 44, height: 30, borderRadius: 6, background: BRAND_COLORS[m.brand] || COLORS.clay, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <CreditCard size={16} color="#fff" />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil, margin: 0 }}>
-                {m.brand} •••• {m.last4} {m.is_default && <span style={{ fontSize: 10.5, color: COLORS.orange, fontWeight: 700 }}>· PADRÃO</span>}
-              </p>
-              <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0" }}>
-                {m.type === "credito" ? "Crédito" : "Débito"} · {m.holder_name} · válido até {String(m.exp_month).padStart(2, "0")}/{m.exp_year}
-              </p>
-            </div>
-            {!m.is_default && (
-              <button onClick={() => handleSetDefault(m.id)} title="Tornar padrão" style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.soilLight, display: "flex" }}>
-                <Star size={16} />
-              </button>
-            )}
-            <button onClick={() => handleRemove(m.id)} title="Remover cartão" style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.danger, display: "flex" }}>
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
-        {!loading && methods.length === 0 && (
-          <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum cartão salvo ainda.</p>
-        )}
-      </div>
-
-      {showForm ? (
-        <AddCardForm onDone={() => { setShowForm(false); load(); }} onCancel={() => setShowForm(false)} />
+      {loading ? <Loading /> : methods.length === 0 ? (
+        <EmptyState title="Nenhum cartão salvo" action={<Button icon={Plus} onClick={() => setShowForm(true)}>Adicionar cartão</Button>}>
+          Você também pode pagar com Pix, sem cadastrar cartão.
+        </EmptyState>
       ) : (
-        <button onClick={() => setShowForm(true)} style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-          padding: "12px 0", borderRadius: 12, border: `1.5px dashed ${COLORS.line}`, background: "none",
-          color: COLORS.orange, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
-        }}>
-          <Plus size={16} /> Adicionar cartão
-        </button>
+        <ul className="list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {methods.map((m) => (
+            <li key={m.id} className="list-item">
+              <span style={{ width: 48, height: 32, borderRadius: 6, background: BRAND_COLORS[m.brand] || "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <CreditCard size={18} color="#fff" aria-hidden />
+              </span>
+              <div className="list-item-body">
+                <p className="list-item-title" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  {m.brand} final {m.last4} {m.is_default && <Badge tone="info">Padrão</Badge>}
+                </p>
+                <p className="list-item-sub">{m.type === "credito" ? "Crédito" : "Débito"} · validade {String(m.exp_month).padStart(2, "0")}/{m.exp_year}</p>
+              </div>
+              {!m.is_default && <IconButton label={`Tornar ${m.brand} final ${m.last4} o padrão`} icon={Star} size={18} onClick={() => handleSetDefault(m)} />}
+              <IconButton label={`Remover ${m.brand} final ${m.last4}`} icon={Trash2} size={18} onClick={() => handleRemove(m)} style={{ color: "var(--danger)" }} />
+            </li>
+          ))}
+        </ul>
       )}
-    </div>
+
+      <Dialog open={showForm} onClose={() => setShowForm(false)} title="Adicionar cartão">
+        <AddCardForm onDone={() => { setShowForm(false); toast("Cartão salvo"); load(); }} onCancel={() => setShowForm(false)} />
+      </Dialog>
+    </Page>
   );
 }
 
@@ -116,33 +88,17 @@ function AddCardForm({ onDone, onCancel }) {
   const [cvv, setCvv] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-
   const brand = detectCardBrand(number);
-  const yearOptions = cardExpiryYearOptions();
-
-  function handleNumberChange(value) {
-    setNumber(maskCardNumber(value, detectCardBrand(value)));
-  }
+  const cvvLen = cvvLength(brand);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-
-    if (!expMonth || !expYear) {
-      setError("Selecione o mês e o ano de validade do cartão.");
-      return;
-    }
-    if (onlyDigits(cvv).length !== 3) {
-      setError("O código de segurança (CVV) deve ter 3 dígitos.");
-      return;
-    }
-
+    if (!expMonth || !expYear) { setError("Escolha o mês e o ano de validade."); return; }
+    if (onlyDigits(cvv).length !== cvvLen) { setError(`O código de segurança tem ${cvvLen} dígitos.`); return; }
     setSaving(true);
     try {
-      await api.addPaymentMethod({
-        type, number: onlyDigits(number), holder_name: holderName,
-        exp_month: Number(expMonth), exp_year: Number(expYear), cvv,
-      });
+      await api.addPaymentMethod({ type, number: onlyDigits(number), holder_name: holderName.trim(), exp_month: Number(expMonth), exp_year: Number(expYear), cvv });
       onDone();
     } catch (err) {
       setError(err.message);
@@ -152,67 +108,28 @@ function AddCardForm({ onDone, onCancel }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+    <form onSubmit={handleSubmit} className="stack">
       <ErrorBanner message={error} />
-
-      <div style={{ display: "flex", gap: 8 }}>
-        {[{ id: "credito", label: "Crédito" }, { id: "debito", label: "Débito" }].map((opt) => (
-          <button key={opt.id} type="button" onClick={() => setType(opt.id)} style={{
-            flex: 1, padding: "8px 0", borderRadius: 9, fontSize: 13, cursor: "pointer", fontWeight: 600,
-            border: `1px solid ${type === opt.id ? COLORS.orange : COLORS.line}`,
-            background: type === opt.id ? COLORS.orange : "#fff",
-            color: type === opt.id ? "#fff" : COLORS.soilLight,
-          }}>{opt.label}</button>
-        ))}
+      <Segmented label="Tipo de cartão" value={type} onChange={setType} options={[{ id: "credito", label: "Crédito" }, { id: "debito", label: "Débito" }]} />
+      <TextField label={brand ? `Número do cartão (${brand})` : "Número do cartão"} value={number}
+        onChange={(v) => setNumber(maskCardNumber(v, detectCardBrand(v)))} placeholder="0000 0000 0000 0000"
+        required inputMode="numeric" autoComplete="cc-number" />
+      <TextField label="Nome impresso no cartão" value={holderName} onChange={(v) => setHolderName(v.toUpperCase())} required autoComplete="cc-name" autoCapitalize="characters" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        <SelectField label="Mês" value={expMonth} onChange={setExpMonth} required autoComplete="cc-exp-month">
+          <option value="">MM</option>
+          {CARD_EXPIRY_MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+        </SelectField>
+        <SelectField label="Ano" value={expYear} onChange={setExpYear} required autoComplete="cc-exp-year">
+          <option value="">AAAA</option>
+          {cardExpiryYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
+        </SelectField>
+        <TextField label="CVV" value={cvv} onChange={(v) => setCvv(maskCVV(v, brand))} required inputMode="numeric" autoComplete="cc-csc" placeholder={"0".repeat(cvvLen)} />
       </div>
-
-      <Field
-        label={brand ? `Número do cartão · ${brand}` : "Número do cartão"}
-        value={number} onChange={handleNumberChange} placeholder="0000 0000 0000 0000" required
-        inputMode="numeric"
-      />
-      <Field label="Nome impresso no cartão" value={holderName} onChange={setHolderName} required />
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ width: 90 }}>
-          <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Mês</label>
-          <select value={expMonth} onChange={(e) => setExpMonth(e.target.value)} required style={selectStyle}>
-            <option value="">MM</option>
-            {CARD_EXPIRY_MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-        <div style={{ width: 100 }}>
-          <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Ano</label>
-          <select value={expYear} onChange={(e) => setExpYear(e.target.value)} required style={selectStyle}>
-            <option value="">AAAA</option>
-            {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-        <Field label="CVV" value={cvv} onChange={(v) => setCvv(maskCVV(v))} placeholder="123" required type="password" style={{ width: 80 }} inputMode="numeric" />
-      </div>
-
-      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-        <button type="button" onClick={onCancel} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${COLORS.line}`, background: "#fff", color: COLORS.soilLight, fontSize: 13.5, cursor: "pointer" }}>
-          Cancelar
-        </button>
-        <button type="submit" disabled={saving} style={{ flex: 2, padding: "10px 0", borderRadius: 10, border: "none", background: COLORS.orange, color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.7 : 1 }}>
-          {saving ? "Salvando..." : "Salvar cartão"}
-        </button>
+      <div className="dialog-actions" style={{ marginTop: 4 }}>
+        <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" loading={saving}>Salvar cartão</Button>
       </div>
     </form>
   );
 }
-
-function Field({ label, value, onChange, type = "text", required, placeholder, style, inputMode }) {
-  return (
-    <div style={style}>
-      <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>{label}</label>
-      <input
-        type={type} required={required} value={value} placeholder={placeholder} inputMode={inputMode}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: "100%", marginTop: 4, padding: "9px 12px", borderRadius: 9, border: `1px solid ${COLORS.line}`, fontSize: 13.5, background: "#fff" }}
-      />
-    </div>
-  );
-}
-
-const selectStyle = { width: "100%", marginTop: 4, padding: "9px 10px", borderRadius: 9, border: "1px solid " + COLORS.line, fontSize: 13.5, background: "#fff", fontFamily: "inherit" };

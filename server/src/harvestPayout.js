@@ -1,3 +1,4 @@
+const { fmtBRL } = require("./format");
 const { pool } = require("./db");
 const { notifyUsers } = require("./notify");
 const { recordTransaction } = require("./ledger");
@@ -46,7 +47,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         plotId: plot.id,
         investmentId: inv.id,
         amount: valorLiquido,
-        description: `Pagamento da colheita de ${plot.nome} (comprou a R$ ${precoUnitario.toFixed(2)}, vendido a R$ ${precoVendaReal.toFixed(2)} por unidade)`,
+        description: `Pagamento da colheita de ${plot.nome} (comprou a ${fmtBRL(precoUnitario)}, vendido a ${fmtBRL(precoVendaReal)} por unidade)`,
       });
 
       totalComissaoFazenda += comissaoFazenda;
@@ -100,7 +101,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         plotId: plot.id,
         type: "pagamento_recebido",
         title: "Você recebeu um pagamento",
-        body: `A colheita de ${plot.nome} foi paga. Você recebeu R$ ${n.valorLiquido.toFixed(2)}.`,
+        body: `A colheita de ${plot.nome} foi paga. Você recebeu ${fmtBRL(n.valorLiquido)}.`,
       });
     }
 
@@ -111,7 +112,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         plotId: plot.id,
         type: "repasse_recebido",
         title: "Repasse de comissão recebido",
-        body: `Você recebeu R$ ${totalComissaoFazenda.toFixed(2)} de comissão pela colheita de ${plot.nome}.`,
+        body: `Você recebeu ${fmtBRL(totalComissaoFazenda)} de comissão pela colheita de ${plot.nome}.`,
       });
     }
 
@@ -122,7 +123,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
       plotId: plot.id,
       type: "transacao_admin",
       title: "Colheita paga",
-      body: `${plot.nome} (${farm.name}) foi paga: ${investidoresPagos} investidor(es), comissão da plataforma de R$ ${totalComissaoApp.toFixed(2)}.`,
+      body: `${plot.nome} (${farm.name}) foi paga: ${investidoresPagos} investidor(es), comissão da plataforma de ${fmtBRL(totalComissaoApp)}.`,
     });
   } catch (notifyErr) {
     console.error("[aviso] falha ao enviar notificações de pagamento:", notifyErr);

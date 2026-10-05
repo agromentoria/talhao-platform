@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt, ClipboardCheck, XCircle } from "lucide-react";
-import { COLORS, ICONS, GRAIN_ICONS } from "../theme";
-import { ErrorBanner } from "../components/Shared";
-import { api } from "../api";
+import { ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt, ClipboardCheck, XCircle, ChevronRight, Send } from "lucide-react";
+import { ICONS, GRAIN_ICONS } from "../config/theme";
+import { timeAgo } from "../lib/format";
+import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { Page, PageHeader } from "../components/layout/Page";
+import { Button, ErrorBanner, EmptyState, Loading, FilterChips, Dialog, TextField, TextAreaField, SelectField, useToast } from "../components/ui";
 
-// ícone padrão (lucide) para avisos sem talhão associado
 const TYPE_ICON = {
   aviso_fazenda: ICONS.fazendas,
   aviso_admin: ShieldCheck,
@@ -24,16 +25,8 @@ const CATEGORY_FILTERS = [
   { id: "nao_lidos", label: "Não lidos", match: (n) => !n.read_at },
   { id: "financeiro", label: "Financeiro", match: (n) => ["compra_confirmada", "novo_investimento", "pagamento_recebido", "repasse_recebido", "transacao_admin"].includes(n.type) },
   { id: "talhoes", label: "Talhões", match: (n) => ["novo_talhao", "atualizacao_safra", "lembrete_fase", "solicitacao_colheita", "solicitacao_rejeitada"].includes(n.type) },
-  { id: "avisos", label: "Avisos gerais", match: (n) => ["aviso_fazenda", "aviso_admin"].includes(n.type) },
+  { id: "avisos", label: "Comunicados", match: (n) => ["aviso_fazenda", "aviso_admin"].includes(n.type) },
 ];
-
-function timeAgo(dateStr) {
-  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diff < 60) return "agora há pouco";
-  if (diff < 3600) return `${Math.floor(diff / 60)} min atrás`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} h atrás`;
-  return `${Math.floor(diff / 86400)} dia(s) atrás`;
-}
 
 export default function Notifications() {
   const { user, refreshUnread } = useAuth();
@@ -41,15 +34,15 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [categoryFilter, setCategoryFilter] = useState("todos");
+  const [filter, setFilter] = useState("todos");
+  const [composeOpen, setComposeOpen] = useState(false);
 
   function load() {
-    api.myNotifications()
+    return api.myNotifications()
       .then((data) => setNotifications(data.notifications))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }
-
   useEffect(() => { load(); }, []);
 
   async function markRead(id) {
@@ -62,7 +55,7 @@ export default function Notifications() {
     }
   }
 
-  async function handleClick(n) {
+  async function handleOpen(n) {
     if (!n.read_at) await markRead(n.id);
     if (n.plot_id) navigate(`/talhao/${n.plot_id}`);
   }
@@ -77,121 +70,93 @@ export default function Notifications() {
     }
   }
 
-  const unreadCount = notifications.filter((n) => !n.read_at).length;
-  const activeFilter = CATEGORY_FILTERS.find((f) => f.id === categoryFilter) || CATEGORY_FILTERS[0];
-  const filteredNotifications = notifications.filter((n) => activeFilter.match(n));
+  const unread = notifications.filter((n) => !n.read_at).length;
+  const active = CATEGORY_FILTERS.find((f) => f.id === filter) || CATEGORY_FILTERS[0];
+  const filtered = notifications.filter(active.match);
+  const canBroadcast = user?.role === "fazenda" || user?.role === "admin";
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Avisos</h1>
-          <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: 0 }}>Novidades de talhões, safras e comunicados.</p>
-        </div>
-        {unreadCount > 0 && (
-          <button onClick={markAllRead} style={{ fontSize: 12.5, color: COLORS.orange, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
-            Marcar todos como lidos
-          </button>
-        )}
-      </div>
-
+    <Page title="Avisos" width="narrow">
+      <PageHeader
+        title="Avisos"
+        subtitle="Novidades dos talhões, da safra e comunicados."
+        actions={
+          <>
+            {canBroadcast && <Button variant="secondary" icon={Megaphone} onClick={() => setComposeOpen(true)}>Enviar aviso</Button>}
+            {unread > 0 && <Button variant="ghost" onClick={markAllRead}>Marcar todos como lidos</Button>}
+          </>
+        }
+      />
       <ErrorBanner message={error} />
 
-      {(user?.role === "fazenda" || user?.role === "admin") && <SendBroadcast onSent={load} />}
-
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 16, WebkitOverflowScrolling: "touch" }}>
-        {CATEGORY_FILTERS.map((f) => {
-          const count = notifications.filter((n) => f.match(n)).length;
-          const active = categoryFilter === f.id;
-          return (
-            <button key={f.id} onClick={() => setCategoryFilter(f.id)} style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 20, whiteSpace: "nowrap",
-              border: `1px solid ${active ? COLORS.leaf : COLORS.line}`, background: active ? COLORS.leaf : "#fff",
-              color: active ? "#fff" : COLORS.soilLight, fontSize: 12.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
-            }}>
-              {f.label} <span style={{ opacity: 0.8 }}>({count})</span>
-            </button>
-          );
-        })}
+      <div style={{ marginBottom: 14 }}>
+        <FilterChips label="Filtrar avisos" value={filter} onChange={setFilter}
+          options={CATEGORY_FILTERS.map((f) => ({ id: f.id, label: f.label, count: notifications.filter(f.match).length }))} />
       </div>
 
-      {loading && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>}
-      {!loading && notifications.length === 0 && (
-        <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum aviso por aqui ainda.</p>
-      )}
-      {!loading && notifications.length > 0 && filteredNotifications.length === 0 && (
-        <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum aviso nesse filtro.</p>
+      {loading ? <Loading /> : filtered.length === 0 ? (
+        <EmptyState image="/icons/icon_germinando_meu_talhao.svg" title={notifications.length ? "Nada neste filtro" : "Nenhum aviso ainda"}>
+          {notifications.length ? "Escolha outro filtro para ver mais avisos." : "Quando a safra avançar ou houver um pagamento, você fica sabendo por aqui."}
+        </EmptyState>
+      ) : (
+        <ul className="list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {filtered.map((n) => {
+            const grainIcon = (n.type === "novo_talhao" || n.type === "atualizacao_safra") && n.plot_grao ? GRAIN_ICONS[n.plot_grao] : null;
+            const imageIcon = grainIcon || (typeof TYPE_ICON[n.type] === "string" ? TYPE_ICON[n.type] : null);
+            const Icon = !imageIcon ? TYPE_ICON[n.type] || Megaphone : null;
+            const isUnread = !n.read_at;
+            return (
+              <li key={n.id}>
+                <button type="button" className={`list-item ${isUnread ? "list-item--unread" : ""}`} onClick={() => handleOpen(n)} style={{ alignItems: "flex-start" }}>
+                  <span className="thumb thumb--round" style={{ width: 40, height: 40, background: imageIcon ? "var(--bg)" : isUnread ? "var(--primary-soft)" : "var(--surface-well)" }}>
+                    {imageIcon ? <img src={imageIcon} alt="" style={{ width: 24, height: 24 }} /> : <Icon size={18} color={isUnread ? "var(--primary)" : "var(--text-2)"} aria-hidden />}
+                  </span>
+                  <span className="list-item-body">
+                    <span style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                      <span className="list-item-title" style={{ fontWeight: isUnread ? 700 : 500 }}>
+                        {isUnread && <span className="sr-only">Não lido: </span>}{n.title}
+                      </span>
+                      {isUnread && <span aria-hidden style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--brand-orange)", marginTop: 6, flexShrink: 0 }} />}
+                    </span>
+                    <span className="list-item-sub" style={{ display: "block", lineHeight: 1.45 }}>{n.body}</span>
+                    <span className="text-xs text-3" style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                      <time dateTime={n.created_at}>{timeAgo(n.created_at)}</time>
+                      {n.plot_id && <span style={{ color: "var(--link)", fontWeight: 700, display: "inline-flex", alignItems: "center" }}>Ver talhão <ChevronRight size={14} aria-hidden /></span>}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {filteredNotifications.map((n) => {
-          const commodityIcon = (n.type === "novo_talhao" || n.type === "atualizacao_safra") && n.plot_grao
-            ? GRAIN_ICONS[n.plot_grao]
-            : null;
-          const imageIcon = commodityIcon || (typeof TYPE_ICON[n.type] === "string" ? TYPE_ICON[n.type] : null);
-          const LucideIcon = !imageIcon ? (TYPE_ICON[n.type] || Megaphone) : null;
-          const unread = !n.read_at;
-          return (
-            <button
-              key={n.id}
-              onClick={() => handleClick(n)}
-              style={{
-                display: "flex", gap: 12, textAlign: "left", padding: "14px 16px", borderRadius: 12,
-                background: unread ? "#fff" : COLORS.bgCard, border: `1px solid ${COLORS.line}`,
-                cursor: unread || n.plot_id ? "pointer" : "default",
-                boxShadow: unread ? "0 2px 8px rgba(58,46,34,0.08)" : "none",
-              }}
-            >
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: imageIcon ? COLORS.bg : (unread ? `${COLORS.orange}18` : COLORS.line), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: imageIcon ? "0 1px 4px rgba(58,46,34,0.1)" : "none" }}>
-                {imageIcon ? (
-                  <img src={imageIcon} alt="" style={{ width: 22, height: 22, objectFit: "contain" }} />
-                ) : (
-                  <LucideIcon size={16} color={unread ? COLORS.orange : COLORS.soilLight} />
-                )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <p style={{ fontSize: 13.5, fontWeight: unread ? 700 : 500, color: COLORS.soil, margin: 0 }}>{n.title}</p>
-                  {unread && <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.orange, marginTop: 4, flexShrink: 0 }} />}
-                </div>
-                <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "3px 0 0", lineHeight: 1.4 }}>{n.body}</p>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 5 }}>
-                  <p style={{ fontSize: 11, color: COLORS.clay, margin: 0 }}>{timeAgo(n.created_at)}</p>
-                  {n.plot_id && <span style={{ fontSize: 11, color: COLORS.orange, fontWeight: 600 }}>Ver talhão →</span>}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
+      {canBroadcast && <BroadcastDialog open={composeOpen} onClose={() => setComposeOpen(false)} onSent={load} />}
+    </Page>
   );
 }
 
-function SendBroadcast({ onSent }) {
+function BroadcastDialog({ open, onClose, onSent }) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const toast = useToast();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [target, setTarget] = useState("investidores");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [sending, setSending] = useState(false);
 
   async function handleSend(e) {
     e.preventDefault();
-    setError(""); setSuccess("");
+    setError("");
     setSending(true);
     try {
-      let data;
-      if (user.role === "admin") {
-        data = await api.adminBroadcast({ target, title, body });
-      } else {
-        data = await api.farmBroadcast({ farm_id: user.farm_id, title, body });
-      }
-      setSuccess(`Aviso enviado para ${data.enviados} pessoa(s).`);
+      const data = user.role === "admin"
+        ? await api.adminBroadcast({ target, title, body })
+        : await api.farmBroadcast({ farm_id: user.farm_id, title, body });
+      toast(`Aviso enviado para ${data.enviados} pessoa(s)`);
       setTitle(""); setBody("");
       onSent();
+      onClose();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -200,50 +165,20 @@ function SendBroadcast({ onSent }) {
   }
 
   return (
-    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
-      <button onClick={() => setOpen((o) => !o)} style={{
-        display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer",
-        fontSize: 13.5, fontWeight: 600, color: COLORS.soil, padding: 0, width: "100%",
-      }}>
-        <Megaphone size={16} color={COLORS.orange} />
-        {user.role === "admin" ? "Enviar aviso da administração" : "Enviar aviso aos seus investidores"}
-        <span style={{ marginLeft: "auto", fontSize: 18, color: COLORS.soilLight }}>{open ? "–" : "+"}</span>
-      </button>
-
-      {open && (
-        <form onSubmit={handleSend} style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
-          <ErrorBanner message={error} />
-          {success && <p style={{ fontSize: 12.5, color: COLORS.leaf, margin: 0 }}>{success}</p>}
-
-          {user.role === "admin" && (
-            <div>
-              <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Enviar para</label>
-              <select value={target} onChange={(e) => setTarget(e.target.value)} style={inputStyle}>
-                <option value="investidores">Investidores</option>
-                <option value="fazendas">Fazendas</option>
-                <option value="todos">Todos</option>
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Título</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} required style={inputStyle} placeholder="Ex: Atualização importante" />
-          </div>
-          <div>
-            <label style={{ fontSize: 11.5, color: COLORS.soilLight }}>Mensagem</label>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} required rows={3} style={{ ...inputStyle, resize: "vertical" }} placeholder="Escreva o aviso..." />
-          </div>
-          <button type="submit" disabled={sending} style={{
-            padding: "10px 0", borderRadius: 10, border: "none", background: COLORS.orange, color: "#fff",
-            fontSize: 13.5, fontWeight: 600, cursor: "pointer", opacity: sending ? 0.7 : 1,
-          }}>
-            {sending ? "Enviando..." : "Enviar aviso"}
-          </button>
-        </form>
-      )}
-    </div>
+    <Dialog open={open} onClose={onClose} title={user.role === "admin" ? "Aviso da administração" : "Aviso aos seus investidores"}>
+      <form onSubmit={handleSend} className="stack">
+        <ErrorBanner message={error} />
+        {user.role === "admin" && (
+          <SelectField label="Enviar para" value={target} onChange={setTarget}
+            options={[{ value: "investidores", label: "Investidores" }, { value: "fazendas", label: "Fazendas" }, { value: "todos", label: "Todos" }]} />
+        )}
+        <TextField label="Título" value={title} onChange={setTitle} required maxLength={120} placeholder="Ex.: Plantio concluído no talhão 04" />
+        <TextAreaField label="Mensagem" value={body} onChange={setBody} required rows={4} maxLength={1000} />
+        <div className="dialog-actions" style={{ marginTop: 4 }}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" icon={Send} loading={sending}>Enviar aviso</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
-
-const inputStyle = { width: "100%", marginTop: 4, padding: "9px 12px", borderRadius: 9, border: `1px solid ${COLORS.line}`, fontSize: 13.5, background: "#fff", fontFamily: "inherit" };

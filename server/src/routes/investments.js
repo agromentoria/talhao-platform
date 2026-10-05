@@ -1,3 +1,4 @@
+const { fmtBRL } = require("../format");
 const express = require("express");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
@@ -102,7 +103,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
         plotId: plot.id,
         type: "compra_confirmada",
         title: "Compra confirmada",
-        body: `Sua compra de ${qtd} cota(s) em ${plot.nome} foi confirmada. Valor: R$ ${valorInvestido.toFixed(2)}.`,
+        body: `Sua compra de ${qtd} cota(s) em ${plot.nome} foi confirmada. Valor: ${fmtBRL(valorInvestido)}.`,
       });
 
       if (farm.owner_user_id) {
@@ -112,18 +113,18 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
           plotId: plot.id,
           type: "novo_investimento",
           title: "Novo investimento recebido",
-          body: `${req.user.name} comprou ${qtd} cota(s) em ${plot.nome} (R$ ${valorInvestido.toFixed(2)}).`,
+          body: `${req.user.name} comprou ${qtd} cota(s) em ${plot.nome} (${fmtBRL(valorInvestido)}).`,
         });
       }
 
-      const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+      const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin' AND deleted_at IS NULL");
       await notifyUsers(pool, admins.map((a) => a.id), {
         senderRole: "sistema",
         farmId: plot.farm_id,
         plotId: plot.id,
         type: "transacao_admin",
         title: "Nova compra de cotas",
-        body: `${req.user.name} investiu R$ ${valorInvestido.toFixed(2)} em ${plot.nome} (${farm.name}).`,
+        body: `${req.user.name} investiu ${fmtBRL(valorInvestido)} em ${plot.nome} (${farm.name}).`,
       });
     } catch (notifyErr) {
       console.error("[aviso] falha ao enviar notificações de compra:", notifyErr);

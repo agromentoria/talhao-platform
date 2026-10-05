@@ -1,15 +1,27 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Coins, TrendingUp, Warehouse, ChevronRight } from "lucide-react";
-import { COLORS, GRAIN_COLORS, GRAIN_ICONS, FASES, unitPlural, fmtBRL } from "../theme";
-import { ProgressBar, ErrorBanner } from "../components/Shared";
-import { api } from "../api";
+import { GRAIN_COLORS, FASES } from "../config/theme";
+import { fmtBRL, unitPlural } from "../lib/format";
+import { api } from "../lib/api";
+import { Page, PageHeader } from "../components/layout/Page";
+import { ProgressBar, ErrorBanner, EmptyState, FilterChips, Loading, Button } from "../components/ui";
+import { GrainThumb } from "../components/domain";
 
 const STATUS_FILTERS = [
   { id: "todos", label: "Todos", match: () => true },
   { id: "ativos", label: "Em andamento", match: (s) => s === "ativo" },
   { id: "pagos", label: "Colhidos e pagos", match: (s) => s === "pago" },
 ];
+
+export function Stat({ label, value, icon: Icon, tone }) {
+  return (
+    <div className="stat">
+      <p className="stat-label">{Icon && <Icon size={16} aria-hidden />} {label}</p>
+      <p className={`stat-value ${tone === "success" ? "text-success" : ""}`}>{value}</p>
+    </div>
+  );
+}
 
 export default function Portfolio() {
   const [investments, setInvestments] = useState([]);
@@ -24,91 +36,66 @@ export default function Portfolio() {
       .finally(() => setLoading(false));
   }, []);
 
-  const totalInvestido = investments.reduce((s, i) => s + i.valor_investido, 0);
-  const totalRecebido = investments.filter(i => i.status === "pago").reduce((s, i) => s + (i.valor_liquido || 0), 0);
+  const totalInvestido = investments.reduce((s, i) => s + Number(i.valor_investido || 0), 0);
+  const totalRecebido = investments.filter((i) => i.status === "pago").reduce((s, i) => s + Number(i.valor_liquido || 0), 0);
   const ativos = investments.filter((i) => i.status === "ativo").length;
 
-  const activeFilter = STATUS_FILTERS.find((f) => f.id === statusFilter) || STATUS_FILTERS[0];
-  const filteredInvestments = investments.filter((i) => activeFilter.match(i.status));
+  const active = STATUS_FILTERS.find((f) => f.id === statusFilter) || STATUS_FILTERS[0];
+  const filtered = investments.filter((i) => active.match(i.status));
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "'Baloo 2', cursive", fontSize: 26, color: COLORS.soil, margin: "0 0 4px" }}>Meus investimentos</h1>
-      <p style={{ fontSize: 13.5, color: COLORS.soilLight, margin: "0 0 20px" }}>Acompanhe cada talhão até a colheita e o pagamento da sua parte.</p>
-
+    <Page title="Meus investimentos" width="medium">
+      <PageHeader title="Meus investimentos" subtitle="Acompanhe cada talhão até a colheita e o pagamento da sua parte." />
       <ErrorBanner message={error} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
-        {[
-          { label: "Total investido", value: fmtBRL(totalInvestido), icon: Coins },
-          { label: "Recebido em colheitas", value: fmtBRL(totalRecebido), icon: TrendingUp },
-          { label: "Talhões ativos", value: ativos, icon: Warehouse },
-        ].map((c) => (
-          <div key={c.label} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, color: COLORS.soilLight, marginBottom: 8 }}>
-              <c.icon size={15} /><span style={{ fontSize: 12 }}>{c.label}</span>
-            </div>
-            <p style={{ fontFamily: "'Baloo 2', cursive", fontSize: 22, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{c.value}</p>
+      <div className="grid-stats" style={{ marginBottom: 24 }}>
+        <Stat label="Total investido" value={fmtBRL(totalInvestido)} icon={Coins} />
+        <Stat label="Recebido em colheitas" value={fmtBRL(totalRecebido)} icon={TrendingUp} tone="success" />
+        <Stat label="Talhões em andamento" value={ativos} icon={Warehouse} />
+      </div>
+
+      {loading ? <Loading /> : investments.length === 0 ? (
+        <EmptyState image="/icons/icon_plantando_meu_talhao.svg" title="Você ainda não investiu" action={<Button to="/">Ver talhões abertos</Button>}>
+          Escolha um talhão, compre sua parte e acompanhe a lavoura por aqui.
+        </EmptyState>
+      ) : (
+        <>
+          <div style={{ marginBottom: 14 }}>
+            <FilterChips
+              label="Filtrar investimentos"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={STATUS_FILTERS.map((f) => ({ id: f.id, label: f.label, count: investments.filter((i) => f.match(i.status)).length }))}
+            />
           </div>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 16, WebkitOverflowScrolling: "touch" }}>
-        {STATUS_FILTERS.map((f) => {
-          const count = investments.filter((i) => f.match(i.status)).length;
-          const active = statusFilter === f.id;
-          return (
-            <button key={f.id} onClick={() => setStatusFilter(f.id)} style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 20, whiteSpace: "nowrap",
-              border: `1px solid ${active ? COLORS.leaf : COLORS.line}`, background: active ? COLORS.leaf : "#fff",
-              color: active ? "#fff" : COLORS.soilLight, fontSize: 12.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
-            }}>
-              {f.label} <span style={{ opacity: 0.8 }}>({count})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {loading && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Carregando...</p>}
-      {!loading && investments.length === 0 && (
-        <p style={{ fontSize: 13, color: COLORS.soilLight }}>
-          Você ainda não investiu em nenhum talhão. <Link to="/" style={{ color: COLORS.leaf }}>Ver talhões disponíveis</Link>
-        </p>
-      )}
-      {!loading && investments.length > 0 && filteredInvestments.length === 0 && (
-        <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhum investimento nesse filtro.</p>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {filteredInvestments.map((inv) => {
-          const color = GRAIN_COLORS[inv.grao] || COLORS.leaf;
-          return (
-            <Link key={inv.id} to={`/talhao/${inv.plot_id}`} style={{ textDecoration: "none" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "14px 18px", flexWrap: "wrap", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 10, background: COLORS.bg, boxShadow: "0 2px 6px rgba(58,46,34,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <img src={GRAIN_ICONS[inv.grao]} alt={inv.grao} style={{ width: 28, height: 28, objectFit: "contain" }} />
-                  </div>
-                  <div>
-                    <p style={{ fontWeight: 500, fontSize: 14, color: COLORS.soil, margin: 0 }}>{inv.plot_nome} · {inv.farm_name}</p>
-                    <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0" }}>
-                      {inv.cotas} {unitPlural(inv.unidade, inv.cotas)} · {fmtBRL(inv.valor_investido)} investidos · {FASES[inv.fase_atual]}
+          {filtered.length === 0 && <p className="text-sm text-2">Nenhum investimento nesse filtro.</p>}
+          <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {filtered.map((inv) => (
+              <li key={inv.id}>
+                <Link to={`/talhao/${inv.plot_id}`} className="list-item">
+                  <GrainThumb grao={inv.grao} />
+                  <div className="list-item-body">
+                    <p className="list-item-title truncate">{inv.plot_nome}</p>
+                    <p className="list-item-sub">
+                      {inv.farm_name} · {inv.cotas} {unitPlural(inv.unidade, inv.cotas)} · {fmtBRL(inv.valor_investido)}
                     </p>
+                    {inv.status !== "pago" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                        <div style={{ flex: 1, maxWidth: 220 }}><ProgressBar value={inv.progresso} color={GRAIN_COLORS[inv.grao]} label="Andamento da safra" /></div>
+                        <span className="text-xs text-2">{FASES[inv.fase_atual]}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-                  {inv.status === "pago" ? (
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.leaf }}>Pago: {fmtBRL(inv.valor_liquido)}</span>
-                  ) : (
-                    <div style={{ width: 100 }}><ProgressBar value={inv.progresso} color={color} /></div>
-                  )}
-                  <ChevronRight size={16} color={COLORS.soilLight} />
-                </div>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
+                  <div className="list-item-meta">
+                    {inv.status === "pago" && <span className="text-sm text-success" style={{ fontWeight: 700 }}>Recebido {fmtBRL(inv.valor_liquido)}</span>}
+                    <ChevronRight size={18} aria-hidden />
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Page>
   );
 }

@@ -93,7 +93,7 @@ router.post("/admin-broadcast", requireAuth, requireRole("admin"), asyncHandler(
   else roleFilter = ["fazenda", "investidor"];
 
   const { rows } = await pool.query(
-    `SELECT id FROM users WHERE role = ANY($1)`,
+    `SELECT id FROM users WHERE role = ANY($1) AND deleted_at IS NULL`,
     [roleFilter]
   );
   const recipientIds = rows.map((r) => r.id);

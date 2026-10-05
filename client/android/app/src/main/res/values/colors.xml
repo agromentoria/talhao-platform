@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- cores da marca Meu Talhão -->
+    <color name="colorPrimary">#5F8229</color>
+    <color name="colorPrimaryDark">#445F1C</color>
+    <color name="colorAccent">#B26000</color>
+</resources>

@@ -2,61 +2,36 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- viewport-fit=cover libera as áreas seguras (notch, Dynamic Island, barra de gestos) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Meu Talhão — Investindo no agro</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-    <style>
-      * { box-sizing: border-box; }
-      html, body { height: 100%; }
-      body {
-        margin: 0;
-        font-family: 'Inter', system-ui, sans-serif;
-        background-color: #EADFCD;
-        position: relative;
-      }
+    <meta name="description" content="Invista direto em talhões de fazendas verificadas e acompanhe a safra até a colheita." />
+    <meta name="theme-color" content="#5F8229" />
+    <meta name="color-scheme" content="light" />
+    <meta name="format-detection" content="telephone=no" />
 
-      /* Fundo fixo: um elemento próprio em vez de background-attachment:fixed
-         no body, porque essa propriedade não funciona de forma confiável no
-         Safari do iPhone (rola junto com o conteúdo mesmo marcada como fixa).
-         Usando um elemento position:fixed atrás de tudo, o fundo realmente
-         fica parado enquanto o conteúdo do app rola por cima, em qualquer
-         navegador. */
-      #app-background {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: -1;
-        background-color: #EADFCD;
-        background-image: url('/bg-farm-cream.svg');
-        background-repeat: no-repeat;
-        background-position: top center;
-        background-size: cover;
-      }
+    <!-- iOS: app instalado na tela inicial -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Meu Talhão" />
+    <link rel="apple-touch-icon" href="/app-icons/apple-touch-icon.png" />
 
-      /* A ilustração mobile é vertical (retrato) — "cover" nessa proporção
-         já funciona bem para telas de celular. No desktop usamos uma arte
-         própria (quadrada), com "cover" + topo/centro: isso preenche a
-         largura toda e ancora no alto, cortando só o excesso de baixo se
-         sobrar altura — mantém a transição visual fluida entre os dois
-         tamanhos de tela. */
-      @media (min-width: 900px) {
-        #app-background {
-          background-image: url('/bg-farm-desktop.svg');
-          background-size: cover;
-          background-position: top center;
-        }
-      }
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/app-icons/favicon-32.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
 
-      input::placeholder { font-family: 'Inter', system-ui, sans-serif; }
-    </style>
+    <!-- compartilhamento em WhatsApp, redes sociais etc. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Meu Talhão — Investindo no agro" />
+    <meta property="og:description" content="Invista direto em talhões de fazendas verificadas e acompanhe a safra até a colheita." />
+    <meta property="og:image" content="/app-icons/icon-512.png" />
+    <meta property="og:locale" content="pt_BR" />
   </head>
   <body>
-    <div id="app-background"></div>
+    <div id="app-background" aria-hidden="true"></div>
     <div id="root"></div>
+    <noscript>Ative o JavaScript para usar o Meu Talhão.</noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

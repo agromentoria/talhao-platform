@@ -12,6 +12,9 @@ const router = express.Router();
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  // só tentativas erradas contam — senão quem entra e sai várias vezes
+  // (ou vários usuários atrás do mesmo IP, comum em fazendas) era bloqueado
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Muitas tentativas. Aguarde alguns minutos e tente novamente." },
@@ -30,7 +33,7 @@ function signToken(user) {
 }
 
 function publicUser(user) {
-  const { password_hash, ...rest } = user;
+  const { password_hash, deleted_at, ...rest } = user; // eslint-disable-line no-unused-vars
   return rest;
 }
 
@@ -61,13 +64,13 @@ router.post("/register", asyncHandler(async (req, res) => {
     }
   }
 
-  const emailLower = email.toLowerCase();
+  const emailLower = String(email).trim().toLowerCase();
   const existing = await pool.query("SELECT id FROM users WHERE email = $1", [emailLower]);
   if (existing.rows.length) {
     return res.status(409).json({ error: "Este e-mail já está cadastrado." });
   }
 
-  const hash = bcrypt.hashSync(password, 10);
+  const hash = await bcrypt.hash(password, 10);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -106,9 +109,9 @@ router.post("/login", loginLimiter, asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Informe e-mail e senha." });
   }
 
-  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [String(email).toLowerCase()]);
+  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL", [String(email).trim().toLowerCase()]);
   const user = rows[0];
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+  if (!user || !(await bcrypt.compare(String(password), user.password_hash))) {
     return res.status(401).json({ error: "E-mail ou senha incorretos." });
   }
 
@@ -117,8 +120,8 @@ router.post("/login", loginLimiter, asyncHandler(async (req, res) => {
 }));
 
 router.get("/me", requireAuth, asyncHandler(async (req, res) => {
-  const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.id]);
-  if (!rows.length) return res.status(404).json({ error: "Usuário não encontrado." });
+  const { rows } = await pool.query("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL", [req.user.id]);
+  if (!rows.length) return res.status(401).json({ error: "Conta não encontrada. Faça login novamente." });
   res.json({ user: publicUser(rows[0]) });
 }));
 
@@ -242,12 +245,78 @@ router.patch("/password", requireAuth, asyncHandler(async (req, res) => {
 
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.id]);
   const user = rows[0];
-  if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
-    return res.status(401).json({ error: "Senha atual incorreta." });
+  if (!user || !(await bcrypt.compare(String(currentPassword), user.password_hash))) {
+    return res.status(403).json({ error: "Senha atual incorreta." }); // 403: a sessão continua válida
   }
 
-  const hash = bcrypt.hashSync(newPassword, 10);
+  const hash = await bcrypt.hash(newPassword, 10);
   await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [hash, user.id]);
+  res.json({ ok: true });
+}));
+
+// Exclusão da conta pelo próprio usuário (App Store 5.1.1(v) e Google Play
+// exigem que a exclusão possa ser iniciada dentro do app).
+// - Pede a senha para confirmar.
+// - Bloqueia enquanto houver dinheiro em jogo (investimento ativo, ou talhão
+//   da fazenda em captação/andamento/aguardando aprovação).
+// - Apaga dados pessoais e de pagamento; anonimiza a linha do usuário para
+//   manter íntegro o histórico financeiro (obrigação legal/fiscal).
+router.delete("/me", requireAuth, asyncHandler(async (req, res) => {
+  const { password } = req.body || {};
+  const { rows } = await pool.query("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL", [req.user.id]);
+  const user = rows[0];
+  if (!user) return res.status(404).json({ error: "Conta não encontrada." });
+  if (!password || !(await bcrypt.compare(String(password), user.password_hash))) {
+    return res.status(403).json({ error: "Senha incorreta." }); // 403: a sessão continua válida
+  }
+  if (user.role === "admin") {
+    const { rows: admins } = await pool.query("SELECT COUNT(*)::int AS n FROM users WHERE role = 'admin' AND deleted_at IS NULL");
+    if (admins[0].n <= 1) return res.status(409).json({ error: "Esta é a única conta de administração. Crie outro administrador antes de excluí-la." });
+  }
+  if (user.role === "investidor") {
+    const { rows: ativos } = await pool.query("SELECT COUNT(*)::int AS n FROM investments WHERE user_id = $1 AND status = 'ativo'", [user.id]);
+    if (ativos[0].n > 0) {
+      return res.status(409).json({ error: `Você tem ${ativos[0].n} investimento(s) em andamento. A conta pode ser excluída depois que essas colheitas forem pagas.` });
+    }
+  }
+  if (user.role === "fazenda" && user.farm_id) {
+    const { rows: abertos } = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM plots WHERE farm_id = $1 AND status IN ('captacao','em_andamento','aguardando_aprovacao')",
+      [user.farm_id]
+    );
+    if (abertos[0].n > 0) {
+      return res.status(409).json({ error: `A fazenda tem ${abertos[0].n} talhão(ões) em aberto. Conclua ou exclua esses talhões antes de encerrar a conta.` });
+    }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("UPDATE transactions SET payment_method_id = NULL WHERE payment_method_id IN (SELECT id FROM payment_methods WHERE user_id = $1)", [user.id]);
+    await client.query("DELETE FROM payment_methods WHERE user_id = $1", [user.id]);
+    await client.query("DELETE FROM payout_accounts WHERE user_id = $1", [user.id]);
+    await client.query("DELETE FROM notifications WHERE recipient_user_id = $1", [user.id]);
+    if (user.role === "fazenda" && user.farm_id) {
+      await client.query("UPDATE farms SET status = 'suspensa' WHERE id = $1", [user.farm_id]);
+      await client.query("DELETE FROM photos WHERE farm_id = $1", [user.farm_id]);
+    }
+    const randomHash = await bcrypt.hash(require("crypto").randomBytes(32).toString("hex"), 10);
+    await client.query(
+      `UPDATE users SET
+         name = 'Conta excluída', email = $2, password_hash = $3, avatar_data = NULL, phone = NULL,
+         cpf = NULL, cnpj = NULL, rg = NULL, rg_orgao_emissor = NULL, estado_civil = NULL, profissao = NULL,
+         endereco_cep = NULL, endereco_logradouro = NULL, endereco_numero = NULL, endereco_complemento = NULL,
+         endereco_bairro = NULL, endereco_cidade = NULL, endereco_uf = NULL, deleted_at = now()
+       WHERE id = $1`,
+      [user.id, `excluido-${user.id}-${Date.now()}@removido.invalid`, randomHash]
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
   res.json({ ok: true });
 }));
 

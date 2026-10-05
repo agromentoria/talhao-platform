@@ -123,7 +123,7 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
        FROM investments i
        JOIN plots p ON p.id = i.plot_id
        JOIN users u ON u.id = i.user_id
-       WHERE p.farm_id = $1
+       WHERE p.farm_id = $1 AND u.deleted_at IS NULL
        GROUP BY u.id, u.name, u.avatar_data`,
       [req.user.farm_id]
     );
@@ -135,7 +135,7 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
       "SELECT owner_user_id as user_id, name as farm_name, location as farm_location FROM farms WHERE owner_user_id IS NOT NULL"
     );
     const { rows: invRows } = await pool.query(
-      "SELECT id as user_id, name, avatar_data FROM users WHERE role = 'investidor'"
+      "SELECT id as user_id, name, avatar_data FROM users WHERE role = 'investidor' AND deleted_at IS NULL"
     );
     startable = [
       ...farmRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: r.farm_name, role: "fazenda", farm_location: r.farm_location })),
@@ -166,7 +166,7 @@ router.post("/", requireAuth, asyncHandler(async (req, res) => {
   const { user_id } = req.body || {};
   if (!user_id) return res.status(400).json({ error: "Informe com quem deseja conversar." });
 
-  const { rows: targetRows } = await pool.query("SELECT * FROM users WHERE id = $1", [user_id]);
+  const { rows: targetRows } = await pool.query("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL", [user_id]);
   const target = targetRows[0];
   if (!target) return res.status(404).json({ error: "Usuário não encontrado." });
 

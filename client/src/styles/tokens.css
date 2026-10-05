@@ -1,0 +1,95 @@
+/* ==========================================================================
+   Tokens de design do Meu Talhão
+   Fonte única de cores, tipografia, espaçamento e medidas. Os valores de cor
+   foram ajustados a partir da paleta oficial para passar no contraste mínimo
+   WCAG AA (4,5:1 para texto), exigido pelas diretrizes da Apple (HIG) e do
+   Google (Material 3 / Play). As cores "brand-*" originais continuam sendo
+   usadas em ilustrações, ícones grandes e destaques não textuais.
+   ========================================================================== */
+:root {
+  color-scheme: light;
+
+  /* marca (decorativas) */
+  --brand-green: #668c2d;
+  --brand-green-deep: #445f1c;
+  --brand-header: #5f8229;
+  --brand-orange: #dd8209;
+  --brand-gold: #f9b000;
+  --brand-sand: #cfbea6;
+
+  /* superfícies */
+  --bg: #eadfcd;            /* creme — fundo do app */
+  --surface: #f7f1e7;       /* cards e painéis */
+  --surface-raised: #fffdf9;/* campos, folhas (sheets) e diálogos */
+  --surface-well: #efe5d4;  /* áreas internas, chips inativos */
+  --border: #ddcdb4;
+  --border-strong: #c4b092;
+
+  /* texto */
+  --text: #342525;
+  --text-2: #584a3c;        /* secundário — 4,7:1 sobre areia, 7,6:1 sobre surface */
+  --text-3: #7a6a58;        /* metadados não essenciais */
+  --text-on-color: #ffffff;
+
+  /* ações */
+  --primary: #b26000;          /* laranja de ação — 4,6:1 com texto branco */
+  --primary-pressed: #964f00;
+  --primary-soft: #fbe9cf;
+  --link: #964f00;
+  --success: #557a22;          /* verde de confirmação — 5:1 com texto branco */
+  --success-text: #4e6e20;
+  --success-soft: #e3eed3;
+  --danger: #a01916;
+  --danger-soft: #fbeaea;
+  --warning-soft: #fbf3e1;
+  --warning-border: #e8c97a;
+
+  --focus-ring: 0 0 0 3px rgba(178, 96, 0, 0.45);
+
+  /* tipografia */
+  --font-display: "Baloo 2", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fs-xs: 0.75rem;   /* 12 */
+  --fs-sm: 0.8125rem; /* 13 */
+  --fs-md: 0.9375rem; /* 15 */
+  --fs-lg: 1.0625rem; /* 17 — corpo padrão do iOS */
+  --fs-xl: 1.375rem;  /* 22 */
+  --fs-2xl: 1.75rem;  /* 28 */
+  --fs-3xl: 2.125rem; /* 34 — large title do iOS */
+
+  /* espaçamento (grade de 4) */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+
+  /* raios — hierárquicos, não um único valor para tudo */
+  --r-sm: 8px;    /* campos, chips pequenos */
+  --r-md: 12px;   /* botões, itens de lista */
+  --r-lg: 18px;   /* cards */
+  --r-xl: 26px;   /* cabeçalho e sheets */
+  --r-full: 999px;
+
+  --shadow-1: 0 1px 2px rgba(52, 37, 25, 0.06), 0 1px 3px rgba(52, 37, 25, 0.05);
+  --shadow-2: 0 6px 18px rgba(52, 37, 25, 0.12);
+  --shadow-3: 0 18px 48px rgba(52, 37, 25, 0.22);
+
+  /* medidas de navegação */
+  --touch: 44px;            /* alvo mínimo (Apple 44pt / Google 48dp com espaçamento) */
+  --topbar-h: 56px;
+  --tabbar-h: 64px;
+  --rail-w: 88px;
+  --sidebar-w: 264px;
+  --content-max: 1120px;
+
+  /* áreas seguras (notch, Dynamic Island, barra de gestos) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur: 0ms; }
+}

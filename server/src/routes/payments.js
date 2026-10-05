@@ -6,11 +6,14 @@ const { onlyDigits, validatePixKey } = require("../validators");
 
 const router = express.Router();
 
+// ordem importa: Elo e Hipercard antes de Visa/Mastercard (alguns BINs
+// Elo começam com 4 ou 5). Mesma regra usada no app (lib/validators.js).
 const BRANDS_BY_PREFIX = [
-  { prefix: /^4/, brand: "Visa" },
-  { prefix: /^5[1-5]/, brand: "Mastercard" },
+  { prefix: /^(4011(78|79)|43(1274|8935)|45(1416|7393|763(1|2))|50(4175|6699|67[0-7][0-9]|9[0-9]{3})|627780|63(6297|6368)|650(0(3[1-3]|[3-9][0-9])|4[0-9]{2}|5[0-2][0-9]|90[1-9]|9[1-9][0-9])|65(16(5[2-9]|[6-7][0-9])|50([0-1][0-9]|2[1-9]|[3-4][0-9]|5[0-8])))/, brand: "Elo" },
+  { prefix: /^(606282|3841)/, brand: "Hipercard" },
   { prefix: /^3[47]/, brand: "American Express" },
-  { prefix: /^6(?:011|5)/, brand: "Elo" },
+  { prefix: /^4/, brand: "Visa" },
+  { prefix: /^(5[1-5]|2[2-7])/, brand: "Mastercard" },
 ];
 
 function detectBrand(number) {
@@ -69,8 +72,9 @@ router.post("/methods", requireAuth, requireRole("investidor"), asyncHandler(asy
   if (year === now.getFullYear() && month < now.getMonth() + 1) {
     return res.status(400).json({ error: "Este cartão está vencido." });
   }
-  if (!cvv || !/^\d{3}$/.test(String(cvv))) {
-    return res.status(400).json({ error: "Código de segurança (CVV) deve ter 3 dígitos." });
+  const cvvLen = brand === "American Express" ? 4 : 3;
+  if (!cvv || !new RegExp(`^\\d{${cvvLen}}$`).test(String(cvv))) {
+    return res.status(400).json({ error: `Código de segurança (CVV) deve ter ${cvvLen} dígitos.` });
   }
 
   // A PARTIR DAQUI o número completo e o CVV já cumpriram seu papel (validação)

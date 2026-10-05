@@ -3,7 +3,9 @@ import { tokenStorage } from "./storage";
 // Endereço da API. Em produção (web e apps nativos) defina VITE_API_URL no
 // build com a URL completa em https, ex: https://api.meutalhao.com.br/api
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
-const TIMEOUT_MS = 20000;
+// O plano gratuito do Render "dorme" e leva até ~1 minuto para acordar;
+// 20 s não era suficiente na primeira visita do dia.
+const TIMEOUT_MS = 75000;
 
 export class ApiError extends Error {
   constructor(message, status, data) {

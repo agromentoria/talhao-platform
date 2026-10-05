@@ -24,23 +24,34 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_JWT_SECRET) {
 // os apps nativos (Capacitor) fazem requisições a partir de origens próprias:
 // iOS usa "capacitor://localhost" e Android usa "https://localhost". Essas
 // duas são liberadas automaticamente para o app das lojas funcionar.
+// Barras no final ("https://site.app/") são ignoradas para evitar bloqueio
+// por diferença de digitação.
+function normalizeOrigin(o) {
+  return String(o || "").trim().replace(/\/+$/, "").toLowerCase();
+}
+
 function buildCorsOptions() {
   const configured = (process.env.CLIENT_ORIGIN || "")
     .split(",")
-    .map((o) => o.trim())
+    .map(normalizeOrigin)
     .filter(Boolean);
-  if (configured.length === 0) {
+
+  if (configured.length === 0 || configured.includes("*")) {
+    // mesmo comportamento da versão anterior: sem CLIENT_ORIGIN, qualquer site
+    // pode chamar a API (a autenticação é por token, não por cookie)
     if (process.env.NODE_ENV === "production") {
-      console.warn("[aviso] CLIENT_ORIGIN não definida — CORS liberado só para os apps nativos.");
-    } else {
-      return { origin: true }; // ambiente local: qualquer origem
+      console.warn("[aviso] CLIENT_ORIGIN não definida — API aceitando qualquer origem. Defina o domínio do site para restringir.");
     }
+    return { origin: true };
   }
+
   const allowed = new Set([...configured, "capacitor://localhost", "https://localhost", "http://localhost"]);
+  console.log("[cors] origens liberadas:", [...allowed].join(", "));
   return {
     origin(origin, callback) {
-      // requisições sem Origin (curl, apps de servidor, health checks) passam
-      if (!origin || allowed.has(origin)) return callback(null, true);
+      // requisições sem Origin (curl, health checks) passam
+      if (!origin || allowed.has(normalizeOrigin(origin))) return callback(null, true);
+      console.warn(`[cors] origem bloqueada: ${origin} — inclua em CLIENT_ORIGIN se for legítima`);
       return callback(null, false);
     },
   };

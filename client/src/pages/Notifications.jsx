@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt, ClipboardCheck, XCircle, ChevronRight, Send } from "lucide-react";
+import { Warehouse, ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt, ClipboardCheck, XCircle, ChevronRight, Send } from "lucide-react";
 import { ICONS, GRAIN_ICONS } from "../config/theme";
 import { timeAgo } from "../lib/format";
 import { api } from "../lib/api";
@@ -18,13 +18,18 @@ const TYPE_ICON = {
   transacao_admin: Receipt,
   solicitacao_colheita: ClipboardCheck,
   solicitacao_rejeitada: XCircle,
+  custodia_armazem: ShieldCheck,
+  validacao_armazem: ShieldCheck,
+  indicacao_armazem: Warehouse,
+  status_armazem: Warehouse,
 };
 
 const CATEGORY_FILTERS = [
   { id: "todos", label: "Todos", match: () => true },
   { id: "nao_lidos", label: "Não lidos", match: (n) => !n.read_at },
   { id: "financeiro", label: "Financeiro", match: (n) => ["compra_confirmada", "novo_investimento", "pagamento_recebido", "repasse_recebido", "transacao_admin"].includes(n.type) },
-  { id: "talhoes", label: "Talhões", match: (n) => ["novo_talhao", "atualizacao_safra", "lembrete_fase", "solicitacao_colheita", "solicitacao_rejeitada"].includes(n.type) },
+  { id: "talhoes", label: "Talhões", match: (n) => ["novo_talhao", "atualizacao_safra", "lembrete_fase", "solicitacao_colheita", "solicitacao_rejeitada", "indicacao_armazem"].includes(n.type) },
+  { id: "armazem", label: "Armazém", match: (n) => ["custodia_armazem", "validacao_armazem", "indicacao_armazem", "status_armazem"].includes(n.type) },
   { id: "avisos", label: "Comunicados", match: (n) => ["aviso_fazenda", "aviso_admin"].includes(n.type) },
 ];
 

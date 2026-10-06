@@ -5,6 +5,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers, getFarmInvestorIds, getPlotInvestorIds } = require("../notify");
 const { getAppCommissionPct, getFaseMultiplier } = require("../settings");
 const { validatePhotoData } = require("../validators");
+const { getValidations, getPublicWarehouse } = require("../custody");
 
 const router = express.Router();
 
@@ -33,12 +34,14 @@ router.get("/", asyncHandler(async (req, res) => {
   const appCommissionPct = await getAppCommissionPct();
   let sql = `
     SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct,
+           w.name as warehouse_name,
            ROUND((
              COALESCE((SELECT SUM(c.pontos) FROM farm_characteristics fc JOIN farm_characteristics_catalog c ON c.key = fc.characteristic_key WHERE fc.farm_id = f.id), 0)::numeric
              / NULLIF((SELECT SUM(pontos) FROM farm_characteristics_catalog), 0) * 5
            ), 1)::float8 as farm_estrelas
     FROM plots p
     JOIN farms f ON f.id = p.farm_id
+    LEFT JOIN warehouses w ON w.id = p.warehouse_id
     WHERE f.status = 'aprovada' AND p.status NOT IN ('pago', 'arquivado', 'aguardando_aprovacao')
   `;
   const params = [];
@@ -57,8 +60,12 @@ router.get("/", asyncHandler(async (req, res) => {
 router.get("/farm/mine", requireAuth, requireRole("fazenda"), asyncHandler(async (req, res) => {
   const appCommissionPct = await getAppCommissionPct();
   const { rows } = await pool.query(
-    `SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct
+    `SELECT p.*, f.name as farm_name, f.location as farm_location, f.commission_pct,
+            w.name as warehouse_name,
+            COALESCE((SELECT json_agg(json_build_object('etapa', v.etapa, 'resultado', v.resultado, 'quantidade', v.quantidade, 'observacao', v.observacao, 'created_at', v.created_at))
+                      FROM plot_validations v WHERE v.plot_id = p.id), '[]') as validacoes
      FROM plots p JOIN farms f ON f.id = p.farm_id
+     LEFT JOIN warehouses w ON w.id = p.warehouse_id
      WHERE p.farm_id = $1
      ORDER BY p.created_at DESC`,
     [req.user.farm_id]
@@ -90,11 +97,37 @@ router.get("/:id", asyncHandler(async (req, res) => {
     [req.params.id]
   );
 
-  res.json({ plot, historico: historico.rows, app_commission_pct: appCommissionPct, fotos: fotos.rows });
+  // armazém garantidor e validações: base da confiança do investidor
+  const armazem = plot.custodia_status === "aceita" || plot.custodia_status === "pendente"
+    ? await getPublicWarehouse(pool, plot.warehouse_id) : null;
+  const validacoes = plot.custodia_status === "aceita" ? await getValidations(pool, plot.id) : [];
+
+  res.json({ plot, historico: historico.rows, app_commission_pct: appCommissionPct, fotos: fotos.rows, armazem, validacoes });
 }));
 
+// confere se o armazém indicado existe e está credenciado
+async function getApprovedWarehouse(warehouseId) {
+  if (!warehouseId) return { warehouse: null };
+  const { rows } = await pool.query("SELECT * FROM warehouses WHERE id = $1", [warehouseId]);
+  const w = rows[0];
+  if (!w || w.status !== "aprovado") return { error: "Escolha um armazém credenciado pela administração." };
+  return { warehouse: w };
+}
+
+async function notifyWarehouseIndication(warehouse, plot, farmName) {
+  if (!warehouse?.owner_user_id) return;
+  await notifyUsers(pool, [warehouse.owner_user_id], {
+    senderRole: "fazenda",
+    farmId: plot.farm_id,
+    plotId: plot.id,
+    type: "indicacao_armazem",
+    title: "Nova indicação de custódia",
+    body: `${farmName} indicou seu armazém como garantidor de ${plot.nome} (${plot.grao}, safra ${plot.safra}). Aceite ou recuse no painel.`,
+  });
+}
+
 router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
-  const { farm_id, nome, grao, area_ha, safra, previsao_retorno } = req.body || {};
+  const { farm_id, nome, grao, area_ha, safra, previsao_retorno, warehouse_id } = req.body || {};
   let { preco_venda_estimado, cotas_totais, unidade } = req.body || {};
 
   if (!farm_id || !nome || !grao || !area_ha || !safra || previsao_retorno == null) {
@@ -105,6 +138,14 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   if (owned.error) return res.status(403).json({ error: owned.error });
   if (owned.farm.status !== "aprovada") {
     return res.status(403).json({ error: "Sua fazenda ainda não foi aprovada pela administração do Talhão." });
+  }
+
+  // armazém garantidor: obrigatório quando já existe algum credenciado
+  const wh = await getApprovedWarehouse(warehouse_id);
+  if (wh.error) return res.status(400).json({ error: wh.error });
+  if (!wh.warehouse) {
+    const { rows: anyApproved } = await pool.query("SELECT 1 FROM warehouses WHERE status = 'aprovado' LIMIT 1");
+    if (anyApproved.length) return res.status(400).json({ error: "Escolha o armazém que vai garantir este talhão." });
   }
 
   const area = Number(area_ha);
@@ -142,11 +183,12 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   const cotaValorInicial = precoVenda * multiplicadorFase0;
 
   const { rows } = await pool.query(
-    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10) RETURNING *`,
-    [farm_id, nome, grao, area, safra, cotaValorInicial, cotas, retorno, unidade, precoVenda]
+    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado, warehouse_id, custodia_status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12) RETURNING *`,
+    [farm_id, nome, grao, area, safra, cotaValorInicial, cotas, retorno, unidade, precoVenda, wh.warehouse?.id || null, wh.warehouse ? "pendente" : null]
   );
   const plot = rows[0];
+  await notifyWarehouseIndication(wh.warehouse, plot, owned.farm.name);
 
   // avisa quem já investiu nessa fazenda sobre a novidade
   const investorIds = await getFarmInvestorIds(pool, farm_id);
@@ -441,13 +483,45 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
        nome = $1, grao = $2, area_ha = $3, safra = $4, cota_valor = $5,
        cotas_totais = $6, cotas_disponiveis = $6, previsao_retorno = $7,
        retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao', unidade = $8,
-       preco_venda_estimado = $9
+       preco_venda_estimado = $9,
+       custodia_status = CASE WHEN warehouse_id IS NULL THEN NULL ELSE 'pendente' END,
+       custodia_motivo = NULL, custodia_em = NULL
      WHERE id = $10
      RETURNING *`,
     [nome, grao, area, safra, cotaValorInicial, cotas, retorno, unidade, precoVenda, plot.id]
   );
+  // novo ciclo: o armazém precisa aceitar de novo e validar do zero
+  await pool.query("DELETE FROM plot_validations WHERE plot_id = $1", [plot.id]);
+  if (rows[0].warehouse_id) {
+    const { rows: w } = await pool.query("SELECT * FROM warehouses WHERE id = $1", [rows[0].warehouse_id]);
+    await notifyWarehouseIndication(w[0], rows[0], owned.farm.name);
+  }
 
   res.json({ plot: rows[0] });
+}));
+
+// fazenda indica (ou troca) o armazém garantidor — só enquanto a custódia
+// não foi aceita; depois de aceita, o garantidor não muda
+router.patch("/:id/warehouse", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const { warehouse_id } = req.body || {};
+  const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
+  const plot = existing.rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+  const owned = await getFarmOwned(plot.farm_id, req.user);
+  if (owned.error) return res.status(403).json({ error: owned.error });
+  if (plot.custodia_status === "aceita") {
+    return res.status(409).json({ error: "O armazém já aceitou a custódia deste talhão. Para trocar, fale com a administração." });
+  }
+  if (["pago", "arquivado"].includes(plot.status)) return res.status(409).json({ error: "Este talhão já foi encerrado." });
+  const wh = await getApprovedWarehouse(warehouse_id);
+  if (wh.error || !wh.warehouse) return res.status(400).json({ error: wh.error || "Escolha um armazém." });
+
+  const { rows } = await pool.query(
+    "UPDATE plots SET warehouse_id = $1, custodia_status = 'pendente', custodia_motivo = NULL, custodia_em = NULL WHERE id = $2 RETURNING *",
+    [wh.warehouse.id, plot.id]
+  );
+  await notifyWarehouseIndication(wh.warehouse, rows[0], owned.farm.name);
+  res.json({ plot: { ...rows[0], warehouse_name: wh.warehouse.name } });
 }));
 
 // edita informações de um talhão já colhido/pago ou arquivado, sem

@@ -26,7 +26,7 @@ function isValidEmail(email) {
 
 function signToken(user) {
   return jwt.sign(
-    { id: user.id, name: user.name, email: user.email, role: user.role, farm_id: user.farm_id || null },
+    { id: user.id, name: user.name, email: user.email, role: user.role, farm_id: user.farm_id || null, warehouse_id: user.warehouse_id || null },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
   );
@@ -38,7 +38,7 @@ function publicUser(user) {
 }
 
 router.post("/register", asyncHandler(async (req, res) => {
-  const { name, email, password, role, farmName, farmLocation, avatar } = req.body || {};
+  const { name, email, password, role, farmName, farmLocation, avatar, warehouseName, warehouseLocation, warehouseCnpj } = req.body || {};
 
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "Preencha nome, e-mail, senha e tipo de conta." });
@@ -49,8 +49,16 @@ router.post("/register", asyncHandler(async (req, res) => {
   if (String(password).length < 8) {
     return res.status(400).json({ error: "A senha precisa ter pelo menos 8 caracteres." });
   }
-  if (!["investidor", "fazenda"].includes(role)) {
+  if (!["investidor", "fazenda", "armazem"].includes(role)) {
     return res.status(400).json({ error: "Tipo de conta inválido." });
+  }
+  if (role === "armazem") {
+    if (!warehouseName || !String(warehouseName).trim() || !warehouseLocation) {
+      return res.status(400).json({ error: "Informe o nome e a localização do armazém." });
+    }
+    if (!isValidCNPJ(warehouseCnpj || "")) {
+      return res.status(400).json({ error: "CNPJ do armazém inválido." });
+    }
   }
   if (role === "fazenda" && (!farmName || !farmLocation)) {
     return res.status(400).json({ error: "Informe o nome e a localização da fazenda." });
@@ -89,6 +97,16 @@ router.post("/register", asyncHandler(async (req, res) => {
       const farmId = farmResult.rows[0].id;
       await client.query("UPDATE users SET farm_id = $1 WHERE id = $2", [farmId, user.id]);
       user = { ...user, farm_id: farmId };
+    }
+
+    if (role === "armazem") {
+      const whResult = await client.query(
+        "INSERT INTO warehouses (name, cnpj, location, owner_user_id, status) VALUES ($1, $2, $3, $4, 'pendente') RETURNING id",
+        [String(warehouseName).trim(), onlyDigits(warehouseCnpj), warehouseLocation, user.id]
+      );
+      const warehouseId = whResult.rows[0].id;
+      await client.query("UPDATE users SET warehouse_id = $1 WHERE id = $2", [warehouseId, user.id]);
+      user = { ...user, warehouse_id: warehouseId };
     }
 
     await client.query("COMMIT");
@@ -279,6 +297,15 @@ router.delete("/me", requireAuth, asyncHandler(async (req, res) => {
       return res.status(409).json({ error: `Você tem ${ativos[0].n} investimento(s) em andamento. A conta pode ser excluída depois que essas colheitas forem pagas.` });
     }
   }
+  if (user.role === "armazem" && user.warehouse_id) {
+    const { rows: custodias } = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM plots WHERE warehouse_id = $1 AND custodia_status IN ('aceita','pendente') AND status NOT IN ('pago','arquivado')",
+      [user.warehouse_id]
+    );
+    if (custodias[0].n > 0) {
+      return res.status(409).json({ error: `O armazém tem ${custodias[0].n} talhão(ões) sob custódia ou aguardando resposta. Conclua as validações antes de encerrar a conta.` });
+    }
+  }
   if (user.role === "fazenda" && user.farm_id) {
     const { rows: abertos } = await pool.query(
       "SELECT COUNT(*)::int AS n FROM plots WHERE farm_id = $1 AND status IN ('captacao','em_andamento','aguardando_aprovacao')",
@@ -296,6 +323,9 @@ router.delete("/me", requireAuth, asyncHandler(async (req, res) => {
     await client.query("DELETE FROM payment_methods WHERE user_id = $1", [user.id]);
     await client.query("DELETE FROM payout_accounts WHERE user_id = $1", [user.id]);
     await client.query("DELETE FROM notifications WHERE recipient_user_id = $1", [user.id]);
+    if (user.role === "armazem" && user.warehouse_id) {
+      await client.query("UPDATE warehouses SET status = 'suspenso' WHERE id = $1", [user.warehouse_id]);
+    }
     if (user.role === "fazenda" && user.farm_id) {
       await client.query("UPDATE farms SET status = 'suspensa' WHERE id = $1", [user.farm_id]);
       await client.query("DELETE FROM photos WHERE farm_id = $1", [user.farm_id]);

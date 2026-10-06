@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Camera, UserRound, Mail, Phone, Lock, Tractor, CreditCard, QrCode, Landmark, MessageCircle, Bell, Coins, ChevronRight, LogOut, FileText, Shield, Trash2 } from "lucide-react";
+import { Warehouse, Camera, UserRound, Mail, Phone, Lock, Tractor, CreditCard, QrCode, Landmark, MessageCircle, Bell, Coins, ChevronRight, LogOut, FileText, Shield, Trash2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_LABEL } from "../config/theme";
 import { api } from "../lib/api";
@@ -173,6 +173,7 @@ function MoreTab({ onLogout }) {
     user.role === "fazenda" && { to: "/fazenda", icon: Tractor, label: "Painel da fazenda" },
     user.role === "fazenda" && { to: "/fazenda/carteira", icon: Coins, label: "Carteira (vendas e recebimentos)" },
     user.role === "investidor" && { to: "/pagamentos", icon: CreditCard, label: "Formas de pagamento" },
+    user.role === "armazem" && { to: "/armazem", icon: Warehouse, label: "Painel do armazém" },
     { to: "/conversas", icon: MessageCircle, label: "Conversas" },
     { to: "/avisos", icon: Bell, label: "Avisos" },
     { to: "/termos", icon: FileText, label: "Termos de uso" },
@@ -234,7 +235,11 @@ function DeleteAccountDialog({ open, onClose }) {
   return (
     <Dialog open={open} onClose={onClose} title="Excluir conta definitivamente?">
       <form onSubmit={handleDelete} className="stack">
-        <p>Esta ação não pode ser desfeita. {user.role === "investidor" ? "Se você tiver investimentos em andamento, a exclusão só fica disponível depois que as colheitas forem pagas." : user.role === "fazenda" ? "Fazendas com talhões em captação ou em andamento precisam concluir ou encerrar esses talhões antes." : ""}</p>
+        <p>Esta ação não pode ser desfeita. {{
+          investidor: "Se você tiver investimentos em andamento, a exclusão só fica disponível depois que as colheitas forem pagas.",
+          fazenda: "Fazendas com talhões em captação ou em andamento precisam concluir ou encerrar esses talhões antes.",
+          armazem: "Armazéns com custódias em andamento precisam concluir as validações antes.",
+        }[user.role] || ""}</p>
         <ErrorBanner message={error} />
         <input type="text" name="username" autoComplete="username" value={user.email} readOnly hidden />
         <TextField label="Digite sua senha para confirmar" type="password" value={password} onChange={setPassword} required autoComplete="current-password" />
@@ -333,7 +338,7 @@ function PayoutForm() {
     <section className="card">
       <h2 className="card-title">Dados para recebimento</h2>
       <p className="card-desc" style={{ marginBottom: 16 }}>
-        {{ investidor: "Conta onde você recebe o resultado das colheitas.", fazenda: "Conta onde a fazenda recebe a comissão das colheitas.", admin: "Conta onde a plataforma recebe a comissão." }[user.role]}
+        {{ investidor: "Conta onde você recebe o resultado das colheitas.", fazenda: "Conta onde a fazenda recebe a comissão das colheitas.", admin: "Conta onde a plataforma recebe a comissão.", armazem: "Conta do armazém para repasses e serviços de armazenagem." }[user.role]}
       </p>
       <ErrorBanner message={error} />
       <form onSubmit={handleSubmit} className="stack">

@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { Camera, TrendingUp, Tractor } from "lucide-react";
+import { Camera, TrendingUp, Tractor, Warehouse } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { homeFor } from "../config/navigation";
 import { readImageFile } from "../lib/files";
+import { maskCNPJ, isValidCNPJ } from "../lib/validators";
 import { Page } from "../components/layout/Page";
 import { Button, ErrorBanner, TextField, Segmented } from "../components/ui";
 import { CityStateSelect } from "../components/domain";
@@ -13,7 +14,7 @@ export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
   const [role, setRole] = useState("investidor");
-  const [form, setForm] = useState({ name: "", email: "", password: "", farmName: "", farmLocation: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", farmName: "", farmLocation: "", warehouseName: "", warehouseLocation: "", warehouseCnpj: "" });
   const [avatar, setAvatar] = useState(null);
   const [avatarError, setAvatarError] = useState("");
   const [aceite, setAceite] = useState(false);
@@ -41,6 +42,10 @@ export default function Register() {
     if (role === "fazenda" && !form.farmLocation) {
       setError("Escolha o estado e a cidade da fazenda.");
       return;
+    }
+    if (role === "armazem") {
+      if (!form.warehouseLocation) { setError("Escolha o estado e a cidade do armazém."); return; }
+      if (!isValidCNPJ(form.warehouseCnpj)) { setError("CNPJ do armazém inválido. Confira os números."); return; }
     }
     setLoading(true);
     try {
@@ -84,14 +89,25 @@ export default function Register() {
           label="Tipo de conta"
           value={role}
           onChange={setRole}
-          options={[{ id: "investidor", label: "Quero investir", icon: TrendingUp }, { id: "fazenda", label: "Tenho uma fazenda", icon: Tractor }]}
+          options={[
+            { id: "investidor", label: "Investidor", icon: TrendingUp },
+            { id: "fazenda", label: "Fazenda", icon: Tractor },
+            { id: "armazem", label: "Armazém", icon: Warehouse },
+          ]}
         />
 
         <div style={{ height: 18 }} />
         <ErrorBanner message={error} />
 
         <form onSubmit={handleSubmit} className="stack">
-          <TextField label="Nome completo" value={form.name} onChange={update("name")} required autoComplete="name" autoCapitalize="words" />
+          <p className="text-sm" style={{ opacity: 0.95, lineHeight: 1.5, marginTop: -6 }}>
+            {{
+              investidor: "Compre parte da produção de talhões e acompanhe a safra até a colheita.",
+              fazenda: "Publique talhões e receba investimento para a safra.",
+              armazem: "Seja o garantidor: valide plantio, colheita e armazenagem dos talhões que as fazendas indicarem.",
+            }[role]}
+          </p>
+          <TextField label={role === "armazem" ? "Nome do responsável" : "Nome completo"} value={form.name} onChange={update("name")} required autoComplete="name" autoCapitalize="words" />
           <TextField label="E-mail" type="email" value={form.email} onChange={update("email")} required autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} />
           <TextField label="Senha" hint="Mínimo de 8 caracteres." type="password" value={form.password} onChange={update("password")} required minLength={8} autoComplete="new-password" />
 
@@ -101,6 +117,17 @@ export default function Register() {
               <CityStateSelect value={form.farmLocation} onChange={update("farmLocation")} required />
               <p className="text-xs" style={{ opacity: 0.92, lineHeight: 1.5 }}>
                 A administração analisa cada fazenda antes de liberar a publicação de talhões.
+              </p>
+            </>
+          )}
+
+          {role === "armazem" && (
+            <>
+              <TextField label="Nome do armazém" value={form.warehouseName} onChange={update("warehouseName")} required autoComplete="organization" />
+              <TextField label="CNPJ do armazém" value={form.warehouseCnpj} onChange={(v) => update("warehouseCnpj")(maskCNPJ(v))} placeholder="00.000.000/0000-00" required inputMode="numeric" />
+              <CityStateSelect value={form.warehouseLocation} onChange={update("warehouseLocation")} required />
+              <p className="text-xs" style={{ opacity: 0.92, lineHeight: 1.5 }}>
+                A administração confere o CNPJ e credencia o armazém antes de ele poder assumir custódias.
               </p>
             </>
           )}

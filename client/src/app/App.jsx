@@ -18,6 +18,7 @@ const Portfolio = lazy(() => import("../pages/Portfolio"));
 const FarmDashboard = lazy(() => import("../pages/FarmDashboard"));
 const FarmWallet = lazy(() => import("../pages/FarmWallet"));
 const AdminDashboard = lazy(() => import("../pages/AdminDashboard"));
+const WarehouseDashboard = lazy(() => import("../pages/WarehouseDashboard"));
 const Profile = lazy(() => import("../pages/Profile"));
 const Notifications = lazy(() => import("../pages/Notifications"));
 const Conversations = lazy(() => import("../pages/Conversations"));
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="/pagamentos" element={<RequireAuth role="investidor"><PaymentMethods /></RequireAuth>} />
             <Route path="/fazenda" element={<RequireAuth role="fazenda"><FarmDashboard /></RequireAuth>} />
             <Route path="/fazenda/carteira" element={<RequireAuth role="fazenda"><FarmWallet /></RequireAuth>} />
+            <Route path="/armazem" element={<RequireAuth role="armazem"><WarehouseDashboard /></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth role="admin"><AdminDashboard /></RequireAuth>} />
             <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
             <Route path="/avisos" element={<RequireAuth><Notifications /></RequireAuth>} />

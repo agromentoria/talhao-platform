@@ -47,7 +47,7 @@ export default function CityStateSelect({ value, onChange, required }) {
       if (match) { setCidade(match[1].trim()); setUf(match[2].trim()); }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [value]);
 
   useEffect(() => {
     if (!uf) { setCidades([]); return; }

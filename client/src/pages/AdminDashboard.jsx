@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
-import { Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
+import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, GRAIN_ICONS, UNIT_LABEL, FASES } from "../config/theme";
-import { fmtBRL } from "../lib/format";
+import { fmtBRL, fmtNumber } from "../lib/format";
+import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
-import { Button, ErrorBanner, Tabs, SelectField, EmptyState, Badge, useDialog, useToast } from "../components/ui";
+import { Button, Banner, ErrorBanner, Tabs, SelectField, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
 const TYPE_LABEL = {
   compra_cota: "Compra de cota",
@@ -17,6 +18,7 @@ const TABS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
   { id: "colheitas", label: "Colheitas", icon: ClipboardCheck },
   { id: "fazendas", label: "Fazendas", icon: Building2 },
+  { id: "armazens", label: "Armazéns", icon: WarehouseIcon },
   { id: "fases", label: "Preço por fase", icon: TrendingUp },
   { id: "mercado", label: "Referência de mercado", icon: Wheat },
   { id: "destaques", label: "Destaques da fazenda", icon: Star },
@@ -26,6 +28,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState("geral");
   const [overview, setOverview] = useState(null);
   const [farms, setFarms] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [totals, setTotals] = useState({});
   const [typeFilter, setTypeFilter] = useState("");
@@ -42,6 +45,7 @@ export default function AdminDashboard() {
   const load = useCallback(() => {
     api.overview().then(setOverview).catch((err) => setError(err.message));
     api.adminFarms().then((data) => setFarms(data.farms)).catch((err) => setError(err.message));
+    api.adminWarehouses().then((data) => setWarehouses(data.warehouses)).catch((err) => setError(err.message));
     api.platformSettings().then((data) => { setAppCommission(data.app_commission_pct); savedCommission.current = data.app_commission_pct; }).catch((err) => setError(err.message));
     api.commodityReferences().then((data) => setReferences(data.references)).catch((err) => setError(err.message));
     api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch((err) => setError(err.message));
@@ -56,6 +60,20 @@ export default function AdminDashboard() {
       .catch((err) => setError(err.message));
   }, [typeFilter]);
 
+
+  async function setWarehouseStatus(w, status) {
+    if (status === "suspenso") {
+      const ok = await dialog.confirm({ title: `Suspender ${w.name}?`, message: "O armazém não poderá assumir novas custódias nem registrar validações. Os talhões já garantidos por ele continuam exibindo o histórico.", confirmLabel: "Suspender", destructive: true });
+      if (!ok) return;
+    }
+    try {
+      await api.setWarehouseStatus(w.id, status);
+      setNotice(status === "aprovado" ? `${w.name} credenciado` : `${w.name} suspenso`);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   async function setStatus(id, status) {
     if (status === "suspensa") {
@@ -146,7 +164,7 @@ export default function AdminDashboard() {
         label="Seções da administração"
         value={tab}
         onChange={setTab}
-        tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: t.id === "colheitas" ? harvestRequests.length : 0 }))}
+        tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: t.id === "colheitas" ? harvestRequests.length : t.id === "armazens" ? warehouses.filter((w) => w.status === "pendente").length : 0 }))}
       />
 
       <ErrorBanner message={error} />
@@ -161,6 +179,9 @@ export default function AdminDashboard() {
               <Stat label="Fazendas aprovadas" value={overview.fazendasAtivas} icon={Building2} />
               <Stat label="Fazendas pendentes" value={overview.fazendasPendentes} icon={Clock} />
               <Stat label="Investidores" value={overview.investidores} icon={Users} />
+              <Stat label="Armazéns credenciados" value={overview.armazensAtivos ?? 0} icon={WarehouseIcon} />
+              <Stat label="Armazéns pendentes" value={overview.armazensPendentes ?? 0} icon={Clock} />
+              <Stat label="Talhões com garantia" value={overview.talhoesGarantidos ?? 0} icon={ShieldCheck} />
             </div>
           )}
 
@@ -248,9 +269,12 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                <HarvestCustodyInfo r={r} />
+
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <Button variant="danger-ghost" icon={X} onClick={() => rejectHarvest(r.id)} style={{ flex: 1, border: "1px solid var(--danger)" }}>Rejeitar</Button>
-                  <Button variant="success" icon={Check} onClick={() => approveHarvest(r.id)} style={{ flex: 2 }}>Aprovar e pagar</Button>
+                  <Button variant="success" icon={Check} onClick={() => approveHarvest(r.id)} style={{ flex: 2 }}
+                    disabled={r.custodia_status === "aceita" && r.armazenagem_resultado !== "confirmado"}>Aprovar e pagar</Button>
                 </div>
               </div>
             ))}
@@ -258,6 +282,28 @@ export default function AdminDashboard() {
               <EmptyState image="/icons/icon_talhoes_colhendo_meu_talhao.svg" title="Nenhuma colheita aguardando">Quando uma fazenda pedir a finalização, a solicitação aparece aqui.</EmptyState>
             )}
           </div>
+        </div>
+      )}
+
+      {tab === "armazens" && (
+        <div className="stack">
+          <p className="text-sm text-2">Armazéns são os garantidores: validam plantio, colheita e armazenagem dos talhões. Confira o CNPJ e a estrutura antes de credenciar.</p>
+          {warehouses.length === 0 && <EmptyState title="Nenhum armazém cadastrado">Armazéns se cadastram pela tela de criar conta, escolhendo “Armazém”.</EmptyState>}
+          {warehouses.map((w) => (
+            <div key={w.id} className="list-item" style={{ flexWrap: "wrap" }}>
+              <span className="thumb" style={{ background: "var(--success-soft)", color: "var(--success-text)" }}><WarehouseIcon size={22} aria-hidden /></span>
+              <div className="list-item-body" style={{ minWidth: 200 }}>
+                <p className="list-item-title">{w.name}</p>
+                <p className="list-item-sub">{w.location} · CNPJ {maskCNPJ(w.cnpj)}{w.capacidade_t ? ` · ${w.capacidade_t} t` : ""}</p>
+                <p className="list-item-sub">{w.responsavel} · {w.responsavel_email} · {w.custodias} custódia(s) ativas</p>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <Badge tone={{ aprovado: "success", pendente: "warning", suspenso: "danger" }[w.status]}>{w.status}</Badge>
+                {w.status !== "aprovado" && <Button size="sm" variant="success" onClick={() => setWarehouseStatus(w, "aprovado")}>Credenciar</Button>}
+                {w.status === "aprovado" && <Button size="sm" variant="secondary" onClick={() => setWarehouseStatus(w, "suspenso")}>Suspender</Button>}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -454,6 +500,27 @@ function CommodityReferenceRow({ reference, onSave }) {
 }
 
 const miniInputStyle = { width: "100%", marginTop: 3, padding: "7px 8px", borderRadius: 7, border: `1px solid ${COLORS.line}`, fontSize: 12.5, background: "#fff", fontFamily: "inherit" };
+
+// o que o armazém garantidor validou — base para aprovar o pagamento
+function HarvestCustodyInfo({ r }) {
+  const vendidas = r.cotas_totais - r.cotas_disponiveis;
+  if (r.custodia_status !== "aceita") {
+    return <Banner tone="warning" style={{ marginBottom: 12 }}>Talhão sem armazém garantidor: o resultado foi informado só pela fazenda.</Banner>;
+  }
+  if (!r.armazenagem_resultado) {
+    return <Banner tone="warning" style={{ marginBottom: 12 }}>Aguardando {r.warehouse_name} confirmar a armazenagem. O pagamento fica bloqueado até lá.</Banner>;
+  }
+  if (r.armazenagem_resultado !== "confirmado") {
+    return <Banner tone="error" title={`${r.warehouse_name} registrou divergência`} style={{ marginBottom: 12 }}>{r.armazenagem_observacao}</Banner>;
+  }
+  const qtd = Number(r.armazenagem_quantidade);
+  return (
+    <Banner tone={qtd < vendidas ? "warning" : "success"} title={`Armazenagem confirmada por ${r.warehouse_name}`} style={{ marginBottom: 12 }}>
+      {fmtNumber(qtd)} de {fmtNumber(r.cotas_totais)} {r.unidade}s declaradas ({Math.round((qtd / r.cotas_totais) * 100)}%) · {fmtNumber(vendidas)} vendidas aos investidores.
+      {qtd < vendidas ? " A quantidade armazenada é menor que a vendida." : ""}
+    </Banner>
+  );
+}
 
 function Stat({ label, value, icon: Icon }) {
   return (

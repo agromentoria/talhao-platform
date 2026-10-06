@@ -1,5 +1,18 @@
 # Registro de mudanças
 
+## 1.2.0 — perfil Armazém (garantidor da commodity)
+
+- **Novo tipo de conta: Armazém.** Cadastro com CNPJ e localização; entra em análise até a administração credenciar.
+- **Custódia:** ao publicar um talhão, a fazenda escolhe um armazém credenciado (obrigatório quando existe algum). O armazém aceita ou recusa com motivo; a fazenda pode indicar outro enquanto a custódia não for aceita.
+- **Validações independentes** em três etapas: plantio (liberada na fase Plantio), colheita e armazenagem (liberadas na fase Colheita), com resultado "confere" ou "divergência", quantidade, observação e foto. Fazenda, investidores e (em divergência) a administração são avisados.
+- **Pagamento travado:** com armazém garantidor, a administração só consegue aprovar o pagamento depois da armazenagem confirmada; a tela mostra quantidade armazenada × declarada × vendida.
+- **Para o investidor:** selo "Garantido por" na vitrine e na página do talhão, card "Garantia do armazém" com a linha do tempo das validações, e aviso claro quando o talhão não tem garantidor.
+- **Painel do armazém** (`/armazem`): pedidos, talhões em acompanhamento, concluídos e recusados; edição de capacidade e apresentação.
+- **Administração:** aba Armazéns (credenciar/suspender) e novos números na visão geral.
+- **Conversas:** armazém fala com as fazendas que o indicaram e com a administração.
+- Exclusão de conta do armazém bloqueada enquanto houver custódia em andamento.
+- Termos de uso e Política de privacidade atualizados; script `npm run seed:armazem` para demonstração.
+
 ## 1.1.0 — reorganização, correções e preparação para as lojas (out/2026)
 
 ### Erros corrigidos

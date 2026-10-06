@@ -148,6 +148,16 @@ export const api = {
   sendMessage: (id, body) => request(`/conversations/${id}/messages`, { method: "POST", body: { body } }),
   unreadMessagesCount: () => request("/conversations/unread-count"),
 
+  // armazém garantidor (custódia e validações)
+  approvedWarehouses: () => request("/warehouses/approved"),
+  myWarehouse: () => request("/warehouses/mine"),
+  updateMyWarehouse: (payload) => request("/warehouses/mine", { method: "PATCH", body: payload }),
+  decideCustody: (plotId, decisao, motivo) => request(`/warehouses/plots/${plotId}/custody`, { method: "POST", body: { decisao, motivo } }),
+  validatePlot: (plotId, payload) => request(`/warehouses/plots/${plotId}/validations`, { method: "POST", body: payload }),
+  setPlotWarehouse: (plotId, warehouse_id) => request(`/plots/${plotId}/warehouse`, { method: "PATCH", body: { warehouse_id } }),
+  adminWarehouses: () => request("/warehouses"),
+  setWarehouseStatus: (id, status) => request(`/warehouses/${id}/status`, { method: "PATCH", body: { status } }),
+
   // conta (exigido pelas lojas: o usuário precisa poder excluir a conta pelo app)
   deleteAccount: (password) => request("/auth/me", { method: "DELETE", body: { password } }),
 };

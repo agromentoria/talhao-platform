@@ -29,7 +29,7 @@ export async function setupNative({ navigate, getPath }) {
 
   try { await Keyboard.setAccessoryBarVisible({ isVisible: true }); } catch { /* só iOS */ }
 
-  const ROOTS = new Set(["/", "/carteira", "/fazenda", "/admin", "/conversas", "/perfil", "/avisos", "/fazenda/carteira", "/login"]);
+  const ROOTS = new Set(["/", "/carteira", "/fazenda", "/admin", "/conversas", "/perfil", "/avisos", "/fazenda/carteira", "/armazem", "/login"]);
   const backHandle = await App.addListener("backButton", ({ canGoBack }) => {
     // diálogos abertos fecham primeiro
     const closeBtn = document.querySelector("[data-dialog-close]");

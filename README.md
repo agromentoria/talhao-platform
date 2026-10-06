@@ -6,8 +6,14 @@ próprio ao lado do site institucional.
 
 ## O que já está pronto
 
-- **Cadastro e login** com 3 tipos de conta: **administrador** (mediador da
-  plataforma), **fazenda** e **investidor**.
+- **Cadastro e login** com 4 tipos de conta: **administrador** (mediador da
+  plataforma), **fazenda**, **investidor** e **armazém** (garantidor).
+- **Armazéns garantidores**: a fazenda indica um armazém credenciado ao
+  publicar o talhão; o armazém aceita a custódia e valida, de forma
+  independente, o **plantio**, a **colheita** e a **quantidade armazenada**.
+  O investidor vê o selo "Garantido por" na vitrine e a linha do tempo das
+  validações na página do talhão. O pagamento da colheita só é liberado
+  depois que o armazém confirma a armazenagem.
 - **Fazendas** se cadastram, ficam em análise ("pendente") até o administrador
   aprovar, e depois de aprovadas podem publicar talhões e definir sua própria
   comissão sobre o lucro da colheita.
@@ -125,6 +131,9 @@ cd server
 cp .env.example .env      # depois edite o .env com sua DATABASE_URL e demais valores
 npm install
 npm run seed               # opcional: cria 2 fazendas e 4 talhões de exemplo
+# dados de demonstração completos (com a API rodando, em outro terminal):
+ADMIN_PASSWORD=sua-senha node scripts/seed-demo-rico.js   # fazendas, talhões, investidores
+ADMIN_PASSWORD=sua-senha npm run seed:armazem             # armazém garantidor (armazem@demo.com / senha12345)
 npm start
 ```
 

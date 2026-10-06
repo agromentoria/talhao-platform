@@ -382,6 +382,51 @@ CREATE TABLE IF NOT EXISTS photos (
 );
 CREATE INDEX IF NOT EXISTS idx_photos_farm ON photos(farm_id, position);
 CREATE INDEX IF NOT EXISTS idx_photos_plot ON photos(plot_id, position);
+
+-- ===================== Armazéns (garantidores) =====================
+-- O armazém é o 4º perfil da plataforma: valida, de forma independente,
+-- que a fazenda plantou, colheu e armazenou o que declarou. Para o
+-- investidor, o armazém é o garantidor físico da commodity.
+CREATE TABLE IF NOT EXISTS warehouses (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  cnpj TEXT NOT NULL,
+  location TEXT NOT NULL,
+  capacidade_t REAL,
+  descricao TEXT,
+  owner_user_id INTEGER REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','aprovado','suspenso')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS warehouse_id INTEGER REFERENCES warehouses(id);
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','fazenda','investidor','armazem'));
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_sender_role_check;
+ALTER TABLE notifications ADD CONSTRAINT notifications_sender_role_check CHECK (sender_role IN ('sistema','fazenda','admin','armazem'));
+
+-- custódia: a fazenda indica o armazém ao publicar o talhão; o armazém
+-- aceita (passa a validar e garantir) ou recusa (com motivo)
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS warehouse_id INTEGER REFERENCES warehouses(id);
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS custodia_status TEXT;      -- pendente | aceita | recusada
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS custodia_motivo TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS custodia_em TIMESTAMPTZ;
+
+-- validações do armazém, uma por etapa (refazer a validação substitui a anterior)
+CREATE TABLE IF NOT EXISTS plot_validations (
+  id SERIAL PRIMARY KEY,
+  plot_id INTEGER NOT NULL REFERENCES plots(id),
+  warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
+  etapa TEXT NOT NULL CHECK (etapa IN ('plantio','colheita','armazenagem')),
+  resultado TEXT NOT NULL CHECK (resultado IN ('confirmado','divergente')),
+  quantidade REAL,
+  observacao TEXT,
+  foto TEXT,
+  validated_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (plot_id, etapa)
+);
+CREATE INDEX IF NOT EXISTS idx_plots_warehouse ON plots(warehouse_id);
 `;
 
 const COMMODITY_DEFAULTS = [

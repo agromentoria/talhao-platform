@@ -29,6 +29,9 @@ router.get("/overview", asyncHandler(async (req, res) => {
   const fazendasPendentes = (await pool.query("SELECT COUNT(*) as n FROM farms WHERE status = 'pendente'")).rows[0].n;
   const talhoesAtivos = (await pool.query("SELECT COUNT(*) as n FROM plots WHERE status IN ('captacao','em_andamento')")).rows[0].n;
   const investidores = (await pool.query("SELECT COUNT(*) as n FROM users WHERE role = 'investidor' AND deleted_at IS NULL")).rows[0].n;
+  const armazensAtivos = (await pool.query("SELECT COUNT(*) as n FROM warehouses WHERE status = 'aprovado'")).rows[0].n;
+  const armazensPendentes = (await pool.query("SELECT COUNT(*) as n FROM warehouses WHERE status = 'pendente'")).rows[0].n;
+  const talhoesGarantidos = (await pool.query("SELECT COUNT(*) as n FROM plots WHERE custodia_status = 'aceita' AND status IN ('captacao','em_andamento','aguardando_aprovacao')")).rows[0].n;
 
   res.json({
     totalCaptado: Number(totalCaptado),
@@ -37,6 +40,9 @@ router.get("/overview", asyncHandler(async (req, res) => {
     fazendasPendentes: Number(fazendasPendentes),
     talhoesAtivos: Number(talhoesAtivos),
     investidores: Number(investidores),
+    armazensAtivos: Number(armazensAtivos),
+    armazensPendentes: Number(armazensPendentes),
+    talhoesGarantidos: Number(talhoesGarantidos),
   });
 }));
 

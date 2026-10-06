@@ -14,7 +14,17 @@ async function canMessage(requester, targetUser) {
   if (requester.id === targetUser.id) return false;
 
   if (requester.role === "admin") {
-    return targetUser.role === "fazenda" || targetUser.role === "investidor";
+    return ["fazenda", "investidor", "armazem"].includes(targetUser.role);
+  }
+
+  // armazém conversa com a administração e com fazendas que o indicaram
+  if (requester.role === "armazem" && targetUser.role === "admin") return true;
+  if ((requester.role === "armazem" && targetUser.role === "fazenda") || (requester.role === "fazenda" && targetUser.role === "armazem")) {
+    const warehouseId = requester.role === "armazem" ? requester.warehouse_id : targetUser.warehouse_id;
+    const farmId = requester.role === "fazenda" ? requester.farm_id : targetUser.farm_id;
+    if (!warehouseId || !farmId) return false;
+    const { rows } = await pool.query("SELECT 1 FROM plots WHERE warehouse_id = $1 AND farm_id = $2 LIMIT 1", [warehouseId, farmId]);
+    return rows.length > 0;
   }
 
   if (requester.role === "investidor" && targetUser.role === "fazenda") {
@@ -41,8 +51,9 @@ async function canMessage(requester, targetUser) {
 
 async function getOtherUserInfo(otherId) {
   const { rows } = await pool.query(
-    `SELECT u.id, u.name, u.role, u.avatar_data, f.id as farm_id, f.name as farm_name, f.location as farm_location
-     FROM users u LEFT JOIN farms f ON f.id = u.farm_id WHERE u.id = $1`,
+    `SELECT u.id, u.name, u.role, u.avatar_data, f.id as farm_id, f.name as farm_name, f.location as farm_location,
+            w.name as warehouse_name, w.location as warehouse_location
+     FROM users u LEFT JOIN farms f ON f.id = u.farm_id LEFT JOIN warehouses w ON w.id = u.warehouse_id WHERE u.id = $1`,
     [otherId]
   );
   return rows[0] || null;
@@ -88,11 +99,11 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
     conversations.push({
       conversation_id: c.conversation_id,
       other_user_id: other.id,
-      other_name: other.name,
+      other_name: other.role === "armazem" && other.warehouse_name ? other.warehouse_name : other.name,
       other_role: other.role,
       other_avatar: other.avatar_data,
       farm_name: other.role === "fazenda" ? other.farm_name : null,
-      farm_location: other.role === "fazenda" ? other.farm_location : null,
+      farm_location: other.role === "fazenda" ? other.farm_location : other.role === "armazem" ? other.warehouse_location : null,
       graos,
       ultima_mensagem: c.ultima_mensagem,
       ultima_mensagem_em: c.ultima_mensagem_em,
@@ -130,6 +141,26 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
     startable = rows
       .filter((r) => !existingContactIds.has(r.user_id))
       .map((r) => ({ user_id: r.user_id, name: r.name, role: "investidor", avatar: r.avatar_data, graos: (r.graos || []).filter(Boolean) }));
+    const { rows: whRows } = await pool.query(
+      `SELECT DISTINCT w.owner_user_id AS user_id, w.name, w.location FROM plots p JOIN warehouses w ON w.id = p.warehouse_id
+       WHERE p.farm_id = $1 AND w.owner_user_id IS NOT NULL`,
+      [req.user.farm_id]
+    );
+    startable = [
+      ...startable,
+      ...whRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: r.name, role: "armazem", farm_location: r.location })),
+    ];
+  } else if (req.user.role === "armazem") {
+    const { rows: farmRows } = await pool.query(
+      `SELECT DISTINCT f.owner_user_id AS user_id, f.name AS farm_name, f.location AS farm_location
+       FROM plots p JOIN farms f ON f.id = p.farm_id WHERE p.warehouse_id = $1 AND f.owner_user_id IS NOT NULL`,
+      [req.user.warehouse_id]
+    );
+    const { rows: adminRows } = await pool.query("SELECT id AS user_id, name FROM users WHERE role = 'admin' AND deleted_at IS NULL ORDER BY id LIMIT 1");
+    startable = [
+      ...farmRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: r.farm_name, role: "fazenda", farm_location: r.farm_location })),
+      ...adminRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: "Administração Meu Talhão", role: "admin" })),
+    ];
   } else if (req.user.role === "admin") {
     const { rows: farmRows } = await pool.query(
       "SELECT owner_user_id as user_id, name as farm_name, location as farm_location FROM farms WHERE owner_user_id IS NOT NULL"
@@ -141,6 +172,8 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
       ...farmRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: r.farm_name, role: "fazenda", farm_location: r.farm_location })),
       ...invRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: r.name, role: "investidor", avatar: r.avatar_data })),
     ];
+    const { rows: whRows } = await pool.query("SELECT owner_user_id AS user_id, name, location FROM warehouses WHERE owner_user_id IS NOT NULL");
+    startable.push(...whRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: r.name, role: "armazem", farm_location: r.location })));
   }
 
   res.json({ conversations, startable });
@@ -172,7 +205,7 @@ router.post("/", requireAuth, asyncHandler(async (req, res) => {
 
   const allowed = await canMessage(req.user, target);
   if (!allowed) {
-    return res.status(403).json({ error: "Você só pode conversar com fazendas ou investidores com quem já tem uma relação de investimento." });
+    return res.status(403).json({ error: "Você só pode conversar com quem tem relação de negócio com você na plataforma (investimento ou custódia)." });
   }
 
   const [a, b] = pairKey(req.user.id, Number(user_id));

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { MapPin, QrCode, CreditCard, Plus, Minus, Star, Award } from "lucide-react";
+import { MapPin, QrCode, CreditCard, Plus, Minus, Star, Award, ShieldCheck, ShieldAlert, Warehouse } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { GRAIN_COLORS, FASES, FASE_ICONS, UNIT_LABEL } from "../config/theme";
 import { fmtBRL, fmtNumber, unitPlural } from "../lib/format";
@@ -8,7 +8,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
-import { ShareButton, PhotoGallery, GrainThumb } from "../components/domain";
+import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline } from "../components/domain";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -20,6 +20,8 @@ export default function PlotDetail() {
 
   const [plot, setPlot] = useState(null);
   const [fotos, setFotos] = useState([]);
+  const [armazem, setArmazem] = useState(null);
+  const [validacoes, setValidacoes] = useState([]);
   const [historico, setHistorico] = useState([]);
   const [appCommission, setAppCommission] = useState(5);
   const [loadError, setLoadError] = useState("");
@@ -36,6 +38,8 @@ export default function PlotDetail() {
       setPlot(data.plot);
       // a API devolve as fotos fora do objeto do talhão (antes elas nunca apareciam)
       setFotos(data.fotos || []);
+      setArmazem(data.armazem || null);
+      setValidacoes(data.validacoes || []);
       setHistorico(data.historico.map((h) => ({ fase: FASES[h.fase_atual], v: h.progresso })));
       setAppCommission(data.app_commission_pct);
     }).catch((err) => setLoadError(err.message));
@@ -127,6 +131,9 @@ export default function PlotDetail() {
           <>
             <MapPin size={14} aria-hidden style={{ display: "inline", verticalAlign: "-2px", marginRight: 4 }} />
             {plot.farm_name}, {plot.farm_location} · {fmtNumber(plot.area_ha)} ha · safra {plot.safra}
+            {plot.custodia_status === "aceita" && armazem && (
+              <span style={{ display: "block", marginTop: 10 }}><GuaranteeSeal name={armazem.name} /></span>
+            )}
           </>
         }
       />
@@ -154,6 +161,8 @@ export default function PlotDetail() {
               })}
             </ol>
           </section>
+
+          <GuaranteeCard plot={plot} armazem={armazem} validacoes={validacoes} />
 
           <section className="card" aria-labelledby="preco-t">
             <h2 id="preco-t" className="card-title">Preço sobe conforme a safra avança</h2>
@@ -303,6 +312,46 @@ export default function PlotDetail() {
         <MobileInvestBar price={fmtBRL(plot.cota_valor)} unidade={unidade} />
       )}
     </Page>
+  );
+}
+
+// O armazém é o garantidor físico da commodity: valida de forma independente
+// que a fazenda plantou, colheu e guardou o que declarou.
+function GuaranteeCard({ plot, armazem, validacoes }) {
+  const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
+  if (plot.custodia_status === "aceita" && armazem) {
+    return (
+      <section className="card" aria-labelledby="garantia-t" style={{ borderColor: "#c5d9a8" }}>
+        <div className="card-head" style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+            <span className="thumb" style={{ background: "var(--success-soft)", color: "var(--success-text)" }}><ShieldCheck size={24} aria-hidden /></span>
+            <div style={{ minWidth: 0 }}>
+              <h2 id="garantia-t" className="card-title">Garantia do armazém</h2>
+              <p className="text-sm text-2">{armazem.name} · {armazem.location}{armazem.capacidade_t ? ` · ${fmtNumber(armazem.capacidade_t)} t de capacidade` : ""}</p>
+            </div>
+          </div>
+        </div>
+        <p className="card-desc" style={{ marginBottom: 16 }}>
+          Um armazém credenciado acompanha este talhão e confirma, de forma independente da fazenda, cada etapa abaixo. O pagamento aos investidores só é liberado depois da armazenagem confirmada.
+        </p>
+        {armazem.descricao && <p className="text-sm" style={{ whiteSpace: "pre-wrap", marginBottom: 16 }}>{armazem.descricao}</p>}
+        <CustodyTimeline validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
+      </section>
+    );
+  }
+  if (plot.custodia_status === "pendente" && armazem) {
+    return (
+      <Banner tone="info" title="Garantia em análise">
+        <span style={{ display: "flex", gap: 6 }}><Warehouse size={16} aria-hidden style={{ flexShrink: 0, marginTop: 2 }} />
+          A fazenda indicou o armazém {armazem.name} como garantidor. O selo aparece aqui quando ele aceitar a custódia.</span>
+      </Banner>
+    );
+  }
+  return (
+    <Banner tone="warning" title="Sem armazém garantidor">
+      <span style={{ display: "flex", gap: 6 }}><ShieldAlert size={16} aria-hidden style={{ flexShrink: 0, marginTop: 2 }} />
+        As etapas deste talhão são informadas só pela fazenda, sem validação independente de um armazém.</span>
+    </Banner>
   );
 }
 

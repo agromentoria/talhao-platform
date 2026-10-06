@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { UserRound, Plus } from "lucide-react";
+import { UserRound, Plus, Warehouse, ShieldCheck } from "lucide-react";
 import { ICONS, GRAIN_ICONS } from "../config/theme";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -11,6 +11,8 @@ export function ContactAvatar({ role, avatar, size = 44 }) {
   return (
     <span className="avatar" style={{ width: size, height: size, background: "#fff", color: "var(--success-text)", boxShadow: "var(--shadow-1)" }}>
       {role === "fazenda" ? <img src={ICONS.fazendas} alt="" style={{ width: "70%", height: "70%", objectFit: "contain" }} />
+        : role === "armazem" ? <Warehouse size={Math.round(size * 0.5)} aria-hidden />
+        : role === "admin" ? <ShieldCheck size={Math.round(size * 0.5)} aria-hidden />
         : avatar ? <img src={avatar} alt="" /> : <UserRound size={Math.round(size * 0.45)} aria-hidden />}
     </span>
   );
@@ -47,13 +49,15 @@ export default function Conversations() {
   const subtitle = {
     fazenda: "Fale com seus investidores.",
     investidor: "Fale direto com as fazendas onde você investiu.",
-    admin: "Fale com fazendas e investidores da plataforma.",
+    admin: "Fale com fazendas, investidores e armazéns da plataforma.",
+    armazem: "Fale com as fazendas que indicaram seu armazém e com a administração.",
   }[user?.role];
 
   const emptyText = {
     investidor: "Depois de investir em um talhão, você pode conversar com a fazenda por aqui.",
     fazenda: "Quando um investidor mandar mensagem, ela aparece aqui. Você também pode começar uma conversa.",
     admin: "Nenhuma conversa iniciada ainda.",
+    armazem: "Quando uma fazenda indicar seu armazém, vocês podem combinar visitas e entregas por aqui.",
   }[user?.role];
 
   return (
@@ -109,6 +113,8 @@ function ContactPicker({ contacts, onSelect }) {
   const groups = [
     { label: "Fazendas", items: contacts.filter((c) => c.role === "fazenda") },
     { label: "Investidores", items: contacts.filter((c) => c.role === "investidor") },
+    { label: "Armazéns", items: contacts.filter((c) => c.role === "armazem") },
+    { label: "Administração", items: contacts.filter((c) => c.role === "admin") },
   ].filter((g) => g.items.length);
 
   if (!groups.length) return <p>Nenhum contato disponível no momento.</p>;

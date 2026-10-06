@@ -5,6 +5,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers } = require("../notify");
 const { getAppCommissionPct } = require("../settings");
 const { executeHarvestPayout } = require("../harvestPayout");
+const { harvestBlockReason } = require("../custody");
 
 const router = express.Router();
 
@@ -14,12 +15,17 @@ router.get("/", asyncHandler(async (req, res) => {
   const { status } = req.query;
   let sql = `
     SELECT hr.*, p.nome as plot_nome, p.grao, p.unidade, p.previsao_retorno, p.fase_atual,
+           p.cotas_totais, p.cotas_disponiveis, p.custodia_status,
            f.name as farm_name, f.location as farm_location, f.commission_pct,
-           u.name as solicitado_por
+           u.name as solicitado_por,
+           w.name as warehouse_name,
+           va.resultado as armazenagem_resultado, va.quantidade as armazenagem_quantidade, va.observacao as armazenagem_observacao
     FROM harvest_requests hr
     JOIN plots p ON p.id = hr.plot_id
     JOIN farms f ON f.id = hr.farm_id
     LEFT JOIN users u ON u.id = hr.requested_by
+    LEFT JOIN warehouses w ON w.id = p.warehouse_id
+    LEFT JOIN plot_validations va ON va.plot_id = p.id AND va.etapa = 'armazenagem'
   `;
   const params = [];
   if (status) {
@@ -42,6 +48,10 @@ router.post("/:id/approve", asyncHandler(async (req, res) => {
   const { rows: plotRows } = await pool.query("SELECT * FROM plots WHERE id = $1", [request.plot_id]);
   const plot = plotRows[0];
   if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+
+  // com armazém garantidor, o pagamento só sai depois da armazenagem confirmada
+  const bloqueio = await harvestBlockReason(pool, plot);
+  if (bloqueio) return res.status(409).json({ error: bloqueio });
 
   const { rows: farmRows } = await pool.query("SELECT * FROM farms WHERE id = $1", [request.farm_id]);
   const farm = farmRows[0];

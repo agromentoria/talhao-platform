@@ -12,6 +12,7 @@ export default function Privacy() {
         <li>Cartões: apenas bandeira, 4 últimos dígitos e validade. Número completo e código de segurança não são armazenados.</li>
         <li>Uso da plataforma: investimentos, mensagens trocadas no app, avisos e registros de acesso exigidos pelo Marco Civil da Internet.</li>
         <li>Fazendas: dados da propriedade (CAR, matrícula, área) e fotos publicadas.</li>
+        <li>Armazéns: razão social, CNPJ, localização, capacidade e as validações registradas (quantidades, observações e fotos).</li>
       </ul>
       <h2>Para que usamos</h2>
       <ul>
@@ -22,7 +23,7 @@ export default function Privacy() {
       </ul>
       <p>Não vendemos dados pessoais e não usamos rastreamento para publicidade.</p>
       <h2>Com quem compartilhamos</h2>
-      <p>Com a fazenda ou o investidor da outra ponta do investimento (apenas o necessário), com provedores de hospedagem, banco de dados e pagamento que operam em nosso nome, e com autoridades quando a lei exigir.</p>
+      <p>Com a fazenda, o investidor ou o armazém garantidor envolvidos no mesmo talhão (apenas o necessário), com provedores de hospedagem, banco de dados e pagamento que operam em nosso nome, e com autoridades quando a lei exigir.</p>
       <h2>Por quanto tempo guardamos</h2>
       <p>Enquanto sua conta existir. Ao excluir a conta, apagamos ou anonimizamos seus dados pessoais; registros financeiros concluídos são mantidos de forma anonimizada pelo prazo legal.</p>
       <h2>Seus direitos</h2>

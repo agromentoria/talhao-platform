@@ -4,6 +4,7 @@ import { GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL } from "../../
 import { fmtBRL } from "../../lib/format";
 import { ProgressBar } from "../ui";
 import { ShareButton } from "./ShareButton";
+import { GuaranteeSeal } from "./Custody";
 
 export function GrainThumb({ grao, size = "md", round }) {
   return (
@@ -67,7 +68,10 @@ export function PlotCard({ plot }) {
               <p className="plot-card-return"><TrendingUp size={15} aria-hidden /> {plot.previsao_retorno}%</p>
             </div>
           </div>
-          <p className="label-xs">{pctVendido}% das {unidade}s já captadas</p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <p className="label-xs">{pctVendido}% das {unidade}s já captadas</p>
+            {plot.custodia_status === "aceita" && plot.warehouse_name && <GuaranteeSeal name={plot.warehouse_name} compact />}
+          </div>
         </div>
       </Link>
       {/* botão fora do <a> — elemento interativo dentro de link é inválido e confunde leitores de tela */}

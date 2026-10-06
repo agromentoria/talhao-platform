@@ -80,7 +80,15 @@ export const BACKGROUNDS = {
 
 export const UNIT_LABEL = { saca: "saca", fardo: "fardo", arroba: "arroba" };
 
-export const ROLE_LABEL = { admin: "Administração", fazenda: "Fazenda", investidor: "Investidor" };
+export const ROLE_LABEL = { admin: "Administração", fazenda: "Fazenda", investidor: "Investidor", armazem: "Armazém" };
+
+// custódia pelo armazém garantidor
+export const ETAPAS_CUSTODIA = [
+  { id: "plantio", label: "Plantio", descricao: "O armazém confirma que a lavoura foi plantada na área declarada." },
+  { id: "colheita", label: "Colheita", descricao: "O armazém confirma a colheita e a quantidade colhida." },
+  { id: "armazenagem", label: "Armazenagem", descricao: "O armazém confirma a quantidade recebida e guardada. Libera o pagamento." },
+];
+export const FASE_MINIMA_CUSTODIA = { plantio: 1, colheita: 5, armazenagem: 5 };
 
 // reexportados para compatibilidade com imports antigos
 export { fmtBRL, unitPlural } from "../lib/format";

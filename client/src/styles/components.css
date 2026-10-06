@@ -334,3 +334,26 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .legal h2:first-of-type { margin-top: var(--sp-5); }
 .legal p, .legal li { color: var(--text-2); font-size: var(--fs-md); }
 .legal ul { padding-left: 1.2em; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+
+/* ---------- armazém garantidor ---------- */
+.seal {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 5px 12px; border-radius: var(--r-full);
+  background: var(--success-soft); color: var(--success-text); font-size: var(--fs-sm); font-weight: 600;
+  border: 1px solid #c5d9a8;
+}
+.seal--compact { padding: 3px 10px; font-size: var(--fs-xs); }
+.custody { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.custody-step { position: relative; display: flex; gap: var(--sp-3); padding-bottom: var(--sp-4); }
+.custody-step:last-child { padding-bottom: 0; }
+.custody-step:not(:last-child)::before { content: ""; position: absolute; left: 17px; top: 36px; bottom: 0; width: 2px; background: var(--border-strong); }
+.custody-step.is-ok:not(:last-child)::before { background: var(--success); }
+.custody-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface-well); color: var(--text-3); border: 2px solid var(--border-strong); }
+.custody-step.is-ok .custody-icon { background: var(--success-soft); color: var(--success-text); border-color: var(--success); }
+.custody-step.is-warn .custody-icon { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.custody-body { min-width: 0; padding-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+.custody-title { font-weight: 700; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.custody-state { font-size: var(--fs-xs); font-weight: 600; color: var(--text-3); }
+.is-ok .custody-state { color: var(--success-text); }
+.is-warn .custody-state { color: var(--danger); }
+.custody-photo { margin-top: 6px; width: 120px; height: 90px; object-fit: cover; border-radius: var(--r-sm); }

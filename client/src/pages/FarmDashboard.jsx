@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
-import { Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText, Image as ImageIcon } from "lucide-react";
+import { Warehouse, Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText, Image as ImageIcon } from "lucide-react";
 import { COLORS, GRAIN_COLORS, GRAINS, ICONS, FASES, UNIT_LABEL } from "../config/theme";
 import { fmtBRL, unitPlural } from "../lib/format";
 import { api } from "../lib/api";
@@ -7,8 +7,8 @@ import { readImageFile } from "../lib/files";
 import { useAuth } from "../context/AuthContext";
 import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../lib/validators";
 import { Page, PageHeader } from "../components/layout/Page";
-import { Button, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
-import { PhotoGallery, GrainThumb } from "../components/domain";
+import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
+import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge } from "../components/domain";
 
 const STATUS_FILTERS = [
   { id: "ativos", label: "Ativos", match: (s) => s === "captacao" || s === "em_andamento" || s === "aguardando_aprovacao" },
@@ -27,6 +27,7 @@ export default function FarmDashboard() {
   const [plots, setPlots] = useState([]);
   const [references, setReferences] = useState([]);
   const [fasePricing, setFasePricing] = useState({});
+  const [warehouses, setWarehouses] = useState([]);
   const [error, setError] = useState("");
   const [notice, setNoticeState] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -42,6 +43,7 @@ export default function FarmDashboard() {
     api.myFarmPlots().then((data) => setPlots(data.plots)).catch((err) => setError(err.message));
     api.commodityReferences().then((data) => setReferences(data.references)).catch(() => {});
     api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch(() => {});
+    api.approvedWarehouses().then((data) => setWarehouses(data.warehouses)).catch(() => {});
   }, [user.farm_id]);
 
   useEffect(() => { load(); }, [load]);
@@ -99,7 +101,7 @@ export default function FarmDashboard() {
       </div>
 
       <Dialog open={showForm} onClose={() => setShowForm(false)} title="Publicar novo talhão" width={680}>
-        <NewPlotForm farmId={farm.id} references={references} fasePricing={fasePricing}
+        <NewPlotForm farmId={farm.id} references={references} fasePricing={fasePricing} warehouses={warehouses}
           onCreated={() => { setShowForm(false); toast("Talhão publicado"); load(); }} setError={setError} />
       </Dialog>
 
@@ -116,7 +118,7 @@ export default function FarmDashboard() {
       ) : (
         <div className="list">
           {filteredPlots.map((p) => (
-            <PlotAdminCard key={p.id} plot={p} references={references} onChanged={load} setNotice={setNotice} setError={setError} />
+            <PlotAdminCard key={p.id} plot={p} references={references} warehouses={warehouses} onChanged={load} setNotice={setNotice} setError={setError} />
           ))}
         </div>
       )}
@@ -169,7 +171,8 @@ function CommissionCard({ farm, onSaved, onError }) {
   );
 }
 
-function NewPlotForm({ farmId, references, fasePricing, onCreated, setError }) {
+function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreated, setError }) {
+  const [warehouseId, setWarehouseId] = useState("");
   const uid = useId();
   const [form, setForm] = useState({ nome: "", grao: "Soja", area_ha: "", safra: "", previsao_retorno: "" });
   const [precoVenda, setPrecoVenda] = useState("");
@@ -197,7 +200,7 @@ function NewPlotForm({ farmId, references, fasePricing, onCreated, setError }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.createPlot({ farm_id: farmId, ...form, preco_venda_estimado: precoVenda, cotas_totais: cotasTotais, unidade });
+      await api.createPlot({ farm_id: farmId, ...form, preco_venda_estimado: precoVenda, cotas_totais: cotasTotais, unidade, warehouse_id: warehouseId ? Number(warehouseId) : null });
       onCreated();
     } catch (err) {
       setError(err.message);
@@ -255,6 +258,9 @@ function NewPlotForm({ farmId, references, fasePricing, onCreated, setError }) {
 
       <Field label="Retorno estimado ao investidor (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
       <div className="span-all">
+        <WarehousePicker warehouses={warehouses} value={warehouseId} onChange={setWarehouseId} />
+      </div>
+      <div className="span-all">
         <button type="submit" disabled={saving} className="btn btn--primary">
           {saving ? "Publicando..." : "Publicar talhão"}
         </button>
@@ -274,7 +280,7 @@ const STATUS_LABEL = {
 
 const MAX_PLOT_PHOTOS = 6;
 
-function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
+function PlotAdminCard({ plot, references, warehouses = [], onChanged, setNotice, setError }) {
   const uid = useId();
   const dialog = useDialog();
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
@@ -411,9 +417,9 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
           <span className="list-item-sub" style={{ display: "block" }}>
             {(plot.cotas_totais - plot.cotas_disponiveis).toLocaleString("pt-BR")} de {plot.cotas_totais.toLocaleString("pt-BR")} {unitPlural(plot.unidade, plot.cotas_totais)} vendidas · {fmtBRL((plot.cotas_totais - plot.cotas_disponiveis) * plot.cota_valor)}
           </span>
-          <span style={{ display: "block", marginTop: 6 }}><Badge tone={plot.status === "pago" ? "success" : plot.status === "arquivado" ? undefined : plot.status === "aguardando_aprovacao" ? "warning" : "info"}>
+          <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}><Badge tone={plot.status === "pago" ? "success" : plot.status === "arquivado" ? undefined : plot.status === "aguardando_aprovacao" ? "warning" : "info"}>
             {STATUS_LABEL[plot.status] || plot.status}
-          </Badge></span>
+          </Badge>{" "}<CustodyStatusBadge status={plot.warehouse_id ? plot.custodia_status : null} /></span>
         </span>
         <span className="list-item-meta">
           {expanded ? <ChevronUp size={20} aria-hidden /> : <ChevronDown size={20} aria-hidden />}
@@ -423,6 +429,7 @@ function PlotAdminCard({ plot, references, onChanged, setNotice, setError }) {
 
       {expanded && (
         <>
+          <CustodySection plot={plot} warehouses={warehouses} onChanged={onChanged} setNotice={setNotice} setError={setError} />
           <div style={{ marginTop: 14 }}><ProgressBar value={progresso} color={color} /></div>
 
           <div style={{ marginTop: 14 }}>
@@ -666,6 +673,66 @@ function RestartPlotForm({ plot, references, onDone, setError }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// Armazém garantidor: obrigatório quando há armazéns credenciados
+function WarehousePicker({ warehouses, value, onChange, label = "Armazém garantidor" }) {
+  if (warehouses.length === 0) {
+    return <p className="text-sm text-2">Ainda não há armazéns credenciados. O talhão será publicado sem garantidor e você poderá indicar um depois.</p>;
+  }
+  return (
+    <SelectField label={label} value={value} onChange={onChange} required
+      hint="O armazém valida plantio, colheita e armazenagem. Para o investidor, é a garantia de que a commodity existe.">
+      <option value="">Escolha o armazém</option>
+      {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} · {w.location}</option>)}
+    </SelectField>
+  );
+}
+
+function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
+  const [choice, setChoice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const validacoes = typeof plot.validacoes === "string" ? JSON.parse(plot.validacoes) : plot.validacoes || [];
+  const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
+  const podeIndicar = plot.custodia_status !== "aceita" && !["pago", "arquivado"].includes(plot.status);
+
+  async function indicar() {
+    if (!choice) return;
+    setSaving(true);
+    try {
+      await api.setPlotWarehouse(plot.id, Number(choice));
+      setNotice("Armazém indicado. Ele vai receber o pedido de custódia.");
+      setChoice("");
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="card card--well" style={{ marginTop: 4, padding: 16 }} aria-label="Armazém garantidor">
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+        <p className="card-title" style={{ display: "flex", gap: 6, alignItems: "center" }}><Warehouse size={16} aria-hidden /> {plot.warehouse_name || "Armazém garantidor"}</p>
+        <CustodyStatusBadge status={plot.warehouse_id ? plot.custodia_status : null} />
+      </div>
+      {plot.custodia_status === "recusada" && plot.custodia_motivo && <p className="text-sm text-danger" style={{ marginBottom: 10 }}>Motivo da recusa: {plot.custodia_motivo}</p>}
+      {plot.custodia_status === "pendente" && <p className="text-sm text-2" style={{ marginBottom: 10 }}>O armazém ainda não respondeu. Investidores veem que a garantia está em análise.</p>}
+      {plot.custodia_status === "aceita" && (
+        <CustodyTimeline validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
+      )}
+      {podeIndicar && warehouses.length > 0 && (
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginTop: 8 }}>
+          <div style={{ flex: "1 1 220px" }}>
+            <WarehousePicker warehouses={warehouses.filter((w) => w.id !== plot.warehouse_id || plot.custodia_status !== "pendente")} value={choice} onChange={setChoice}
+              label={plot.warehouse_id ? "Trocar armazém" : "Indicar armazém"} />
+          </div>
+          <Button variant="secondary" onClick={indicar} loading={saving} disabled={!choice}>Enviar pedido</Button>
+        </div>
+      )}
+    </section>
   );
 }
 

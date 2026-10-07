@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Coins, TrendingUp, Warehouse, ChevronRight } from "lucide-react";
-import { GRAIN_COLORS, FASES } from "../config/theme";
+import { GRAIN_COLORS } from "../config/theme";
+import { faseNome, culturaTexto } from "../config/culturas";
 import { fmtBRL, unitPlural } from "../lib/format";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
 import { ProgressBar, ErrorBanner, EmptyState, FilterChips, Loading, Button } from "../components/ui";
-import { GrainThumb } from "../components/domain";
+import { GrainThumb, InvestorLevelCard } from "../components/domain";
 
 const STATUS_FILTERS = [
   { id: "todos", label: "Todos", match: () => true },
@@ -28,10 +29,11 @@ export default function Portfolio() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [nivel, setNivel] = useState(null);
 
   useEffect(() => {
     api.myInvestments()
-      .then((data) => setInvestments(data.investments))
+      .then((data) => { setInvestments(data.investments); setNivel(data.nivel || null); })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -48,6 +50,7 @@ export default function Portfolio() {
       <PageHeader title="Meus investimentos" subtitle="Acompanhe cada talhão até a colheita e o pagamento da sua parte." />
       <ErrorBanner message={error} />
 
+      {nivel && <div style={{ marginBottom: 16 }}><InvestorLevelCard nivel={nivel} /></div>}
       <div className="grid-stats" style={{ marginBottom: 24 }}>
         <Stat label="Total investido" value={fmtBRL(totalInvestido)} icon={Coins} />
         <Stat label="Recebido em colheitas" value={fmtBRL(totalRecebido)} icon={TrendingUp} tone="success" />
@@ -77,12 +80,12 @@ export default function Portfolio() {
                   <div className="list-item-body">
                     <p className="list-item-title truncate">{inv.plot_nome}</p>
                     <p className="list-item-sub">
-                      {inv.farm_name} · {inv.cotas} {unitPlural(inv.unidade, inv.cotas)} · {fmtBRL(inv.valor_investido)}
+                      {culturaTexto(inv)} · {inv.farm_name} · {inv.cotas} {unitPlural(inv.unidade, inv.cotas)} · {fmtBRL(inv.valor_investido)}
                     </p>
                     {inv.status !== "pago" && (
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
                         <div style={{ flex: 1, maxWidth: 220 }}><ProgressBar value={inv.progresso} color={GRAIN_COLORS[inv.grao]} label="Andamento da safra" /></div>
-                        <span className="text-xs text-2">{FASES[inv.fase_atual]}</span>
+                        <span className="text-xs text-2">{faseNome(inv, inv.fase_atual)}</span>
                       </div>
                     )}
                   </div>

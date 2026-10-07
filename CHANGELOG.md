@@ -1,5 +1,16 @@
 # Registro de mudanças
 
+## 1.3.0 — culturas, ciclo, aprovação de talhões, nível do investidor e nota dos armazéns
+
+- **Cultura e variedade** no lugar de "Grão": 13 culturas (grãos, café, fibras, pecuária e aves) com variedades (ex.: feijão preto, arroz agulhinha, milho pipoca, Nelore, Holandesa, poedeiras). A fazenda pode digitar cultura ou variedade fora da lista. Catálogo em `server/src/culturas.js`, servido em `GET /api/culturas`.
+- **Tipos de produção** (lavoura, pecuária de corte, produção animal) com nomes próprios para as 6 fases e para as validações do armazém (ex.: "Entrada dos animais", "Abate ou venda").
+- **Unidade de venda conforme a cultura**: saca, arroba, kg, litro, dúzia, tonelada, caixa, cabeça. Textos de preço e quantidade usam a unidade certa.
+- **Ciclo obrigatório**: prazo do plantio (ou entrada dos animais) e data prevista da colheita (ou venda).
+- **Controle de publicação**: todo talhão novo exige armazém garantidor e aprovação da administração. A administração é avisada a cada cadastro, aprova ou pede ajustes; o talhão só aparece e só aceita investimento depois de aprovado **e** com a custódia aceita. Talhões anteriores seguem publicados.
+- **Nível do investidor**: Iniciante, Intermediário (a partir de R$ 5 mil) e Profissional (a partir de R$ 50 mil), com selo no perfil, na barra lateral e em Meus investimentos, e progresso até o próximo nível.
+- **Pontuação dos armazéns** (0–5 estrelas): estrutura, tecnologia, segurança, certificações e capacidade estática. Pesos editáveis pela administração na aba Pontuação.
+- Vitrine filtra só pelas culturas com talhão aberto; avisos de compra usam a unidade correta.
+
 ## 1.2.0 — perfil Armazém (garantidor da commodity)
 
 - **Novo tipo de conta: Armazém.** Cadastro com CNPJ e localização; entra em análise até a administração credenciar.

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
-import { COLORS, GRAIN_ICONS, UNIT_LABEL, FASES } from "../config/theme";
+import { COLORS, UNIT_LABEL, FASES } from "../config/theme";
+import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS } from "../config/culturas";
 import { fmtBRL, fmtNumber } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
+import { Stars } from "../components/domain";
 import { Button, Banner, ErrorBanner, Tabs, SelectField, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
 const TYPE_LABEL = {
@@ -16,12 +18,13 @@ const TYPE_LABEL = {
 
 const TABS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
+  { id: "talhoes", label: "Talhões", icon: ShieldCheck },
   { id: "colheitas", label: "Colheitas", icon: ClipboardCheck },
   { id: "fazendas", label: "Fazendas", icon: Building2 },
   { id: "armazens", label: "Armazéns", icon: WarehouseIcon },
   { id: "fases", label: "Preço por fase", icon: TrendingUp },
   { id: "mercado", label: "Referência de mercado", icon: Wheat },
-  { id: "destaques", label: "Destaques da fazenda", icon: Star },
+  { id: "destaques", label: "Pontuação", icon: Star },
 ];
 
 export default function AdminDashboard() {
@@ -37,6 +40,8 @@ export default function AdminDashboard() {
   const [fasePricing, setFasePricing] = useState({});
   const [harvestRequests, setHarvestRequests] = useState([]);
   const [characteristics, setCharacteristics] = useState([]);
+  const [warehouseCatalog, setWarehouseCatalog] = useState([]);
+  const [plotApprovals, setPlotApprovals] = useState([]);
   const [error, setError] = useState("");
   const dialog = useDialog();
   const toast = useToast();
@@ -51,6 +56,8 @@ export default function AdminDashboard() {
     api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch((err) => setError(err.message));
     api.pendingHarvestRequests("pendente").then((data) => setHarvestRequests(data.requests)).catch((err) => setError(err.message));
     api.farmCharacteristicsCatalog().then((data) => setCharacteristics(data.catalog)).catch((err) => setError(err.message));
+    api.warehouseCatalog().then((data) => setWarehouseCatalog(data.catalog)).catch(() => {});
+    api.plotApprovals().then((data) => setPlotApprovals(data.plots)).catch((err) => setError(err.message));
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -122,6 +129,49 @@ export default function AdminDashboard() {
     }
   }
 
+  async function approvePlot(p) {
+    const ok = await dialog.confirm({
+      title: `Aprovar ${p.nome}?`,
+      message: p.custodia_status === "aceita"
+        ? "O armazém já aceitou a custódia: o talhão vai ao ar para os investidores agora."
+        : `O talhão vai ao ar assim que ${p.warehouse_name || "o armazém"} aceitar a custódia.`,
+      confirmLabel: "Aprovar talhão",
+    });
+    if (!ok) return;
+    try {
+      const r = await api.approvePlot(p.id);
+      setNotice(r.publicado ? `${p.nome} aprovado e publicado` : `${p.nome} aprovado; aguardando o armazém`);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function rejectPlot(p) {
+    const motivo = await dialog.prompt({
+      title: `Pedir ajustes em ${p.nome}`, message: "A fazenda recebe este texto e não poderá receber investimentos até corrigir.",
+      label: "O que precisa ser corrigido", required: true, minLength: 5, confirmLabel: "Enviar para a fazenda", destructive: true,
+    });
+    if (!motivo) return;
+    try {
+      await api.rejectPlot(p.id, motivo);
+      setNotice("Pedido de ajustes enviado à fazenda");
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function saveWarehousePoints(key, pontos) {
+    try {
+      await api.updateWarehouseCharacteristicPoints(key, pontos);
+      setWarehouseCatalog((list) => list.map((c) => (c.key === key ? { ...c, pontos } : c)));
+      setNotice("Pontuação atualizada");
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function approveHarvest(id) {
     const ok = await dialog.confirm({ title: "Aprovar e pagar?", message: "Os investidores serão pagos imediatamente. Esta ação não pode ser desfeita.", confirmLabel: "Aprovar e pagar" });
     if (!ok) return;
@@ -164,7 +214,7 @@ export default function AdminDashboard() {
         label="Seções da administração"
         value={tab}
         onChange={setTab}
-        tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: t.id === "colheitas" ? harvestRequests.length : t.id === "armazens" ? warehouses.filter((w) => w.status === "pendente").length : 0 }))}
+        tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: t.id === "colheitas" ? harvestRequests.length : t.id === "armazens" ? warehouses.filter((w) => w.status === "pendente").length : t.id === "talhoes" ? plotApprovals.filter((p) => p.aprovacao_status === "pendente").length : 0 }))}
       />
 
       <ErrorBanner message={error} />
@@ -182,6 +232,7 @@ export default function AdminDashboard() {
               <Stat label="Armazéns credenciados" value={overview.armazensAtivos ?? 0} icon={WarehouseIcon} />
               <Stat label="Armazéns pendentes" value={overview.armazensPendentes ?? 0} icon={Clock} />
               <Stat label="Talhões com garantia" value={overview.talhoesGarantidos ?? 0} icon={ShieldCheck} />
+              <Stat label="Talhões para aprovar" value={overview.talhoesParaAprovar ?? 0} icon={ClipboardCheck} />
             </div>
           )}
 
@@ -246,7 +297,7 @@ export default function AdminDashboard() {
             {harvestRequests.map((r) => (
               <div key={r.id} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-                  <img src={GRAIN_ICONS[r.grao]} alt="" style={{ width: 30, height: 30, objectFit: "contain", background: COLORS.bg, borderRadius: 8, padding: 4 }} />
+                  <img src={culturaIcone(r.grao)} alt="" style={{ width: 30, height: 30, objectFit: "contain", background: COLORS.bg, borderRadius: 8, padding: 4 }} />
                   <div style={{ flex: 1, minWidth: 160 }}>
                     <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil, margin: 0 }}>{r.plot_nome} · {r.farm_name}</p>
                     <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{r.farm_location} · solicitado por {r.solicitado_por || "—"}</p>
@@ -285,6 +336,41 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {tab === "talhoes" && (
+        <div className="stack">
+          <p className="text-sm text-2">Todo talhão novo (ou novo ciclo) passa por aqui. Ele só aparece para investidores quando estiver aprovado e com a custódia aceita pelo armazém garantidor.</p>
+          {plotApprovals.length === 0 && <EmptyState image="/icons/icon_talhao_meu_talhao.svg" title="Nenhum talhão aguardando">Quando uma fazenda cadastrar um talhão, ele aparece aqui para revisão.</EmptyState>}
+          {plotApprovals.map((p) => (
+            <article key={p.id} className="card">
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+                <span className="thumb thumb--lg"><img src={culturaIcone(p.grao)} alt="" /></span>
+                <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                  <h3 className="card-title" style={{ fontSize: "var(--fs-lg)" }}>{p.nome}</h3>
+                  <p className="text-sm text-2">{p.farm_name} · {p.farm_location}</p>
+                  <p className="text-sm"><strong>{culturaTexto(p)}</strong> · {TIPOS[p.tipo_producao]?.label || "Lavoura"} · {p.area_ha} ha · {p.safra}</p>
+                </div>
+                <Badge tone={p.aprovacao_status === "pendente" ? "warning" : "danger"}>{p.aprovacao_status === "pendente" ? "aguardando revisão" : "ajustes pedidos"}</Badge>
+              </div>
+              <dl className="kv" style={{ margin: "14px 0" }}>
+                <div><dt>{cicloLabels(p).inicio}</dt><dd>{fmtData(p.plantio_ate) || "—"}</dd></div>
+                <div><dt>{cicloLabels(p).fim}</dt><dd>{fmtData(p.colheita_prevista) || "—"}</dd></div>
+                <div><dt>Produção prevista</dt><dd>{fmtNumber(p.cotas_totais)} {unidadeNome(p.unidade, p.cotas_totais)}</dd></div>
+                <div><dt>Preço de venda estimado</dt><dd>{fmtBRL(p.preco_venda_estimado)} por {unidadeNome(p.unidade, 1)}</dd></div>
+                <div><dt>Captação inicial</dt><dd>{fmtBRL(p.cota_valor * p.cotas_totais)}</dd></div>
+                <div><dt>Retorno prometido</dt><dd>{p.previsao_retorno}%</dd></div>
+                <div className="total"><dt>Armazém garantidor</dt><dd>{p.warehouse_name ? `${p.warehouse_name}${p.warehouse_estrelas ? ` · ★ ${Number(p.warehouse_estrelas).toFixed(1)}` : ""} · ${p.custodia_status === "aceita" ? "custódia aceita" : p.custodia_status === "recusada" ? "recusou" : "aguardando aceite"}` : "nenhum"}</dd></div>
+              </dl>
+              {p.aprovacao_status === "rejeitado" && p.aprovacao_motivo && <Banner tone="error" style={{ marginBottom: 12 }}>Ajuste pedido: {p.aprovacao_motivo}</Banner>}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button variant="secondary" to={`/talhao/${p.id}`}>Ver página</Button>
+                <Button variant="danger-ghost" icon={X} onClick={() => rejectPlot(p)}>Pedir ajustes</Button>
+                <Button variant="success" icon={Check} onClick={() => approvePlot(p)} disabled={p.aprovacao_status !== "pendente" && p.aprovacao_status !== "rejeitado"}>Aprovar talhão</Button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
       {tab === "armazens" && (
         <div className="stack">
           <p className="text-sm text-2">Armazéns são os garantidores: validam plantio, colheita e armazenagem dos talhões. Confira o CNPJ e a estrutura antes de credenciar.</p>
@@ -293,7 +379,7 @@ export default function AdminDashboard() {
             <div key={w.id} className="list-item" style={{ flexWrap: "wrap" }}>
               <span className="thumb" style={{ background: "var(--success-soft)", color: "var(--success-text)" }}><WarehouseIcon size={22} aria-hidden /></span>
               <div className="list-item-body" style={{ minWidth: 200 }}>
-                <p className="list-item-title">{w.name}</p>
+                <p className="list-item-title" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{w.name} {w.estrelas > 0 && <Stars value={w.estrelas} size={13} />}</p>
                 <p className="list-item-sub">{w.location} · CNPJ {maskCNPJ(w.cnpj)}{w.capacidade_t ? ` · ${w.capacidade_t} t` : ""}</p>
                 <p className="list-item-sub">{w.responsavel} · {w.responsavel_email} · {w.custodias} custódia(s) ativas</p>
               </div>
@@ -345,13 +431,22 @@ export default function AdminDashboard() {
 
       {tab === "destaques" && (
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 20 }}>
-          <p style={{ fontSize: 12.5, color: COLORS.soil, fontWeight: 600, margin: "0 0 4px" }}>Catálogo de destaques da fazenda</p>
+          <p style={{ fontSize: 12.5, color: COLORS.soil, fontWeight: 600, margin: "0 0 4px" }}>Catálogo de pontuação das fazendas</p>
           <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
             Cada item que a fazenda marca no perfil dela vale esses pontos. A nota em estrelas exibida ao investidor é a soma dos pontos marcados dividida pelo total possível deste catálogo. Ajuste os pesos conforme o que for mais relevante para a plataforma.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {characteristics.map((c) => (
               <CharacteristicRow key={c.key} item={c} onSave={saveCharacteristicPoints} />
+            ))}
+          </div>
+          <p style={{ fontSize: 12.5, color: COLORS.soil, fontWeight: 600, margin: "28px 0 4px" }}>Catálogo de pontuação dos armazéns</p>
+          <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "0 0 16px", lineHeight: 1.5 }}>
+            Estrutura, tecnologia, segurança e certificações que o armazém marca no painel dele. A capacidade estática soma pontos sozinha: até 5 mil t = 1, a partir de 5 mil t = 2, 20 mil t = 3, 50 mil t = 4.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {warehouseCatalog.map((c) => (
+              <CharacteristicRow key={c.key} item={c} onSave={saveWarehousePoints} />
             ))}
           </div>
         </div>
@@ -467,7 +562,7 @@ function CommodityReferenceRow({ reference, onSave }) {
     <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ width: 32, height: 32, borderRadius: "50%", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <img src={GRAIN_ICONS[reference.grao]} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
+          <img src={culturaIcone(reference.grao)} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
         </span>
         <span style={{ fontSize: 14, fontWeight: 600, color: COLORS.soil }}>{reference.grao}</span>
       </div>

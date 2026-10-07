@@ -41,6 +41,13 @@ export const GRAIN_ICONS = {
 
 // cor de destaque de cada grão (barras de progresso e gráficos)
 export const GRAIN_COLORS = {
+  Café: "#7B4B2A",
+  Sorgo: "#A0522D",
+  "Bovinos de corte": "#8B5A2B",
+  "Bovinos de leite": "#6B8CAE",
+  Suínos: "#C97B84",
+  "Galinhas poedeiras": "#C9A227",
+  "Frango de corte": "#B96B07",
   Soja: "#668C2D",
   Milho: "#DD8209",
   Algodão: "#928270",
@@ -78,16 +85,12 @@ export const BACKGROUNDS = {
   green: "/bg-farm-green.svg",
 };
 
-export const UNIT_LABEL = { saca: "saca", fardo: "fardo", arroba: "arroba" };
+// nome no singular de cada unidade de venda (ver config/culturas.js)
+export const UNIT_LABEL = { saca: "saca", fardo: "fardo", arroba: "arroba", kg: "kg", tonelada: "tonelada", litro: "litro", duzia: "dúzia", caixa: "caixa", cabeca: "cabeça" };
 
 export const ROLE_LABEL = { admin: "Administração", fazenda: "Fazenda", investidor: "Investidor", armazem: "Armazém" };
 
-// custódia pelo armazém garantidor
-export const ETAPAS_CUSTODIA = [
-  { id: "plantio", label: "Plantio", descricao: "O armazém confirma que a lavoura foi plantada na área declarada." },
-  { id: "colheita", label: "Colheita", descricao: "O armazém confirma a colheita e a quantidade colhida." },
-  { id: "armazenagem", label: "Armazenagem", descricao: "O armazém confirma a quantidade recebida e guardada. Libera o pagamento." },
-];
+// fase mínima para cada validação do armazém (ver etapasDe em config/culturas.js)
 export const FASE_MINIMA_CUSTODIA = { plantio: 1, colheita: 5, armazenagem: 5 };
 
 // reexportados para compatibilidade com imports antigos

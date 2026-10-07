@@ -3,6 +3,9 @@ const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { getAppCommissionPct, setAppCommissionPct } = require("../settings");
+const { notifyUsers } = require("../notify");
+const { maybePublish, pendencias } = require("../publication");
+const { WAREHOUSE_STARS_SQL } = require("../custody");
 
 const router = express.Router();
 
@@ -31,6 +34,7 @@ router.get("/overview", asyncHandler(async (req, res) => {
   const investidores = (await pool.query("SELECT COUNT(*) as n FROM users WHERE role = 'investidor' AND deleted_at IS NULL")).rows[0].n;
   const armazensAtivos = (await pool.query("SELECT COUNT(*) as n FROM warehouses WHERE status = 'aprovado'")).rows[0].n;
   const armazensPendentes = (await pool.query("SELECT COUNT(*) as n FROM warehouses WHERE status = 'pendente'")).rows[0].n;
+  const talhoesParaAprovar = (await pool.query("SELECT COUNT(*) as n FROM plots WHERE aprovacao_status = 'pendente'")).rows[0].n;
   const talhoesGarantidos = (await pool.query("SELECT COUNT(*) as n FROM plots WHERE custodia_status = 'aceita' AND status IN ('captacao','em_andamento','aguardando_aprovacao')")).rows[0].n;
 
   res.json({
@@ -43,6 +47,7 @@ router.get("/overview", asyncHandler(async (req, res) => {
     armazensAtivos: Number(armazensAtivos),
     armazensPendentes: Number(armazensPendentes),
     talhoesGarantidos: Number(talhoesGarantidos),
+    talhoesParaAprovar: Number(talhoesParaAprovar),
   });
 }));
 
@@ -87,6 +92,59 @@ router.get("/transactions", asyncHandler(async (req, res) => {
       return acc;
     }, {}),
   });
+}));
+
+// ---------- aprovação de talhões ----------
+// Todo talhão novo (ou novo ciclo) passa pela administração antes de ir ao
+// ar. Junto com o aceite do armazém, evita talhão sem garantia na vitrine.
+router.get("/plot-approvals", asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT p.*, f.name AS farm_name, f.location AS farm_location, f.status AS farm_status,
+            w.name AS warehouse_name, ${WAREHOUSE_STARS_SQL} AS warehouse_estrelas
+     FROM plots p JOIN farms f ON f.id = p.farm_id LEFT JOIN warehouses w ON w.id = p.warehouse_id
+     WHERE p.aprovacao_status IN ('pendente', 'rejeitado') AND p.status = 'captacao'
+     ORDER BY (p.aprovacao_status = 'pendente') DESC, p.created_at DESC`
+  );
+  res.json({ plots: rows.map((p) => ({ ...p, pendencias: pendencias(p) })) });
+}));
+
+router.post("/plot-approvals/:id/approve", asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(
+    `UPDATE plots p SET aprovacao_status = 'aprovado', aprovacao_motivo = NULL, aprovacao_em = now()
+     FROM farms f WHERE p.id = $1 AND f.id = p.farm_id AND p.aprovacao_status IN ('pendente','rejeitado')
+     RETURNING p.*, f.owner_user_id, f.name AS farm_name`,
+    [req.params.id]
+  );
+  const plot = rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado ou já aprovado." });
+  const publicado = await maybePublish(plot.id);
+  if (!publicado) {
+    await notifyUsers(pool, [plot.owner_user_id], {
+      senderRole: "admin", farmId: plot.farm_id, plotId: plot.id, type: "talhao_aprovado",
+      title: `${plot.nome} aprovado pela administração`,
+      body: plot.custodia_status === "aceita" ? "O talhão já pode receber investimentos." : "Falta o armazém garantidor aceitar a custódia para o talhão ir ao ar.",
+    });
+  }
+  res.json({ ok: true, publicado });
+}));
+
+router.post("/plot-approvals/:id/reject", asyncHandler(async (req, res) => {
+  const motivo = String(req.body?.motivo || "").trim();
+  if (motivo.length < 5) return res.status(400).json({ error: "Explique o que a fazenda precisa corrigir." });
+  const { rows } = await pool.query(
+    `UPDATE plots p SET aprovacao_status = 'rejeitado', aprovacao_motivo = $2, aprovacao_em = now()
+     FROM farms f WHERE p.id = $1 AND f.id = p.farm_id AND p.publicado_em IS NULL
+     RETURNING p.*, f.owner_user_id`,
+    [req.params.id, motivo]
+  );
+  const plot = rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado ou já publicado." });
+  await notifyUsers(pool, [plot.owner_user_id], {
+    senderRole: "admin", farmId: plot.farm_id, plotId: plot.id, type: "talhao_rejeitado",
+    title: `${plot.nome} precisa de ajustes`,
+    body: `A administração não aprovou o talhão: ${motivo}. Exclua e cadastre de novo com os dados corrigidos, ou responda pelas Conversas.`,
+  });
+  res.json({ ok: true });
 }));
 
 module.exports = router;

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { MapPin, TrendingUp, Star } from "lucide-react";
-import { GRAIN_COLORS, GRAIN_ICONS, FASES, FASE_ICONS, UNIT_LABEL } from "../../config/theme";
+import { GRAIN_COLORS } from "../../config/theme";
+import { culturaIcone, faseNome, faseIcone, unidadeNome, cicloLabels, fmtData } from "../../config/culturas";
 import { fmtBRL } from "../../lib/format";
 import { ProgressBar } from "../ui";
 import { ShareButton } from "./ShareButton";
@@ -9,16 +10,18 @@ import { GuaranteeSeal } from "./Custody";
 export function GrainThumb({ grao, size = "md", round }) {
   return (
     <span className={`thumb ${size === "lg" ? "thumb--lg" : ""} ${round ? "thumb--round" : ""}`}>
-      <img src={GRAIN_ICONS[grao] || GRAIN_ICONS.Soja} alt="" />
+      <img src={culturaIcone(grao)} alt="" />
     </span>
   );
 }
 
 export function PlotCard({ plot }) {
-  const color = GRAIN_COLORS[plot.grao] || GRAIN_COLORS.Soja;
+  const color = GRAIN_COLORS[plot.grao] || "#668C2D";
   const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
   const pctVendido = plot.cotas_totais ? Math.round((vendidas / plot.cotas_totais) * 100) : 0;
-  const unidade = UNIT_LABEL[plot.unidade] || "cota";
+  const unidade = unidadeNome(plot.unidade, 1);
+  const unidades = unidadeNome(plot.unidade, 2);
+  const icone = faseIcone(plot, plot.fase_atual);
 
   return (
     <article style={{ position: "relative", height: "100%" }}>
@@ -26,12 +29,14 @@ export function PlotCard({ plot }) {
         <div className="plot-card-head">
           <GrainThumb grao={plot.grao} size="lg" />
           <div className="plot-card-grain">
-            <strong>{plot.grao}</strong>
-            <span>Safra {plot.safra}</span>
+            <strong className="truncate" style={{ display: "block" }}>{plot.grao}</strong>
+            <span className="truncate" style={{ display: "block" }}>{plot.variedade ? `${plot.variedade} · ` : ""}{plot.safra}</span>
           </div>
-          <span className="thumb thumb--round" title={FASES[plot.fase_atual]} style={{ width: 36, height: 36, background: "#fff" }}>
-            <img src={FASE_ICONS[plot.fase_atual]} alt="" style={{ width: 24, height: 24 }} />
-          </span>
+          {icone && (
+            <span className="thumb thumb--round" title={faseNome(plot, plot.fase_atual)} style={{ width: 36, height: 36, background: "#fff" }}>
+              <img src={icone} alt="" style={{ width: 24, height: 24 }} />
+            </span>
+          )}
           {/* espaço reservado para o botão de compartilhar (fica fora do link) */}
           <span style={{ width: 44 }} aria-hidden />
         </div>
@@ -52,8 +57,8 @@ export function PlotCard({ plot }) {
 
           <div>
             <div className="plot-card-phase">
-              <span>{FASES[plot.fase_atual]}</span>
-              <span>{plot.progresso}% da safra</span>
+              <span>{faseNome(plot, plot.fase_atual)}</span>
+              <span>{plot.progresso}%</span>
             </div>
             <ProgressBar value={plot.progresso} color={color} label="Andamento da safra" />
           </div>
@@ -69,8 +74,8 @@ export function PlotCard({ plot }) {
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <p className="label-xs">{pctVendido}% das {unidade}s já captadas</p>
-            {plot.custodia_status === "aceita" && plot.warehouse_name && <GuaranteeSeal name={plot.warehouse_name} compact />}
+            <p className="label-xs">{pctVendido}% das {unidades} já captadas{plot.colheita_prevista ? ` · ${cicloLabels(plot).fim.toLowerCase()}: ${fmtData(plot.colheita_prevista, { month: "short", year: "numeric" })}` : ""}</p>
+            {plot.custodia_status === "aceita" && plot.warehouse_name && <GuaranteeSeal name={plot.warehouse_name} estrelas={plot.warehouse_estrelas} compact />}
           </div>
         </div>
       </Link>

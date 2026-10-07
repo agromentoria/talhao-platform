@@ -7,6 +7,8 @@ const { requireAuth } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { onlyDigits, isValidCPF, isValidCNPJ } = require("../validators");
 
+const { getInvestorLevel } = require("../investorLevel");
+
 const router = express.Router();
 
 const loginLimiter = rateLimit({
@@ -134,12 +136,14 @@ router.post("/login", loginLimiter, asyncHandler(async (req, res) => {
   }
 
   const token = signToken(user);
+  if (user.role === "investidor") user.nivel = await getInvestorLevel(pool, user.id);
   res.json({ token, user: publicUser(user) });
 }));
 
 router.get("/me", requireAuth, asyncHandler(async (req, res) => {
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL", [req.user.id]);
   if (!rows.length) return res.status(401).json({ error: "Conta não encontrada. Faça login novamente." });
+  if (rows[0].role === "investidor") rows[0].nivel = await getInvestorLevel(pool, rows[0].id);
   res.json({ user: publicUser(rows[0]) });
 }));
 

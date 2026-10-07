@@ -1,4 +1,4 @@
-import { UNIT_LABEL } from "../config/theme";
+import { UNIDADES } from "../config/culturas";
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
 const num = new Intl.NumberFormat("pt-BR");
@@ -12,8 +12,8 @@ export function fmtNumber(n) {
 }
 
 export function unitPlural(unidade, n) {
-  const label = UNIT_LABEL[unidade] || "cota";
-  return n === 1 ? label : `${label}s`;
+  const u = UNIDADES[unidade] || { singular: "cota", plural: "cotas" };
+  return n === 1 ? u.singular : u.plural;
 }
 
 export function fmtDateTime(dateStr, { withYear = true } = {}) {

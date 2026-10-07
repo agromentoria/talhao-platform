@@ -44,8 +44,8 @@ async function upsertPlot(farmId, nome, grao, area, safra, retorno) {
   const disponiveis = Math.round(cotasTotais * 0.7);
 
   const { rows } = await pool.query(
-    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+    `INSERT INTO plots (farm_id, nome, grao, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado, aprovacao_status, publicado_em)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'aprovado', now()) RETURNING *`,
     [farmId, nome, grao, area, safra, cotaValor, cotasTotais, disponiveis, retorno, unidade, precoVendaEstimado]
   );
   return rows[0];

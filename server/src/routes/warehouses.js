@@ -4,7 +4,9 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers, getPlotInvestorIds } = require("../notify");
 const { validatePhotoData } = require("../validators");
-const { ETAPAS, ETAPA_LABEL, ETAPA_ARTIGO, ETAPA_CONFIRMADA, FASE_MINIMA, getValidations } = require("../custody");
+const { ETAPAS, FASE_MINIMA, etapaLabel, getValidations, getWarehouseCharacteristics, WAREHOUSE_STARS_SQL } = require("../custody");
+const { fasesDe, unidadeTexto } = require("../culturas");
+const { maybePublish } = require("../publication");
 const { fmtNumber } = require("../format");
 
 const router = express.Router();
@@ -14,8 +16,7 @@ async function safeNotify(ids, payload) {
   try { await notifyUsers(pool, ids, payload); } catch (err) { console.error("[aviso não enviado]", err.message); }
 }
 
-const UNIT = { saca: ["saca", "sacas"], fardo: ["fardo", "fardos"], arroba: ["arroba", "arrobas"] };
-const unidade = (u, n) => (UNIT[u] || ["unidade", "unidades"])[n === 1 ? 0 : 1];
+const unidade = (u, n) => unidadeTexto(u, n);
 
 async function myWarehouse(req) {
   if (!req.user.warehouse_id) return null;
@@ -26,7 +27,8 @@ async function myWarehouse(req) {
 // ---------- fazenda/admin: armazéns credenciados para escolher ----------
 router.get("/approved", requireAuth, asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT id, name, cnpj, location, capacidade_t FROM warehouses WHERE status = 'aprovado' ORDER BY name"
+    `SELECT w.id, w.name, w.cnpj, w.location, w.capacidade_t, ${WAREHOUSE_STARS_SQL} AS estrelas
+     FROM warehouses w WHERE w.status = 'aprovado' ORDER BY estrelas DESC NULLS LAST, w.name`
   );
   res.json({ warehouses: rows });
 }));
@@ -36,8 +38,12 @@ router.get("/mine", requireAuth, requireRole("armazem"), asyncHandler(async (req
   const warehouse = await myWarehouse(req);
   if (!warehouse) return res.status(404).json({ error: "Armazém não encontrado para esta conta." });
 
+  const { rows: est } = await pool.query(`SELECT ${WAREHOUSE_STARS_SQL} AS estrelas FROM warehouses w WHERE w.id = $1`, [warehouse.id]);
+  warehouse.estrelas = est[0].estrelas;
+  warehouse.caracteristicas = (await getWarehouseCharacteristics(pool, warehouse.id)).map((c) => c.key);
+
   const { rows: plots } = await pool.query(
-    `SELECT p.id, p.nome, p.grao, p.safra, p.area_ha, p.unidade, p.fase_atual, p.progresso, p.status,
+    `SELECT p.id, p.nome, p.grao, p.variedade, p.tipo_producao, p.plantio_ate, p.colheita_prevista, p.aprovacao_status, p.safra, p.area_ha, p.unidade, p.fase_atual, p.progresso, p.status,
             p.cotas_totais, p.cotas_disponiveis, p.custodia_status, p.custodia_motivo, p.custodia_em, p.created_at,
             f.id AS farm_id, f.name AS farm_name, f.location AS farm_location, f.owner_user_id AS farm_user_id
      FROM plots p JOIN farms f ON f.id = p.farm_id
@@ -61,6 +67,45 @@ router.patch("/mine", requireAuth, requireRole("armazem"), asyncHandler(async (r
     [String(name).trim(), location, cap, descricao ? String(descricao).slice(0, 2000) : null, warehouse.id]
   );
   res.json({ warehouse: rows[0] });
+}));
+
+// ---------- pontuação: catálogo e itens marcados pelo armazém ----------
+router.get("/characteristics/catalog", asyncHandler(async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM warehouse_characteristics_catalog ORDER BY categoria, label");
+  res.json({ catalog: rows, capacidade: [
+    { minimo: 50000, pontos: 4 }, { minimo: 20000, pontos: 3 }, { minimo: 5000, pontos: 2 }, { minimo: 1, pontos: 1 },
+  ] });
+}));
+
+router.put("/mine/characteristics", requireAuth, requireRole("armazem"), asyncHandler(async (req, res) => {
+  const warehouse = await myWarehouse(req);
+  if (!warehouse) return res.status(404).json({ error: "Armazém não encontrado." });
+  const keys = Array.isArray(req.body?.keys) ? req.body.keys.map(String) : [];
+  const { rows: valid } = await pool.query("SELECT key FROM warehouse_characteristics_catalog WHERE key = ANY($1)", [keys]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM warehouse_characteristics WHERE warehouse_id = $1", [warehouse.id]);
+    for (const { key } of valid) {
+      await client.query("INSERT INTO warehouse_characteristics (warehouse_id, characteristic_key) VALUES ($1, $2)", [warehouse.id, key]);
+    }
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+  const { rows } = await pool.query(`SELECT ${WAREHOUSE_STARS_SQL} AS estrelas FROM warehouses w WHERE w.id = $1`, [warehouse.id]);
+  res.json({ keys: valid.map((v) => v.key), estrelas: rows[0].estrelas });
+}));
+
+router.put("/characteristics/:key", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
+  const p = Number(req.body?.pontos);
+  if (Number.isNaN(p) || p < 0 || p > 10) return res.status(400).json({ error: "Pontos devem ser um número entre 0 e 10." });
+  const { rows } = await pool.query("UPDATE warehouse_characteristics_catalog SET pontos = $1 WHERE key = $2 RETURNING *", [p, req.params.key]);
+  if (!rows.length) return res.status(404).json({ error: "Item não encontrado." });
+  res.json({ item: rows[0] });
 }));
 
 // ---------- armazém: aceitar ou recusar a custódia de um talhão ----------
@@ -100,6 +145,8 @@ router.post("/plots/:plotId/custody", requireAuth, requireRole("armazem"), async
       : `${warehouse.name} recusou a custódia de ${plot.nome}: ${String(motivo).trim()}. Escolha outro armazém no painel da fazenda.`,
   });
   if (status === "aceita") {
+    // aprovado pela administração + custódia aceita = talhão vai ao ar
+    await maybePublish(plot.id);
     const investors = await getPlotInvestorIds(pool, plot.id);
     await safeNotify(investors, {
       senderRole: "armazem", farmId: plot.farm_id, plotId: plot.id, type: "custodia_armazem",
@@ -137,7 +184,7 @@ router.post("/plots/:plotId/validations", requireAuth, requireRole("armazem"), a
   if (plot.custodia_status !== "aceita") return res.status(409).json({ error: "Aceite a custódia antes de validar etapas." });
   if (["pago", "arquivado"].includes(plot.status)) return res.status(409).json({ error: "Este talhão já foi encerrado." });
   if (plot.fase_atual < FASE_MINIMA[etapa]) {
-    return res.status(409).json({ error: `A fazenda ainda não registrou a fase de ${etapa === "plantio" ? "plantio" : "colheita"} neste talhão.` });
+    return res.status(409).json({ error: `A fazenda ainda não registrou a fase "${fasesDe(plot)[FASE_MINIMA[etapa]]}" neste talhão.` });
   }
 
   let qtd = null;
@@ -147,7 +194,7 @@ router.post("/plots/:plotId/validations", requireAuth, requireRole("armazem"), a
       if (Number.isNaN(qtd) || qtd < 0) return res.status(400).json({ error: "Quantidade inválida." });
     }
     if (etapa === "armazenagem" && qtd === null) {
-      return res.status(400).json({ error: `Informe a quantidade armazenada em ${unidade(plot.unidade, 2)}.` });
+      return res.status(400).json({ error: `Informe a quantidade em ${unidade(plot.unidade, 2)}.` });
     }
   }
   if (etapa === "armazenagem") {
@@ -166,10 +213,11 @@ router.post("/plots/:plotId/validations", requireAuth, requireRole("armazem"), a
   const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
   const qtdTexto = qtd !== null ? ` ${fmtNumber(qtd)} ${unidade(plot.unidade, qtd)}` : "";
   const ok = resultado === "confirmado";
-  const title = ok ? `${ETAPA_CONFIRMADA[etapa]} pelo armazém` : `Divergência: ${ETAPA_LABEL[etapa].toLowerCase()} de ${plot.nome}`;
+  const label = etapaLabel(plot, etapa);
+  const title = ok ? `Armazém validou: ${label.toLowerCase()}` : `Divergência em ${label.toLowerCase()} · ${plot.nome}`;
   let body = ok
-    ? `${warehouse.name} confirmou ${ETAPA_ARTIGO[etapa]} de ${plot.nome}.${etapa !== "plantio" && qtd !== null ? ` Quantidade:${qtdTexto}.` : ""}`
-    : `${warehouse.name} registrou divergência n${ETAPA_ARTIGO[etapa]} de ${plot.nome}: ${String(observacao).trim()}`;
+    ? `${warehouse.name} confirmou a etapa "${label}" de ${plot.nome}.${etapa !== "plantio" && qtd !== null ? ` Quantidade:${qtdTexto}.` : ""}`
+    : `${warehouse.name} registrou divergência na etapa "${label}" de ${plot.nome}: ${String(observacao).trim()}`;
   if (etapa === "armazenagem" && qtd !== null && qtd < vendidas) {
     body += ` Atenção: abaixo das ${fmtNumber(vendidas)} ${unidade(plot.unidade, vendidas)} vendidas aos investidores.`;
   }
@@ -185,7 +233,7 @@ router.post("/plots/:plotId/validations", requireAuth, requireRole("armazem"), a
 // ---------- administração ----------
 router.get("/", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT w.*, u.name AS responsavel, u.email AS responsavel_email,
+    `SELECT w.*, u.name AS responsavel, u.email AS responsavel_email, ${WAREHOUSE_STARS_SQL} AS estrelas,
             (SELECT COUNT(*)::int FROM plots p WHERE p.warehouse_id = w.id AND p.custodia_status = 'aceita') AS custodias
      FROM warehouses w LEFT JOIN users u ON u.id = w.owner_user_id
      ORDER BY (w.status = 'pendente') DESC, w.created_at DESC`

@@ -112,6 +112,12 @@ async function start() {
   app.use("/api/fase-pricing", fasePricingRoutes);
   app.use("/api/farm-characteristics", farmCharacteristicsRoutes);
   app.use("/api/warehouses", warehouseRoutes);
+  // catálogo de culturas, variedades, unidades e fases (fonte única do app)
+  app.get("/api/culturas", (req, res) => {
+    const { CULTURAS, TIPOS, UNIDADES } = require("./culturas");
+    res.set("Cache-Control", "public, max-age=3600");
+    res.json({ culturas: CULTURAS, tipos: TIPOS, unidades: UNIDADES });
+  });
 
   app.use((err, req, res, next) => {
     console.error(err);

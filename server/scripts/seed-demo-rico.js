@@ -91,13 +91,41 @@ async function main() {
   }
   console.log("[seed-rico] 6 investidores prontos");
 
+  // ---------- armazém garantidor ----------
+  // todo talhão novo precisa de um armazém credenciado que aceite a custódia
+  const whOwner = await registerOrLogin({
+    name: "Roberto Lima", email: "armazem@demo.com", password: "senha12345", role: "armazem",
+    warehouseName: "Armazéns Gerais Sudoeste", warehouseCnpj: "11.444.777/0001-61", warehouseLocation: "Rio Verde, GO",
+  });
+  const whToken = whOwner.token;
+  const whId = whOwner.user.warehouse_id || (await call("GET", "/auth/me", whToken)).user.warehouse_id;
+  await call("PATCH", `/warehouses/${whId}/status`, adminToken, { status: "aprovado" });
+  await call("PATCH", "/warehouses/mine", whToken, {
+    name: "Armazéns Gerais Sudoeste", location: "Rio Verde, GO", capacidade_t: 48000,
+    descricao: "Complexo com 6 silos metálicos, balança rodoviária e laboratório de classificação.",
+  });
+  await call("PUT", "/warehouses/mine/characteristics", whToken, {
+    keys: ["silo_metalico", "balanca_rodoviaria", "secador", "termometria", "aeracao_automatica", "laboratorio", "monitoramento_cftv", "seguro_estoque", "certificado_mapa", "armazem_geral"],
+  });
+  console.log("[seed-rico] armazém credenciado: Armazéns Gerais Sudoeste (armazem@demo.com)");
+
+  const VARIEDADE = { Soja: "Intacta RR2 PRO", Milho: "Grão amarelo (comum)", Trigo: "Pão", Algodão: "Pluma convencional", Arroz: "Agulhinha (longo fino)", Feijão: "Carioca" };
+  function ciclo(safra) {
+    const ano = Number(String(safra).slice(0, 4));
+    return { plantio_ate: `${ano}-11-30`, colheita_prevista: `${ano + 1}-04-15` };
+  }
+
   // ---------- talhões ----------
   // cada talhão nasce na fase 0; usamos /progress pra avançar antes de cada
   // rodada de compras, simulando o avanço real da safra ao longo do tempo
   async function createPlot(farmId, farmToken, nome, grao, area, safra, previsaoRetorno) {
     const data = await call("POST", "/plots", farmToken, {
       farm_id: farmId, nome, grao, area_ha: area, safra, previsao_retorno: previsaoRetorno,
+      variedade: VARIEDADE[grao] || "Convencional", ...ciclo(safra), warehouse_id: whId,
     });
+    // armazém aceita a custódia e a administração aprova → talhão vai ao ar
+    await call("POST", `/warehouses/plots/${data.plot.id}/custody`, whToken, { decisao: "aceitar" });
+    await call("POST", `/admin/plot-approvals/${data.plot.id}/approve`, adminToken);
     return data.plot;
   }
   async function advance(farmToken, plotId, fase, progresso, nota) {
@@ -107,6 +135,14 @@ async function main() {
     return call("POST", "/investments", token, { plot_id: plotId, cotas, payment_method_type: "pix" });
   }
   async function finalize(farmToken, plotId, retornoFinal, comprovanteTexto) {
+    // 0) armazém valida colheita e armazenagem (exigido para liberar o pagamento)
+    const { plot: p } = await call("GET", `/plots/${plotId}`);
+    for (const etapa of ["plantio", "colheita", "armazenagem"]) {
+      await call("POST", `/warehouses/plots/${plotId}/validations`, whToken, {
+        etapa, resultado: "confirmado", quantidade: etapa === "plantio" ? null : p.cotas_totais,
+        observacao: etapa === "armazenagem" ? "Romaneios conferidos na balança do armazém." : undefined,
+      });
+    }
     // 1) fazenda solicita a finalização com o comprovante da colheita
     await call("POST", `/plots/${plotId}/finalize`, farmToken, {
       retorno_final: retornoFinal,

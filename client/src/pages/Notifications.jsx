@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Warehouse, ShieldCheck, Megaphone, CheckCircle2, TrendingUp, Wallet, Receipt, ClipboardCheck, XCircle, ChevronRight, Send } from "lucide-react";
-import { ICONS, GRAIN_ICONS } from "../config/theme";
+import { ICONS } from "../config/theme";
+import { culturaIcone } from "../config/culturas";
 import { timeAgo } from "../lib/format";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -19,6 +20,10 @@ const TYPE_ICON = {
   solicitacao_colheita: ClipboardCheck,
   solicitacao_rejeitada: XCircle,
   custodia_armazem: ShieldCheck,
+  talhao_para_aprovar: ClipboardCheck,
+  talhao_aprovado: CheckCircle2,
+  talhao_publicado: CheckCircle2,
+  talhao_rejeitado: XCircle,
   validacao_armazem: ShieldCheck,
   indicacao_armazem: Warehouse,
   status_armazem: Warehouse,
@@ -28,7 +33,7 @@ const CATEGORY_FILTERS = [
   { id: "todos", label: "Todos", match: () => true },
   { id: "nao_lidos", label: "Não lidos", match: (n) => !n.read_at },
   { id: "financeiro", label: "Financeiro", match: (n) => ["compra_confirmada", "novo_investimento", "pagamento_recebido", "repasse_recebido", "transacao_admin"].includes(n.type) },
-  { id: "talhoes", label: "Talhões", match: (n) => ["novo_talhao", "atualizacao_safra", "lembrete_fase", "solicitacao_colheita", "solicitacao_rejeitada", "indicacao_armazem"].includes(n.type) },
+  { id: "talhoes", label: "Talhões", match: (n) => ["novo_talhao", "atualizacao_safra", "lembrete_fase", "solicitacao_colheita", "solicitacao_rejeitada", "indicacao_armazem", "talhao_para_aprovar", "talhao_aprovado", "talhao_publicado", "talhao_rejeitado"].includes(n.type) },
   { id: "armazem", label: "Armazém", match: (n) => ["custodia_armazem", "validacao_armazem", "indicacao_armazem", "status_armazem"].includes(n.type) },
   { id: "avisos", label: "Comunicados", match: (n) => ["aviso_fazenda", "aviso_admin"].includes(n.type) },
 ];
@@ -106,7 +111,7 @@ export default function Notifications() {
       ) : (
         <ul className="list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {filtered.map((n) => {
-            const grainIcon = (n.type === "novo_talhao" || n.type === "atualizacao_safra") && n.plot_grao ? GRAIN_ICONS[n.plot_grao] : null;
+            const grainIcon = (n.type === "novo_talhao" || n.type === "atualizacao_safra") && n.plot_grao ? culturaIcone(n.plot_grao) : null;
             const imageIcon = grainIcon || (typeof TYPE_ICON[n.type] === "string" ? TYPE_ICON[n.type] : null);
             const Icon = !imageIcon ? TYPE_ICON[n.type] || Megaphone : null;
             const isUnread = !n.read_at;

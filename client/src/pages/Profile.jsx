@@ -13,6 +13,7 @@ import {
 import { Page, PageHeader } from "../components/layout/Page";
 import { Avatar } from "../components/layout/AppShell";
 import { Button, ErrorBanner, Loading, Segmented, TextField, SelectField, Tabs, Dialog, useDialog, useToast } from "../components/ui";
+import { InvestorLevelBadge, InvestorLevelCard } from "../components/domain";
 
 const TABS = [
   { id: "conta", label: "Conta" },
@@ -76,8 +77,10 @@ export default function Profile() {
         <div style={{ minWidth: 0 }}>
           <p style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--fs-xl)", lineHeight: 1.2 }} className="truncate">{user.name}</p>
           <p className="text-sm text-2 truncate">{user.email}</p>
+          {user.nivel && <div style={{ marginTop: 6 }}><InvestorLevelBadge nivel={user.nivel} /></div>}
         </div>
       </div>
+      {user.nivel && tab === "conta" && <div style={{ marginBottom: 20 }}><InvestorLevelCard nivel={user.nivel} /></div>}
       <ErrorBanner message={avatarError} />
 
       <Tabs label="Seções do perfil" tabs={TABS} value={tab} onChange={setTab} />

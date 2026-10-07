@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { UserRound, Plus, Warehouse, ShieldCheck } from "lucide-react";
-import { ICONS, GRAIN_ICONS } from "../config/theme";
+import { ICONS } from "../config/theme";
+import { culturaIcone } from "../config/culturas";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
@@ -90,7 +91,7 @@ export default function Conversations() {
                   <span style={{ display: "flex" }} aria-hidden>
                     {(c.graos || []).slice(0, 2).map((g, i) => (
                       <span key={g} className="thumb thumb--round" style={{ width: 26, height: 26, marginLeft: i ? -8 : 0, border: "1px solid var(--border)" }}>
-                        <img src={GRAIN_ICONS[g]} alt="" style={{ width: 16, height: 16 }} />
+                        <img src={culturaIcone(g)} alt="" style={{ width: 16, height: 16 }} />
                       </span>
                     ))}
                   </span>

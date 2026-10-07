@@ -8,6 +8,13 @@ próprio ao lado do site institucional.
 
 - **Cadastro e login** com 4 tipos de conta: **administrador** (mediador da
   plataforma), **fazenda**, **investidor** e **armazém** (garantidor).
+- **Culturas e ciclo**: a fazenda escolhe cultura e variedade (grãos, café,
+  algodão, pecuária, aves, ou digita outra), unidade de venda, prazo do
+  plantio e data prevista da colheita. Catálogo em `server/src/culturas.js`.
+- **Aprovação de talhões**: todo talhão novo passa pela administração e
+  precisa de armazém garantidor antes de aparecer para os investidores.
+- **Nível do investidor** (Iniciante, Intermediário, Profissional) e **nota
+  dos armazéns** em estrelas. Faixas em `server/src/investorLevel.js`.
 - **Armazéns garantidores**: a fazenda indica um armazém credenciado ao
   publicar o talhão; o armazém aceita a custódia e valida, de forma
   independente, o **plantio**, a **colheita** e a **quantidade armazenada**.

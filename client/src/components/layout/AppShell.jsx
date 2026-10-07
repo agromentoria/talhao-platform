@@ -5,6 +5,7 @@ import { getNavigation } from "../../config/navigation";
 import { ROLE_LABEL } from "../../config/theme";
 import { firstName } from "../../lib/format";
 import { IconButton, Button, useDialog } from "../ui";
+import { InvestorLevelBadge } from "../domain/InvestorLevel";
 import { usePageMetaState, useBack } from "./PageMeta";
 
 function useBadges() {
@@ -180,7 +181,7 @@ function Sidebar() {
               <Avatar user={user} size={40} />
               <span style={{ minWidth: 0 }}>
                 <span className="sidebar-user-name truncate" style={{ display: "block" }}>{firstName(user.name)}</span>
-                <span className="sidebar-user-role">{ROLE_LABEL[user.role]}</span>
+                {user.nivel ? <InvestorLevelBadge nivel={user.nivel} size="sm" /> : <span className="sidebar-user-role">{ROLE_LABEL[user.role]}</span>}
               </span>
             </Link>
             <Button variant="on-dark" icon={LogOut} onClick={handleLogout}>Sair</Button>

@@ -14,7 +14,7 @@ router.use(requireAuth, requireRole("admin"));
 router.get("/", asyncHandler(async (req, res) => {
   const { status } = req.query;
   let sql = `
-    SELECT hr.*, p.nome as plot_nome, p.grao, p.unidade, p.previsao_retorno, p.fase_atual,
+    SELECT hr.*, p.nome as plot_nome, p.grao, p.variedade, p.tipo_producao, p.unidade, p.previsao_retorno, p.fase_atual,
            p.cotas_totais, p.cotas_disponiveis, p.custodia_status,
            f.name as farm_name, f.location as farm_location, f.commission_pct,
            u.name as solicitado_por,

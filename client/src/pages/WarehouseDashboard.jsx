@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Warehouse, ShieldCheck, Check, X, ClipboardCheck, Inbox, PackageCheck, Pencil, Camera, MapPin } from "lucide-react";
-import { FASES, ETAPAS_CUSTODIA, FASE_MINIMA_CUSTODIA } from "../config/theme";
+import { FASE_MINIMA_CUSTODIA } from "../config/theme";
+import { fasesDe, etapasDe, culturaTexto, cicloLabels, fmtData } from "../config/culturas";
 import { fmtNumber, unitPlural } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { readImageFile } from "../lib/files";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, Banner, ErrorBanner, Loading, EmptyState, Tabs, Dialog, Segmented, TextField, TextAreaField, ProgressBar, useDialog, useToast } from "../components/ui";
-import { GrainThumb, CityStateSelect, CustodyTimeline, CustodyStatusBadge } from "../components/domain";
+import { GrainThumb, CityStateSelect, CustodyTimeline, CustodyStatusBadge, Stars } from "../components/domain";
 import { Stat } from "./Portfolio";
 
 const TABS = [
@@ -28,6 +29,7 @@ export default function WarehouseDashboard() {
   const [tab, setTab] = useState("pedidos");
   const [validating, setValidating] = useState(null); // { plot, etapa }
   const [editing, setEditing] = useState(false);
+  const [scoring, setScoring] = useState(false);
   const firstLoad = useRef(true);
 
   const load = useCallback(() => {
@@ -101,6 +103,14 @@ export default function WarehouseDashboard() {
       )}
       <ErrorBanner message={error} />
 
+      <section className="card" style={{ marginBottom: 16, display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }} aria-label="Pontuação do armazém">
+        <div>
+          <p className="card-title" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>Pontuação do armazém <Stars value={warehouse.estrelas || 0} /></p>
+          <p className="card-desc">Fazendas e investidores veem esta nota. Ela soma estrutura, tecnologia, segurança, certificações e capacidade.</p>
+        </div>
+        <Button variant="secondary" icon={ShieldCheck} onClick={() => setScoring(true)}>Atualizar estrutura</Button>
+      </section>
+
       <div className="grid-stats" style={{ marginBottom: 24 }}>
         <Stat label="Pedidos de custódia" value={counts.pedidos} icon={Inbox} />
         <Stat label="Em acompanhamento" value={counts.acompanhamento} icon={ClipboardCheck} />
@@ -129,7 +139,9 @@ export default function WarehouseDashboard() {
         onClose={() => setValidating(null)}
         onSaved={() => { setValidating(null); toast("Validação registrada"); load(); }}
       />
-      <WarehouseEditDialog open={editing} warehouse={warehouse} onClose={() => setEditing(false)} onSaved={(w) => { setWarehouse(w); setEditing(false); toast("Dados do armazém salvos"); }} />
+      <WarehouseScoreDialog open={scoring} selected={warehouse.caracteristicas || []} onClose={() => setScoring(false)}
+        onSaved={(r) => { setWarehouse((w) => ({ ...w, caracteristicas: r.keys, estrelas: r.estrelas })); setScoring(false); toast("Pontuação atualizada"); }} />
+      <WarehouseEditDialog open={editing} warehouse={warehouse} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); toast("Dados do armazém salvos"); load(); }} />
     </Page>
   );
 }
@@ -138,7 +150,7 @@ function WarehousePlotCard({ plot, canAct, onDecide, onValidate }) {
   const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
   const byEtapa = Object.fromEntries((plot.validacoes || []).map((v) => [v.etapa, v]));
   // próxima etapa a validar: a primeira ainda não confirmada
-  const next = ETAPAS_CUSTODIA.find((e) => byEtapa[e.id]?.resultado !== "confirmado");
+  const next = etapasDe(plot).find((e) => byEtapa[e.id]?.resultado !== "confirmado");
   const liberada = next && plot.fase_atual >= FASE_MINIMA_CUSTODIA[next.id] && (next.id !== "armazenagem" || byEtapa.colheita);
   const encerrado = plot.status === "pago";
 
@@ -147,12 +159,12 @@ function WarehousePlotCard({ plot, canAct, onDecide, onValidate }) {
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
         <GrainThumb grao={plot.grao} size="lg" />
         <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-          <h3 id={`wp-${plot.id}`} className="card-title" style={{ fontSize: "var(--fs-lg)" }}>{plot.nome} · {plot.grao}</h3>
+          <h3 id={`wp-${plot.id}`} className="card-title" style={{ fontSize: "var(--fs-lg)" }}>{plot.nome} · {culturaTexto(plot)}</h3>
           <p className="text-sm text-2" style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
             <MapPin size={13} aria-hidden /> {plot.farm_name}, {plot.farm_location}
           </p>
           <p className="text-sm text-2">
-            {fmtNumber(plot.area_ha)} ha · safra {plot.safra} · {fmtNumber(plot.cotas_totais)} {unitPlural(plot.unidade, plot.cotas_totais)} declaradas · {fmtNumber(vendidas)} vendidas
+            {plot.colheita_prevista ? `${cicloLabels(plot).fim}: ${fmtData(plot.colheita_prevista)} · ` : ""}{fmtNumber(plot.area_ha)} ha · {plot.safra} · {fmtNumber(plot.cotas_totais)} {unitPlural(plot.unidade, plot.cotas_totais)} declaradas · {fmtNumber(vendidas)} vendidas
           </p>
         </div>
         <CustodyStatusBadge status={plot.custodia_status} />
@@ -177,21 +189,21 @@ function WarehousePlotCard({ plot, canAct, onDecide, onValidate }) {
       {plot.custodia_status === "aceita" && (
         <>
           <div style={{ margin: "16px 0 6px", display: "flex", justifyContent: "space-between", fontSize: "var(--fs-sm)" }} className="text-2">
-            <span>Fase informada pela fazenda: <strong style={{ color: "var(--text)" }}>{FASES[plot.fase_atual]}</strong></span>
+            <span>Fase informada pela fazenda: <strong style={{ color: "var(--text)" }}>{fasesDe(plot)[plot.fase_atual]}</strong></span>
             <span>{plot.progresso}%</span>
           </div>
           <ProgressBar value={plot.progresso} label="Andamento da safra" />
           <div style={{ marginTop: 18 }}>
-            <CustodyTimeline validacoes={plot.validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
+            <CustodyTimeline plot={plot} validacoes={plot.validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
           </div>
           {!encerrado && next && (
             <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
               <Button icon={ShieldCheck} onClick={() => onValidate(next.id)} disabled={!liberada || !canAct}>
-                {byEtapa[next.id] ? `Refazer validação: ${next.label.toLowerCase()}` : `Validar ${next.label.toLowerCase()}`}
+                {byEtapa[next.id] ? `Refazer validação: ${next.label.toLowerCase()}` : `Validar: ${next.label.toLowerCase()}`}
               </Button>
               {!liberada && (
                 <span className="text-sm text-2">
-                  Disponível quando a fazenda registrar a fase “{FASES[FASE_MINIMA_CUSTODIA[next.id]]}”.
+                  Disponível quando a fazenda registrar a fase “{fasesDe(plot)[FASE_MINIMA_CUSTODIA[next.id]]}”.
                 </span>
               )}
             </div>
@@ -223,7 +235,7 @@ function ValidationDialog({ target, onClose, onSaved }) {
 
   if (!target) return null;
   const { plot, etapa } = target;
-  const info = ETAPAS_CUSTODIA.find((e) => e.id === etapa);
+  const info = etapasDe(plot).find((e) => e.id === etapa);
   const unidades = unitPlural(plot.unidade, 2);
 
   async function onFoto(e) {
@@ -248,7 +260,7 @@ function ValidationDialog({ target, onClose, onSaved }) {
   }
 
   return (
-    <Dialog open onClose={onClose} title={`Validar ${info.label.toLowerCase()}`} width={560}>
+    <Dialog open onClose={onClose} title={`Validar: ${info.label.toLowerCase()}`} width={560}>
       <form onSubmit={submit} className="stack">
         <p>{plot.nome} · {plot.farm_name}. {info.descricao}</p>
         <ErrorBanner message={error} />
@@ -256,7 +268,7 @@ function ValidationDialog({ target, onClose, onSaved }) {
           options={[{ id: "confirmado", label: "Confere" }, { id: "divergente", label: "Divergência" }]} />
         {etapa !== "plantio" && (
           <TextField
-            label={etapa === "armazenagem" ? `Quantidade armazenada (${unidades})` : `Quantidade colhida (${unidades})`}
+            label={etapa === "armazenagem" ? `Quantidade recebida e guardada (${unidades})` : `Quantidade (${unidades})`}
             hint={`Declarado pela fazenda: ${fmtNumber(plot.cotas_totais)} ${unidades}.`}
             type="number" inputMode="decimal" step="any" min={0}
             value={quantidade} onChange={setQuantidade} required={etapa === "armazenagem"}
@@ -325,6 +337,57 @@ function WarehouseEditDialog({ open, warehouse, onClose, onSaved }) {
           <Button type="submit" loading={saving}>Salvar</Button>
         </div>
       </form>
+    </Dialog>
+  );
+}
+
+// O armazém marca o que tem; cada item vale pontos definidos pela administração
+function WarehouseScoreDialog({ open, selected, onClose, onSaved }) {
+  const [catalog, setCatalog] = useState([]);
+  const [keys, setKeys] = useState(new Set());
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setKeys(new Set(selected));
+    setError("");
+    api.warehouseCatalog().then((d) => setCatalog(d.catalog)).catch((e) => setError(e.message));
+  }, [open, selected]);
+
+  function toggle(k) {
+    setKeys((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      onSaved(await api.setMyWarehouseCharacteristics([...keys]));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const categorias = [...new Set(catalog.map((c) => c.categoria))];
+  return (
+    <Dialog open={open} onClose={onClose} title="Estrutura, segurança e certificações" width={600}
+      actions={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button onClick={save} loading={saving}>Salvar</Button></>}>
+      <p style={{ marginBottom: 12 }}>Marque o que o armazém tem hoje. A administração pode pedir comprovantes. A capacidade estática (em Dados do armazém) também conta pontos.</p>
+      <ErrorBanner message={error} />
+      {categorias.map((cat) => (
+        <fieldset key={cat} style={{ border: "none", padding: 0, margin: "0 0 14px" }}>
+          <legend className="card-title" style={{ marginBottom: 6 }}>{cat}</legend>
+          {catalog.filter((c) => c.categoria === cat).map((c) => (
+            <label key={c.key} style={{ display: "flex", gap: 10, alignItems: "center", minHeight: 40, color: "var(--text)" }}>
+              <input type="checkbox" checked={keys.has(c.key)} onChange={() => toggle(c.key)} />
+              <span style={{ flex: 1 }}>{c.label}</span>
+              <span className="text-xs text-3">{c.pontos} pt{c.pontos === 1 ? "" : "s"}</span>
+            </label>
+          ))}
+        </fieldset>
+      ))}
     </Dialog>
   );
 }

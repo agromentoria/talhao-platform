@@ -427,17 +427,69 @@ CREATE TABLE IF NOT EXISTS plot_validations (
   UNIQUE (plot_id, etapa)
 );
 CREATE INDEX IF NOT EXISTS idx_plots_warehouse ON plots(warehouse_id);
+
+-- ===================== Culturas, ciclo e aprovação de talhões =====================
+-- "grao" continua sendo o nome da cultura (Soja, Bovinos de corte…) para não
+-- quebrar dados e filtros existentes; a variedade e o tipo de produção
+-- (lavoura, pecuária, produção animal) definem nomes de fases e unidades.
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS variedade TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS tipo_producao TEXT NOT NULL DEFAULT 'lavoura';
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS plantio_ate DATE;          -- prazo do plantio / entrada dos animais
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS colheita_prevista DATE;    -- data prevista da colheita / venda
+
+-- controle da administração: talhão novo só aparece para investidores
+-- depois de aprovado pela administração E com a custódia aceita pelo armazém
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS aprovacao_status TEXT;     -- pendente | aprovado | rejeitado
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS aprovacao_motivo TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS aprovacao_em TIMESTAMPTZ;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS exige_garantia BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS publicado_em TIMESTAMPTZ;
+-- talhões criados antes desta regra continuam publicados como estavam
+UPDATE plots SET aprovacao_status = 'aprovado', publicado_em = COALESCE(publicado_em, created_at) WHERE aprovacao_status IS NULL;
+
+-- unidades novas (kg, litro, dúzia…) para produção animal
+ALTER TABLE plots DROP CONSTRAINT IF EXISTS plots_unidade_check;
+ALTER TABLE commodity_references DROP CONSTRAINT IF EXISTS commodity_references_unidade_check;
+
+-- ===================== Pontuação dos armazéns =====================
+-- Mesmo modelo das fazendas: o armazém marca o que tem, cada item vale
+-- pontos (editáveis pela administração) e a nota vira 0–5 estrelas.
+-- A capacidade estática soma pontos automaticamente por faixa.
+CREATE TABLE IF NOT EXISTS warehouse_characteristics_catalog (
+  key TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  pontos INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS warehouse_characteristics (
+  warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
+  characteristic_key TEXT NOT NULL REFERENCES warehouse_characteristics_catalog(key),
+  PRIMARY KEY (warehouse_id, characteristic_key)
+);
 `;
 
-const COMMODITY_DEFAULTS = [
-  // grao, unidade, preco_unidade (R$), produtividade_ha (unidades/hectare)
-  // valores aproximados de referência — ajuste na administração conforme o mercado real
-  ["Soja", "saca", 130, 60],
-  ["Milho", "saca", 60, 100],
-  ["Trigo", "saca", 75, 50],
-  ["Arroz", "saca", 95, 110],
-  ["Feijão", "saca", 220, 27],
-  ["Algodão", "arroba", 140, 280],
+// referências de mercado de cada cultura (ver culturas.js)
+const COMMODITY_DEFAULTS = require("./culturas").REFERENCIAS;
+
+const WAREHOUSE_CHARACTERISTICS_DEFAULTS = [
+  // key, label, categoria, pontos
+  ["silo_metalico", "Silos metálicos", "Estrutura", 2],
+  ["armazem_graneleiro", "Armazém graneleiro", "Estrutura", 1],
+  ["camara_fria", "Câmara fria / armazenagem refrigerada", "Estrutura", 2],
+  ["balanca_rodoviaria", "Balança rodoviária aferida", "Estrutura", 2],
+  ["secador", "Secador de grãos", "Estrutura", 1],
+  ["acesso_ferroviario", "Acesso ferroviário ou hidroviário", "Estrutura", 1],
+  ["termometria", "Termometria nos silos", "Tecnologia", 2],
+  ["aeracao_automatica", "Aeração automática", "Tecnologia", 1],
+  ["laboratorio", "Laboratório de classificação", "Tecnologia", 2],
+  ["sistema_rastreio", "Sistema de controle de estoque e rastreabilidade", "Tecnologia", 2],
+  ["monitoramento_cftv", "Monitoramento por câmeras 24 h", "Segurança", 2],
+  ["vigilancia", "Vigilância patrimonial", "Segurança", 1],
+  ["seguro_estoque", "Seguro do estoque armazenado", "Segurança", 3],
+  ["brigada_incendio", "Prevenção e combate a incêndio (AVCB)", "Segurança", 2],
+  ["certificado_mapa", "Certificado no MAPA (Lei 9.973/2000)", "Certificações", 3],
+  ["armazem_geral", "Armazém geral (emite CDA/WA)", "Certificações", 3],
+  ["iso_9001", "ISO 9001", "Certificações", 1],
 ];
 
 async function ensureCommodityReferences() {
@@ -446,6 +498,16 @@ async function ensureCommodityReferences() {
       `INSERT INTO commodity_references (grao, unidade, preco_unidade, produtividade_ha)
        VALUES ($1, $2, $3, $4) ON CONFLICT (grao) DO NOTHING`,
       [grao, unidade, preco, produtividade]
+    );
+  }
+}
+
+async function ensureWarehouseCharacteristics() {
+  for (const [key, label, categoria, pontos] of WAREHOUSE_CHARACTERISTICS_DEFAULTS) {
+    await pool.query(
+      `INSERT INTO warehouse_characteristics_catalog (key, label, categoria, pontos)
+       VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO NOTHING`,
+      [key, label, categoria, pontos]
     );
   }
 }
@@ -549,6 +611,7 @@ async function initDb() {
   await ensurePlatformSettings();
   await ensureFasePricing();
   await ensureFarmCharacteristics();
+  await ensureWarehouseCharacteristics();
 }
 
 module.exports = { pool, initDb };

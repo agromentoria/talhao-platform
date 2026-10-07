@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { MapPin, QrCode, CreditCard, Plus, Minus, Star, Award, ShieldCheck, ShieldAlert, Warehouse } from "lucide-react";
+import { MapPin, QrCode, CreditCard, Plus, Minus, Award, ShieldCheck, ShieldAlert, Warehouse } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { GRAIN_COLORS, FASES, FASE_ICONS, UNIT_LABEL } from "../config/theme";
+import { GRAIN_COLORS } from "../config/theme";
+import { fasesDe, faseIcone, unidadeNome, cicloLabels, fmtData, culturaTexto, TIPOS, tipoDe } from "../config/culturas";
 import { fmtBRL, fmtNumber, unitPlural } from "../lib/format";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
-import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline } from "../components/domain";
+import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars } from "../components/domain";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -22,6 +23,8 @@ export default function PlotDetail() {
   const [fotos, setFotos] = useState([]);
   const [armazem, setArmazem] = useState(null);
   const [validacoes, setValidacoes] = useState([]);
+  const [publico, setPublico] = useState(true);
+  const [pendencias, setPendencias] = useState([]);
   const [historico, setHistorico] = useState([]);
   const [appCommission, setAppCommission] = useState(5);
   const [loadError, setLoadError] = useState("");
@@ -40,7 +43,9 @@ export default function PlotDetail() {
       setFotos(data.fotos || []);
       setArmazem(data.armazem || null);
       setValidacoes(data.validacoes || []);
-      setHistorico(data.historico.map((h) => ({ fase: FASES[h.fase_atual], v: h.progresso })));
+      setHistorico(data.historico.map((h) => ({ fase: fasesDe(data.plot)[h.fase_atual], v: h.progresso })));
+      setPublico(data.publico !== false);
+      setPendencias(data.pendencias || []);
       setAppCommission(data.app_commission_pct);
     }).catch((err) => setLoadError(err.message));
   }, [id]);
@@ -66,7 +71,10 @@ export default function PlotDetail() {
   if (!plot) return <Page title="Talhão" back="/"><Loading /></Page>;
 
   const grainColor = GRAIN_COLORS[plot.grao] || GRAIN_COLORS.Soja;
-  const unidade = UNIT_LABEL[plot.unidade] || "cota";
+  const unidade = unidadeNome(plot.unidade, 1);
+  const fases = fasesDe(plot);
+  const cicloNome = TIPOS[tipoDe(plot)].ciclo_curto;
+  const ciclo = cicloLabels(plot);
   const maxCotas = Math.max(1, plot.cotas_disponiveis);
   const qtd = Math.min(Math.max(1, cotas), maxCotas);
   const custoTotal = qtd * plot.cota_valor;
@@ -80,7 +88,7 @@ export default function PlotDetail() {
   const comissaoApp = Math.max(0, lucroBruto) * (appCommission / 100);
   const recebimentoLiquido = retornoBruto - comissaoFazenda - comissaoApp;
   const lucroLiquido = recebimentoLiquido - custoTotal;
-  const chartData = historico.length ? historico : [{ fase: FASES[0], v: 0 }];
+  const chartData = historico.length ? historico : [{ fase: fases[0], v: 0 }];
   const colhido = ["pago", "colhido", "arquivado", "aguardando_aprovacao"].includes(plot.status);
   const esgotado = plot.cotas_disponiveis === 0;
   const isInvestor = !user || user.role === "investidor";
@@ -116,7 +124,7 @@ export default function PlotDetail() {
   const share = (
     <ShareButton
       title={`${plot.nome} · ${plot.grao} — Meu Talhão`}
-      text={`Dá uma olhada nesse talhão de ${plot.grao} na Meu Talhão — dá pra investir direto na safra e acompanhar até a colheita!`}
+      text={`Dá uma olhada nesse talhão de ${culturaTexto(plot)} na Meu Talhão — dá pra investir direto na produção e acompanhar até o fim do ciclo!`}
     />
   );
 
@@ -130,9 +138,13 @@ export default function PlotDetail() {
         subtitle={
           <>
             <MapPin size={14} aria-hidden style={{ display: "inline", verticalAlign: "-2px", marginRight: 4 }} />
-            {plot.farm_name}, {plot.farm_location} · {fmtNumber(plot.area_ha)} ha · safra {plot.safra}
+            {plot.farm_name}, {plot.farm_location} · {fmtNumber(plot.area_ha)} ha · {cicloNome} {plot.safra}
+            <span style={{ display: "block", marginTop: 4 }}>
+              <strong style={{ color: "var(--text)" }}>{culturaTexto(plot)}</strong>
+              {plot.colheita_prevista && <> · {ciclo.inicio.toLowerCase()} {fmtData(plot.plantio_ate)} · {ciclo.fim.toLowerCase()} {fmtData(plot.colheita_prevista)}</>}
+            </span>
             {plot.custodia_status === "aceita" && armazem && (
-              <span style={{ display: "block", marginTop: 10 }}><GuaranteeSeal name={armazem.name} /></span>
+              <span style={{ display: "block", marginTop: 10 }}><GuaranteeSeal name={armazem.name} estrelas={armazem.estrelas} /></span>
             )}
           </>
         }
@@ -148,13 +160,13 @@ export default function PlotDetail() {
           )}
 
           <section className="card" aria-labelledby="etapas-t">
-            <h2 id="etapas-t" className="card-title" style={{ marginBottom: 16 }}>Etapas da safra</h2>
+            <h2 id="etapas-t" className="card-title" style={{ marginBottom: 16 }}>Etapas do {cicloNome}</h2>
             <ol className="stepper" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {FASES.map((f, i) => {
+              {fases.map((f, i) => {
                 const state = i < plot.fase_atual ? "is-done" : i === plot.fase_atual ? "is-current" : "is-todo";
                 return (
                   <li key={f} className={`step ${state}`} aria-current={i === plot.fase_atual ? "step" : undefined}>
-                    <span className="step-dot"><img src={FASE_ICONS[i]} alt="" /></span>
+                    <span className="step-dot">{faseIcone(plot, i) ? <img src={faseIcone(plot, i)} alt="" /> : <span className="step-num" aria-hidden>{i + 1}</span>}</span>
                     <span className="step-label">{f}</span>
                   </li>
                 );
@@ -165,17 +177,17 @@ export default function PlotDetail() {
           <GuaranteeCard plot={plot} armazem={armazem} validacoes={validacoes} />
 
           <section className="card" aria-labelledby="preco-t">
-            <h2 id="preco-t" className="card-title">Preço sobe conforme a safra avança</h2>
+            <h2 id="preco-t" className="card-title">Preço sobe conforme o {cicloNome} avança</h2>
             <p className="card-desc" style={{ marginBottom: 16 }}>
-              Quem entra mais cedo paga menos por {unidade} e tem mais espaço de lucro. Mais perto da colheita o preço se aproxima do valor de venda: menos risco, retorno menor.
+              Quem entra mais cedo paga menos por {unidade} e tem mais espaço de lucro. Mais perto do fim do ciclo o preço se aproxima do valor de venda: menos risco, retorno menor.
             </p>
             <div className="grid-stats">
               <div>
-                <p className="label-xs">Preço agora ({FASES[plot.fase_atual]})</p>
+                <p className="label-xs">Preço agora ({fases[plot.fase_atual]})</p>
                 <p className="stat-value text-primary" style={{ marginTop: 2 }}>{fmtBRL(plot.cota_valor)}</p>
               </div>
               <div>
-                <p className="label-xs">Venda projetada na colheita</p>
+                <p className="label-xs">Venda projetada no fim do ciclo</p>
                 <p className="stat-value" style={{ marginTop: 2 }}>{fmtBRL(precoVendaProjetado)}</p>
               </div>
               <div>
@@ -189,7 +201,7 @@ export default function PlotDetail() {
           </section>
 
           <section className="card" aria-labelledby="prog-t">
-            <h2 id="prog-t" className="card-title">Progresso da safra</h2>
+            <h2 id="prog-t" className="card-title">Progresso do {cicloNome}</h2>
             <p className="card-desc" style={{ marginBottom: 10 }}>Atualizado pela fazenda conforme o andamento em campo. Hoje: {plot.progresso}%.</p>
             <div style={{ height: 170 }} aria-hidden>
               <ResponsiveContainer width="100%" height="100%">
@@ -225,14 +237,22 @@ export default function PlotDetail() {
 
         <aside className="split-aside" id="investir" aria-labelledby="investir-t">
           <div className="card" style={{ background: "var(--surface-raised)", boxShadow: "var(--shadow-2)" }}>
-            {colhido ? (
+            {!publico && !colhido ? (
+              <>
+                <h2 id="investir-t" className="card-title">Talhão em análise</h2>
+                <p className="card-desc" style={{ marginBottom: 12 }}>
+                  Este talhão ainda não está aberto para investimento. Falta: {pendencias.join(" e ") || "liberação da administração"}.
+                </p>
+                <p className="text-xs text-3">Talhões novos só vão ao ar depois de aprovados pela administração e com um armazém garantidor.</p>
+              </>
+            ) : colhido ? (
               <>
                 <h2 id="investir-t" className="card-title">Talhão colhido</h2>
                 <p className="card-desc" style={{ marginBottom: 14 }}>
                   Este talhão concluiu o ciclo{plot.status === "pago" ? " e os investidores já foram pagos" : ""}. Não aceita novos investimentos.
                 </p>
                 {plot.retorno_final != null && (
-                  <dl className="kv"><div className="total"><dt>Retorno final da safra</dt><dd className="text-success">{plot.retorno_final}%</dd></div></dl>
+                  <dl className="kv"><div className="total"><dt>Retorno final do {cicloNome}</dt><dd className="text-success">{plot.retorno_final}%</dd></div></dl>
                 )}
               </>
             ) : (
@@ -308,7 +328,7 @@ export default function PlotDetail() {
       </div>
 
       {/* atalho fixo no celular: o painel de compra fica no fim da página */}
-      {!colhido && (
+      {!colhido && publico && (
         <MobileInvestBar price={fmtBRL(plot.cota_valor)} unidade={unidade} />
       )}
     </Page>
@@ -330,12 +350,18 @@ function GuaranteeCard({ plot, armazem, validacoes }) {
               <p className="text-sm text-2">{armazem.name} · {armazem.location}{armazem.capacidade_t ? ` · ${fmtNumber(armazem.capacidade_t)} t de capacidade` : ""}</p>
             </div>
           </div>
+          {armazem.estrelas > 0 && <Stars value={armazem.estrelas} />}
         </div>
         <p className="card-desc" style={{ marginBottom: 16 }}>
           Um armazém credenciado acompanha este talhão e confirma, de forma independente da fazenda, cada etapa abaixo. O pagamento aos investidores só é liberado depois da armazenagem confirmada.
         </p>
-        {armazem.descricao && <p className="text-sm" style={{ whiteSpace: "pre-wrap", marginBottom: 16 }}>{armazem.descricao}</p>}
-        <CustodyTimeline validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
+        {armazem.descricao && <p className="text-sm" style={{ whiteSpace: "pre-wrap", marginBottom: 12 }}>{armazem.descricao}</p>}
+        {armazem.caracteristicas?.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            {armazem.caracteristicas.map((c) => <span key={c.key} className="badge">{c.label}</span>)}
+          </div>
+        )}
+        <CustodyTimeline plot={plot} validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
       </section>
     );
   }
@@ -376,19 +402,6 @@ function MobileInvestBar({ price, unidade }) {
   );
 }
 
-function Stars({ value }) {
-  const full = Math.floor(value);
-  const half = value - full >= 0.5;
-  return (
-    <span className="rating" aria-label={`Nota ${value.toFixed(1)} de 5`}>
-      {[0, 1, 2, 3, 4].map((i) => {
-        const on = i < full || (i === full && half);
-        return <Star key={i} size={15} fill={on ? "var(--brand-orange)" : "none"} color={on ? "var(--brand-orange)" : "var(--border-strong)"} aria-hidden />;
-      })}
-      <span style={{ marginLeft: 3 }}>{value.toFixed(1)}</span>
-    </span>
-  );
-}
 
 function FarmProfileCard({ farmId, estrelas }) {
   const [data, setData] = useState(null);

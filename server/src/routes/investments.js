@@ -1,3 +1,6 @@
+const { unidadeTexto } = require("../culturas");
+const { isPublic } = require("../publication");
+const { getInvestorLevel } = require("../investorLevel");
 const { fmtBRL } = require("../format");
 const express = require("express");
 const { pool } = require("../db");
@@ -57,6 +60,10 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     if (!farm || farm.status !== "aprovada") {
       throw new AppError(403, "Este talhão não está disponível para investimento.");
     }
+    // talhão novo só aceita investimento depois de aprovado e com armazém garantidor
+    if (!isPublic(plot)) {
+      throw new AppError(409, "Este talhão ainda está em análise e não aceita investimentos.");
+    }
     if (["colhido", "pago", "aguardando_aprovacao", "arquivado"].includes(plot.status)) {
       throw new AppError(409, "Este talhão já encerrou o ciclo de captação.");
     }
@@ -90,7 +97,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
       amount: valorInvestido,
       paymentMethodType: payment_method_type,
       paymentMethodId: paymentMethod ? paymentMethod.id : null,
-      description: `Compra de ${qtd} cota(s) em ${plot.nome}`,
+      description: `Compra de ${qtd} ${unidadeTexto(plot.unidade, qtd)} em ${plot.nome}`,
     });
 
     await client.query("COMMIT");
@@ -103,7 +110,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
         plotId: plot.id,
         type: "compra_confirmada",
         title: "Compra confirmada",
-        body: `Sua compra de ${qtd} cota(s) em ${plot.nome} foi confirmada. Valor: ${fmtBRL(valorInvestido)}.`,
+        body: `Sua compra de ${qtd} ${unidadeTexto(plot.unidade, qtd)} em ${plot.nome} foi confirmada. Valor: ${fmtBRL(valorInvestido)}.`,
       });
 
       if (farm.owner_user_id) {
@@ -113,7 +120,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
           plotId: plot.id,
           type: "novo_investimento",
           title: "Novo investimento recebido",
-          body: `${req.user.name} comprou ${qtd} cota(s) em ${plot.nome} (${fmtBRL(valorInvestido)}).`,
+          body: `${req.user.name} comprou ${qtd} ${unidadeTexto(plot.unidade, qtd)} em ${plot.nome} (${fmtBRL(valorInvestido)}).`,
         });
       }
 
@@ -142,7 +149,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
 
 router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT i.*, p.nome as plot_nome, p.grao, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado,
+    `SELECT i.*, p.nome as plot_nome, p.grao, p.variedade, p.tipo_producao, p.colheita_prevista, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado,
             f.name as farm_name,
             po.valor_bruto, po.comissao_fazenda, po.comissao_app, po.valor_liquido
      FROM investments i
@@ -153,7 +160,7 @@ router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (re
      ORDER BY i.created_at DESC`,
     [req.user.id]
   );
-  res.json({ investments: rows });
+  res.json({ investments: rows, nivel: await getInvestorLevel(pool, req.user.id) });
 }));
 
 router.get("/plot/:plotId", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {

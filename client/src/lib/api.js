@@ -148,6 +148,14 @@ export const api = {
   sendMessage: (id, body) => request(`/conversations/${id}/messages`, { method: "POST", body: { body } }),
   unreadMessagesCount: () => request("/conversations/unread-count"),
 
+  culturas: () => request("/culturas", { auth: false }),
+  plotApprovals: () => request("/admin/plot-approvals"),
+  approvePlot: (id) => request(`/admin/plot-approvals/${id}/approve`, { method: "POST" }),
+  rejectPlot: (id, motivo) => request(`/admin/plot-approvals/${id}/reject`, { method: "POST", body: { motivo } }),
+  warehouseCatalog: () => request("/warehouses/characteristics/catalog", { auth: false }),
+  updateWarehouseCharacteristicPoints: (key, pontos) => request(`/warehouses/characteristics/${key}`, { method: "PUT", body: { pontos } }),
+  setMyWarehouseCharacteristics: (keys) => request("/warehouses/mine/characteristics", { method: "PUT", body: { keys } }),
+
   // armazém garantidor (custódia e validações)
   approvedWarehouses: () => request("/warehouses/approved"),
   myWarehouse: () => request("/warehouses/mine"),

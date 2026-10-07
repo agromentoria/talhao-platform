@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, UNIT_LABEL, FASES } from "../config/theme";
 import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS } from "../config/culturas";
@@ -18,7 +19,7 @@ const TYPE_LABEL = {
 
 const TABS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
-  { id: "talhoes", label: "Talhões", icon: ShieldCheck },
+  { id: "talhoes", label: "Aprovar talhões", icon: ShieldCheck },
   { id: "colheitas", label: "Colheitas", icon: ClipboardCheck },
   { id: "fazendas", label: "Fazendas", icon: Building2 },
   { id: "armazens", label: "Armazéns", icon: WarehouseIcon },
@@ -28,7 +29,10 @@ const TABS = [
 ];
 
 export default function AdminDashboard() {
-  const [tab, setTab] = useState("geral");
+  // a aba fica no endereço (/admin?aba=talhoes): links de avisos abrem direto nela
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some((t) => t.id === params.get("aba")) ? params.get("aba") : "geral";
+  const setTab = (id) => setParams(id === "geral" ? {} : { aba: id }, { replace: true });
   const [overview, setOverview] = useState(null);
   const [farms, setFarms] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -221,6 +225,12 @@ export default function AdminDashboard() {
 
       {tab === "geral" && (
         <>
+          {plotApprovals.some((p) => p.aprovacao_status === "pendente") && (
+            <Banner tone="warning" title="Talhões aguardando aprovação" style={{ marginBottom: 16 }}>
+              {plotApprovals.filter((p) => p.aprovacao_status === "pendente").length} talhão(ões) só aparecem na vitrine depois da sua aprovação.{" "}
+              <button className="link-btn" onClick={() => setTab("talhoes")}>Revisar agora</button>
+            </Banner>
+          )}
           {overview && (
             <div className="grid-stats" style={{ marginBottom: 22 }}>
               <Stat label="Total captado" value={fmtBRL(overview.totalCaptado)} icon={Coins} />

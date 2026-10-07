@@ -244,6 +244,9 @@ export default function PlotDetail() {
                   Este talhão ainda não está aberto para investimento. Falta: {pendencias.join(" e ") || "liberação da administração"}.
                 </p>
                 <p className="text-xs text-3">Talhões novos só vão ao ar depois de aprovados pela administração e com um armazém garantidor.</p>
+                {user?.role === "admin" && plot.aprovacao_status !== "aprovado" && (
+                  <Button block style={{ marginTop: 14 }} to="/admin?aba=talhoes">Revisar e aprovar</Button>
+                )}
               </>
             ) : colhido ? (
               <>

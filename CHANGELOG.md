@@ -1,5 +1,12 @@
 # Registro de mudanças
 
+## 1.3.1 — aprovação de talhões mais fácil de achar
+
+- Aba renomeada para **Aprovar talhões** (antes "Talhões", que se confundia com a vitrine).
+- Aviso na Visão geral da administração com atalho "Revisar agora" quando há talhão esperando.
+- O aviso "Talhão para aprovar" abre direto a aba de aprovação (`/admin?aba=talhoes`).
+- Na página de um talhão em análise, o administrador vê o botão "Revisar e aprovar".
+
 ## 1.3.0 — culturas, ciclo, aprovação de talhões, nível do investidor e nota dos armazéns
 
 - **Cultura e variedade** no lugar de "Grão": 13 culturas (grãos, café, fibras, pecuária e aves) com variedades (ex.: feijão preto, arroz agulhinha, milho pipoca, Nelore, Holandesa, poedeiras). A fazenda pode digitar cultura ou variedade fora da lista. Catálogo em `server/src/culturas.js`, servido em `GET /api/culturas`.

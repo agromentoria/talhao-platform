@@ -67,7 +67,9 @@ export default function Notifications() {
 
   async function handleOpen(n) {
     if (!n.read_at) await markRead(n.id);
-    if (n.plot_id) navigate(`/talhao/${n.plot_id}`);
+    // aviso de talhão para aprovar leva a administração direto para a aba de aprovação
+    if (n.type === "talhao_para_aprovar" && user?.role === "admin") navigate("/admin?aba=talhoes");
+    else if (n.plot_id) navigate(`/talhao/${n.plot_id}`);
   }
 
   async function markAllRead() {
@@ -131,7 +133,7 @@ export default function Notifications() {
                     <span className="list-item-sub" style={{ display: "block", lineHeight: 1.45 }}>{n.body}</span>
                     <span className="text-xs text-3" style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
                       <time dateTime={n.created_at}>{timeAgo(n.created_at)}</time>
-                      {n.plot_id && <span style={{ color: "var(--link)", fontWeight: 700, display: "inline-flex", alignItems: "center" }}>Ver talhão <ChevronRight size={14} aria-hidden /></span>}
+                      {n.plot_id && <span style={{ color: "var(--link)", fontWeight: 700, display: "inline-flex", alignItems: "center" }}>{n.type === "talhao_para_aprovar" && user?.role === "admin" ? "Revisar e aprovar" : "Ver talhão"} <ChevronRight size={14} aria-hidden /></span>}
                     </span>
                   </span>
                 </button>

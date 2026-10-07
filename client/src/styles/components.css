@@ -50,7 +50,7 @@
 .card--well { background: var(--surface-well); border-color: transparent; }
 .card-title { font-family: var(--font-body); font-size: var(--fs-md); font-weight: 700; color: var(--text); }
 .card-desc { margin-top: var(--sp-1); font-size: var(--fs-sm); color: var(--text-2); line-height: 1.5; }
-.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.card-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .section-title { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 700; }
 
 /* ---------- campos ---------- */

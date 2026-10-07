@@ -1,5 +1,10 @@
 # Registro de mudanças
 
+## 1.4.1 — correções encontradas na revisão das telas
+
+- **Celular:** a página do talhão ficava mais larga que a tela (etapas, card de garantia e gráfico empurravam a coluna), fazendo a página rolar para o lado e cortando o diálogo de confirmação. Colunas e formulários agora respeitam a largura em qualquer celular (testado em 360 e 390 px, todas as telas).
+- **Servidor:** o limite geral de requisições (300 a cada 15 min por IP) era baixo para várias pessoas na mesma rede de uma fazenda; agora é 1.500 (ajustável por `RATE_LIMIT_MAX`), com mensagem em português. O endereço de saúde (`/api/health`) fica fora do limite.
+
 ## 1.4.0 — despesa de armazenagem
 
 - **Tabela de tarifas do armazém** (em Dados do armazém): recepção por unidade (recebimento, limpeza, secagem, expedição), armazenagem por unidade a cada quinzena, quinzenas de carência e quebra técnica (% por quinzena) — o mesmo formato usado pelos armazéns gerais.

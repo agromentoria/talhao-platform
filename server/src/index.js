@@ -88,15 +88,20 @@ async function start() {
   app.use(cors(buildCorsOptions()));
   app.use(express.json({ limit: "2mb" })); // acomoda foto de perfil em base64
 
+  // health check fica fora do limite (o Render consulta com frequência)
+  app.get("/api/health", (req, res) => res.json({ ok: true }));
+
+  // Limite geral por IP. 300 a cada 15 min era pouco: o app consulta avisos e
+  // conversas em segundo plano, e várias pessoas de uma mesma fazenda ou
+  // escritório saem pelo mesmo IP. Ajustável por RATE_LIMIT_MAX.
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 300,
+    max: Number(process.env.RATE_LIMIT_MAX) || 1500,
     standardHeaders: true,
     legacyHeaders: false,
+    message: { error: "Muitas requisições em pouco tempo. Aguarde alguns minutos e tente de novo." },
   });
-  app.use(globalLimiter);
-
-  app.get("/api/health", (req, res) => res.json({ ok: true }));
+  app.use("/api", globalLimiter);
 
   app.use("/api/auth", authRoutes);
   app.use("/api/farms/track-record", trackRecordRoutes);

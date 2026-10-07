@@ -182,15 +182,19 @@
 /* grades responsivas reutilizáveis */
 .grid-cards { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
 .grid-stats { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
-.form-grid { display: grid; gap: var(--sp-3) var(--sp-4); grid-template-columns: 1fr; }
+.form-grid { display: grid; gap: var(--sp-3) var(--sp-4); grid-template-columns: minmax(0, 1fr); }
+.form-grid > * { min-width: 0; }
 .form-grid > .span-all { grid-column: 1 / -1; }
-@media (min-width: 600px) { .form-grid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 600px) { .form-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .row { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
 .row > * { flex: 1 1 160px; min-width: 0; }
 .stack { display: flex; flex-direction: column; gap: var(--sp-3); }
 .stack-lg { display: flex; flex-direction: column; gap: var(--sp-5); }
 
-.split { display: grid; gap: var(--sp-5); grid-template-columns: 1fr; align-items: start; }
+/* minmax(0, …) e min-width:0 impedem que conteúdo largo (etapas, gráficos)
+   alargue a coluna e faça a página rolar para o lado no celular */
+.split { display: grid; gap: var(--sp-5); grid-template-columns: minmax(0, 1fr); align-items: start; }
+.split > * { min-width: 0; }
 @media (min-width: 900px) {
   .split { grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); }
   .split-aside { position: sticky; top: var(--sp-6); }

@@ -213,7 +213,7 @@ export default function PlotDetail() {
           <section className="card" aria-labelledby="prog-t">
             <h2 id="prog-t" className="card-title">Progresso {doCiclo}</h2>
             <p className="card-desc" style={{ marginBottom: 10 }}>Atualizado pela fazenda conforme o andamento em campo. Hoje: {plot.progresso}%.</p>
-            <div style={{ height: 170 }} aria-hidden>
+            <div style={{ height: 170, overflow: "hidden" }} aria-hidden>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>

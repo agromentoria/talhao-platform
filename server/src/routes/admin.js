@@ -51,8 +51,23 @@ router.get("/overview", asyncHandler(async (req, res) => {
   });
 }));
 
+// lista de fazendas com os mesmos dados de resumo da lista de armazéns:
+// responsável, nota em estrelas, talhões ativos e valor captado
 router.get("/farms", asyncHandler(async (req, res) => {
-  const { rows } = await pool.query("SELECT * FROM farms ORDER BY created_at DESC");
+  const { rows } = await pool.query(
+    `SELECT f.*, u.name AS responsavel, u.email AS responsavel_email,
+            ROUND((
+              COALESCE((SELECT SUM(c.pontos) FROM farm_characteristics fc
+                        JOIN farm_characteristics_catalog c ON c.key = fc.characteristic_key
+                        WHERE fc.farm_id = f.id), 0)::numeric
+              / NULLIF((SELECT SUM(pontos) FROM farm_characteristics_catalog), 0) * 5
+            ), 1)::float8 AS estrelas,
+            (SELECT COUNT(*)::int FROM plots p WHERE p.farm_id = f.id AND p.status IN ('captacao', 'em_andamento')) AS talhoes_ativos,
+            (SELECT COALESCE(SUM(i.valor_investido), 0)::float8 FROM investments i JOIN plots p ON p.id = i.plot_id
+              WHERE p.farm_id = f.id) AS total_captado
+     FROM farms f LEFT JOIN users u ON u.id = f.owner_user_id
+     ORDER BY (f.status = 'pendente') DESC, f.created_at DESC`
+  );
   res.json({ farms: rows });
 }));
 

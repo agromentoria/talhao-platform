@@ -1,5 +1,11 @@
 # Registro de mudanças
 
+## 1.3.2 — listas de fazendas e armazéns padronizadas na administração
+
+- Fazendas e armazéns usam o mesmo componente de lista: ícone, nome, situação, estrelas, identificação (cidade, CNPJ), responsável com e-mail, números do negócio e ações.
+- Particularidades preservadas: fazenda mostra CAR, área, talhões ativos, valor captado e comissão (ações Aprovar/Suspender/Reativar); armazém mostra capacidade, custódias ativas e pedidos pendentes (ações Credenciar/Suspender/Reativar).
+- Filtro por situação (Aguardando, Ativos, Suspensos) nas duas listas, com os pendentes no topo.
+
 ## 1.3.1 — aprovação de talhões mais fácil de achar
 
 - Aba renomeada para **Aprovar talhões** (antes "Talhões", que se confundia com a vitrine).

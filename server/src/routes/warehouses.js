@@ -234,7 +234,9 @@ router.post("/plots/:plotId/validations", requireAuth, requireRole("armazem"), a
 router.get("/", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
     `SELECT w.*, u.name AS responsavel, u.email AS responsavel_email, ${WAREHOUSE_STARS_SQL} AS estrelas,
-            (SELECT COUNT(*)::int FROM plots p WHERE p.warehouse_id = w.id AND p.custodia_status = 'aceita') AS custodias
+            (SELECT COUNT(*)::int FROM plots p WHERE p.warehouse_id = w.id AND p.custodia_status = 'aceita'
+               AND p.status NOT IN ('pago', 'arquivado')) AS custodias,
+            (SELECT COUNT(*)::int FROM plots p WHERE p.warehouse_id = w.id AND p.custodia_status = 'pendente') AS custodias_pendentes
      FROM warehouses w LEFT JOIN users u ON u.id = w.owner_user_id
      ORDER BY (w.status = 'pendente') DESC, w.created_at DESC`
   );

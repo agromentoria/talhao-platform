@@ -368,3 +368,23 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .step-num { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-lg); color: var(--text-2); }
 .step.is-current .step-num { color: var(--brand-orange); }
 .step.is-done .step-num { color: var(--success-text); }
+
+/* linha de cadastro (fazendas e armazéns na administração) */
+.entity-row {
+  display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3) var(--sp-4); align-items: start;
+  padding: var(--sp-4); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border);
+}
+.entity-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.entity-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); flex-wrap: wrap; }
+.entity-head h3 { font-family: var(--font-body); font-size: var(--fs-lg); font-weight: 700; margin: 0; }
+.entity-stars { min-height: 20px; margin-bottom: 2px; }
+.entity-metrics { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-2) 0 0; }
+.entity-metrics > div { display: flex; flex-direction: column-reverse; padding: 6px 12px; border-radius: var(--r-md); background: var(--surface-well); }
+.entity-metrics dt { font-size: var(--fs-xs); color: var(--text-2); }
+.entity-metrics dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.entity-actions { grid-column: 2; display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+@media (min-width: 900px) {
+  .entity-row { grid-template-columns: auto 1fr auto; align-items: center; }
+  .entity-actions { grid-column: 3; flex-direction: column; align-items: stretch; min-width: 130px; }
+}
+@media (max-width: 599px) { .entity-actions { grid-column: 1 / -1; } .entity-actions > .btn { flex: 1; } }

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
-import { COLORS, UNIT_LABEL, FASES } from "../config/theme";
+import { COLORS, UNIT_LABEL, FASES, ICONS } from "../config/theme";
 import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS } from "../config/culturas";
 import { fmtBRL, fmtNumber } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Stars } from "../components/domain";
-import { Button, Banner, ErrorBanner, Tabs, SelectField, EmptyState, Badge, useDialog, useToast } from "../components/ui";
+import { FilterChips, Button, Banner, ErrorBanner, Tabs, SelectField, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
 const TYPE_LABEL = {
   compra_cota: "Compra de cota",
@@ -382,48 +382,69 @@ export default function AdminDashboard() {
       )}
 
       {tab === "armazens" && (
-        <div className="stack">
-          <p className="text-sm text-2">Armazéns são os garantidores: validam plantio, colheita e armazenagem dos talhões. Confira o CNPJ e a estrutura antes de credenciar.</p>
-          {warehouses.length === 0 && <EmptyState title="Nenhum armazém cadastrado">Armazéns se cadastram pela tela de criar conta, escolhendo “Armazém”.</EmptyState>}
-          {warehouses.map((w) => (
-            <div key={w.id} className="list-item" style={{ flexWrap: "wrap" }}>
-              <span className="thumb" style={{ background: "var(--success-soft)", color: "var(--success-text)" }}><WarehouseIcon size={22} aria-hidden /></span>
-              <div className="list-item-body" style={{ minWidth: 200 }}>
-                <p className="list-item-title" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{w.name} {w.estrelas > 0 && <Stars value={w.estrelas} size={13} />}</p>
-                <p className="list-item-sub">{w.location} · CNPJ {maskCNPJ(w.cnpj)}{w.capacidade_t ? ` · ${w.capacidade_t} t` : ""}</p>
-                <p className="list-item-sub">{w.responsavel} · {w.responsavel_email} · {w.custodias} custódia(s) ativas</p>
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <Badge tone={{ aprovado: "success", pendente: "warning", suspenso: "danger" }[w.status]}>{w.status}</Badge>
-                {w.status !== "aprovado" && <Button size="sm" variant="success" onClick={() => setWarehouseStatus(w, "aprovado")}>Credenciar</Button>}
-                {w.status === "aprovado" && <Button size="sm" variant="secondary" onClick={() => setWarehouseStatus(w, "suspenso")}>Suspender</Button>}
-              </div>
-            </div>
-          ))}
-        </div>
+        <EntityList
+          intro="Armazéns são os garantidores: validam cada etapa dos talhões. Confira o CNPJ e a estrutura antes de credenciar."
+          items={warehouses}
+          statusOf={(w) => ({ aprovado: "ativo", pendente: "pendente", suspenso: "suspenso" }[w.status])}
+          empty={{ title: "Nenhum armazém cadastrado", text: "Armazéns se cadastram pela tela de criar conta, escolhendo “Armazém”." }}
+          render={(w) => (
+            <EntityRow
+              key={w.id}
+              icon={<WarehouseIcon size={24} aria-hidden />}
+              iconTone="success"
+              title={w.name}
+              estrelas={w.estrelas}
+              lines={[
+                [w.location, w.cnpj ? `CNPJ ${maskCNPJ(w.cnpj)}` : null, w.capacidade_t ? `${fmtNumber(w.capacidade_t)} t de capacidade` : null],
+                [w.responsavel, w.responsavel_email],
+              ]}
+              metrics={[
+                { label: "custódias ativas", value: w.custodias },
+                { label: "pedidos pendentes", value: w.custodias_pendentes ?? 0 },
+              ]}
+              status={{ aprovado: ["success", "Credenciado"], pendente: ["warning", "Aguardando credenciamento"], suspenso: ["danger", "Suspenso"] }[w.status]}
+              actions={
+                <>
+                  {w.status !== "aprovado" && <Button size="sm" variant="success" onClick={() => setWarehouseStatus(w, "aprovado")}>{w.status === "suspenso" ? "Reativar" : "Credenciar"}</Button>}
+                  {w.status === "aprovado" && <Button size="sm" variant="secondary" onClick={() => setWarehouseStatus(w, "suspenso")}>Suspender</Button>}
+                </>
+              }
+            />
+          )}
+        />
       )}
 
       {tab === "fazendas" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {farms.map((f) => (
-            <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "14px 16px", flexWrap: "wrap", gap: 10 }}>
-              <div>
-                <p style={{ fontWeight: 500, fontSize: 14, color: COLORS.soil, margin: 0 }}>{f.name}</p>
-                <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "2px 0 0" }}>{f.location} · comissão {f.commission_pct}%</p>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <StatusBadge status={f.status} />
-                {f.status !== "aprovada" && (
-                  <Button size="sm" variant="success" onClick={() => setStatus(f.id, "aprovada")}>Aprovar</Button>
-                )}
-                {f.status !== "suspensa" && (
-                  <Button size="sm" variant="secondary" onClick={() => setStatus(f.id, "suspensa")}>Suspender</Button>
-                )}
-              </div>
-            </div>
-          ))}
-          {farms.length === 0 && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhuma fazenda cadastrada ainda.</p>}
-        </div>
+        <EntityList
+          intro="Fazendas publicam talhões. Confira os dados legais e a localização antes de aprovar; só fazendas aprovadas podem cadastrar talhões."
+          items={farms}
+          statusOf={(f) => ({ aprovada: "ativo", pendente: "pendente", suspensa: "suspenso" }[f.status])}
+          empty={{ title: "Nenhuma fazenda cadastrada", text: "Fazendas se cadastram pela tela de criar conta, escolhendo “Fazenda”." }}
+          render={(f) => (
+            <EntityRow
+              key={f.id}
+              icon={<img src={ICONS.fazendas} alt="" style={{ width: 30, height: 30, objectFit: "contain" }} />}
+              title={f.name}
+              estrelas={f.estrelas}
+              lines={[
+                [f.location, f.cnpj ? `CNPJ ${maskCNPJ(f.cnpj)}` : null, f.car_numero ? `CAR ${f.car_numero}` : null, f.area_total_ha ? `${fmtNumber(f.area_total_ha)} ha` : null],
+                [f.responsavel, f.responsavel_email],
+              ]}
+              metrics={[
+                { label: "talhões ativos", value: f.talhoes_ativos },
+                { label: "captado", value: fmtBRL(f.total_captado) },
+                { label: "comissão", value: `${f.commission_pct}%` },
+              ]}
+              status={{ aprovada: ["success", "Aprovada"], pendente: ["warning", "Aguardando aprovação"], suspensa: ["danger", "Suspensa"] }[f.status]}
+              actions={
+                <>
+                  {f.status !== "aprovada" && <Button size="sm" variant="success" onClick={() => setStatus(f.id, "aprovada")}>{f.status === "suspensa" ? "Reativar" : "Aprovar"}</Button>}
+                  {f.status === "aprovada" && <Button size="sm" variant="secondary" onClick={() => setStatus(f.id, "suspensa")}>Suspender</Button>}
+                </>
+              }
+            />
+          )}
+        />
       )}
 
       {tab === "fases" && (
@@ -606,6 +627,63 @@ function CommodityReferenceRow({ reference, onSave }) {
 
 const miniInputStyle = { width: "100%", marginTop: 3, padding: "7px 8px", borderRadius: 7, border: `1px solid ${COLORS.line}`, fontSize: 12.5, background: "#fff", fontFamily: "inherit" };
 
+// ---------- listas de fazendas e armazéns (mesmo padrão visual) ----------
+const STATUS_FILTROS = [
+  { id: "todos", label: "Todos" },
+  { id: "pendente", label: "Aguardando" },
+  { id: "ativo", label: "Ativos" },
+  { id: "suspenso", label: "Suspensos" },
+];
+
+function EntityList({ intro, items, statusOf, render, empty }) {
+  const [filtro, setFiltro] = useState("todos");
+  const visiveis = filtro === "todos" ? items : items.filter((i) => statusOf(i) === filtro);
+  return (
+    <div className="stack">
+      <p className="text-sm text-2">{intro}</p>
+      {items.length > 0 && (
+        <FilterChips label="Filtrar por situação" value={filtro} onChange={setFiltro}
+          options={STATUS_FILTROS.map((f) => ({ ...f, count: f.id === "todos" ? items.length : items.filter((i) => statusOf(i) === f.id).length }))} />
+      )}
+      {items.length === 0
+        ? <EmptyState title={empty.title}>{empty.text}</EmptyState>
+        : visiveis.length === 0
+          ? <p className="text-sm text-2">Nada nesta situação.</p>
+          : <div className="list">{visiveis.map(render)}</div>}
+    </div>
+  );
+}
+
+// Linha padrão: ícone · nome + estrelas · identificação · responsável ·
+// números do negócio · situação · ações. Fazendas e armazéns usam a mesma.
+function EntityRow({ icon, iconTone, title, estrelas, lines, metrics, status, actions }) {
+  const [tone, label] = status || [undefined, ""];
+  return (
+    <article className="entity-row">
+      <span className="thumb thumb--lg" style={iconTone === "success" ? { background: "var(--success-soft)", color: "var(--success-text)" } : undefined}>{icon}</span>
+      <div className="entity-main">
+        <div className="entity-head">
+          <h3 className="list-item-title">{title}</h3>
+          <Badge tone={tone}>{label}</Badge>
+        </div>
+        <div className="entity-stars">
+          {estrelas > 0 ? <Stars value={estrelas} size={13} /> : <span className="text-xs text-3">Sem pontuação ainda</span>}
+        </div>
+        {lines.map((parts, i) => {
+          const txt = parts.filter(Boolean).join(" · ");
+          return txt ? <p key={i} className="list-item-sub">{txt}</p> : null;
+        })}
+        <dl className="entity-metrics">
+          {metrics.map((m) => (
+            <div key={m.label}><dt>{m.label}</dt><dd>{m.value}</dd></div>
+          ))}
+        </dl>
+      </div>
+      <div className="entity-actions">{actions}</div>
+    </article>
+  );
+}
+
 // o que o armazém garantidor validou — base para aprovar o pagamento
 function HarvestCustodyInfo({ r }) {
   const vendidas = r.cotas_totais - r.cotas_disponiveis;
@@ -636,7 +714,3 @@ function Stat({ label, value, icon: Icon }) {
   );
 }
 
-function StatusBadge({ status }) {
-  const tone = { aprovada: "success", pendente: "warning", suspensa: "danger" }[status] || "warning";
-  return <Badge tone={tone}>{status}</Badge>;
-}

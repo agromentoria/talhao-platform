@@ -27,7 +27,8 @@ async function myWarehouse(req) {
 // ---------- fazenda/admin: armazéns credenciados para escolher ----------
 router.get("/approved", requireAuth, asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT w.id, w.name, w.cnpj, w.location, w.capacidade_t, ${WAREHOUSE_STARS_SQL} AS estrelas
+    `SELECT w.id, w.name, w.cnpj, w.location, w.capacidade_t, ${WAREHOUSE_STARS_SQL} AS estrelas,
+            w.tarifa_recepcao, w.tarifa_quinzena, w.carencia_quinzenas, w.quebra_quinzena_pct
      FROM warehouses w WHERE w.status = 'aprovado' ORDER BY estrelas DESC NULLS LAST, w.name`
   );
   res.json({ warehouses: rows });
@@ -41,6 +42,11 @@ router.get("/mine", requireAuth, requireRole("armazem"), asyncHandler(async (req
   const { rows: est } = await pool.query(`SELECT ${WAREHOUSE_STARS_SQL} AS estrelas FROM warehouses w WHERE w.id = $1`, [warehouse.id]);
   warehouse.estrelas = est[0].estrelas;
   warehouse.caracteristicas = (await getWarehouseCharacteristics(pool, warehouse.id)).map((c) => c.key);
+  const { rows: rec } = await pool.query(
+    "SELECT COALESCE(SUM(amount), 0)::float8 AS total FROM transactions WHERE type = 'tarifa_armazem' AND user_id = $1",
+    [req.user.id]
+  );
+  warehouse.tarifas_recebidas = rec[0].total;
 
   const { rows: plots } = await pool.query(
     `SELECT p.id, p.nome, p.grao, p.variedade, p.tipo_producao, p.plantio_ate, p.colheita_prevista, p.aprovacao_status, p.safra, p.area_ha, p.unidade, p.fase_atual, p.progresso, p.status,
@@ -62,9 +68,23 @@ router.patch("/mine", requireAuth, requireRole("armazem"), asyncHandler(async (r
   if (!name || !String(name).trim() || !location) return res.status(400).json({ error: "Informe nome e localização do armazém." });
   const cap = capacidade_t === "" || capacidade_t == null ? null : Number(capacidade_t);
   if (cap !== null && (Number.isNaN(cap) || cap < 0)) return res.status(400).json({ error: "Capacidade inválida." });
+
+  // tabela de tarifas (vale para custódias aceitas daqui em diante)
+  const num = (v, d) => (v === "" || v == null ? d : Number(v));
+  const tarifa_recepcao = num(req.body.tarifa_recepcao, warehouse.tarifa_recepcao);
+  const tarifa_quinzena = num(req.body.tarifa_quinzena, warehouse.tarifa_quinzena);
+  const carencia = num(req.body.carencia_quinzenas, warehouse.carencia_quinzenas);
+  const quebra = num(req.body.quebra_quinzena_pct, warehouse.quebra_quinzena_pct);
+  if ([tarifa_recepcao, tarifa_quinzena, carencia, quebra].some((v) => Number.isNaN(v) || v < 0)
+      || tarifa_recepcao > 100 || tarifa_quinzena > 50 || carencia > 24 || quebra > 2) {
+    return res.status(400).json({ error: "Confira a tabela de tarifas: valores negativos ou fora do normal." });
+  }
   const { rows } = await pool.query(
-    "UPDATE warehouses SET name = $1, location = $2, capacidade_t = $3, descricao = $4 WHERE id = $5 RETURNING *",
-    [String(name).trim(), location, cap, descricao ? String(descricao).slice(0, 2000) : null, warehouse.id]
+    `UPDATE warehouses SET name = $1, location = $2, capacidade_t = $3, descricao = $4,
+       tarifa_recepcao = $5, tarifa_quinzena = $6, carencia_quinzenas = $7, quebra_quinzena_pct = $8
+     WHERE id = $9 RETURNING *`,
+    [String(name).trim(), location, cap, descricao ? String(descricao).slice(0, 2000) : null,
+     tarifa_recepcao, tarifa_quinzena, Math.round(carencia), quebra, warehouse.id]
   );
   res.json({ warehouse: rows[0] });
 }));
@@ -130,8 +150,14 @@ router.post("/plots/:plotId/custody", requireAuth, requireRole("armazem"), async
 
   const status = decisao === "aceitar" ? "aceita" : "recusada";
   const { rows: updated } = await pool.query(
-    "UPDATE plots SET custodia_status = $1, custodia_motivo = $2, custodia_em = now() WHERE id = $3 RETURNING id, custodia_status, custodia_motivo, custodia_em",
-    [status, status === "recusada" ? String(motivo).trim() : null, plot.id]
+    // no aceite, a tabela de tarifas do armazém fica gravada no talhão
+    `UPDATE plots SET custodia_status = $1, custodia_motivo = $2, custodia_em = now(),
+       arm_tarifa_recepcao = CASE WHEN $1 = 'aceita' THEN $4::real ELSE arm_tarifa_recepcao END,
+       arm_tarifa_quinzena = CASE WHEN $1 = 'aceita' THEN $5::real ELSE arm_tarifa_quinzena END,
+       arm_carencia = CASE WHEN $1 = 'aceita' THEN $6::int ELSE arm_carencia END,
+       arm_quebra_pct = CASE WHEN $1 = 'aceita' THEN $7::real ELSE arm_quebra_pct END
+     WHERE id = $3 RETURNING id, custodia_status, custodia_motivo, custodia_em`,
+    [status, status === "recusada" ? String(motivo).trim() : null, plot.id, warehouse.tarifa_recepcao, warehouse.tarifa_quinzena, warehouse.carencia_quinzenas, warehouse.quebra_quinzena_pct]
   );
 
   await safeNotify([plot.owner_user_id], {
@@ -209,6 +235,11 @@ router.post("/plots/:plotId/validations", requireAuth, requireRole("armazem"), a
      RETURNING *`,
     [plot.id, warehouse.id, etapa, resultado, qtd, observacao ? String(observacao).trim().slice(0, 2000) : null, foto || null, req.user.id]
   );
+
+  // armazenagem confirmada = grãos entraram no armazém: começa a contar a tarifa por quinzena
+  if (etapa === "armazenagem" && resultado === "confirmado") {
+    await pool.query("UPDATE plots SET arm_entrada_em = COALESCE(arm_entrada_em, now()) WHERE id = $1", [plot.id]);
+  }
 
   const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
   const qtdTexto = qtd !== null ? ` ${fmtNumber(qtd)} ${unidade(plot.unidade, qtd)}` : "";

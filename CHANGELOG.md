@@ -1,5 +1,15 @@
 # Registro de mudanças
 
+## 1.4.0 — despesa de armazenagem
+
+- **Tabela de tarifas do armazém** (em Dados do armazém): recepção por unidade (recebimento, limpeza, secagem, expedição), armazenagem por unidade a cada quinzena, quinzenas de carência e quebra técnica (% por quinzena) — o mesmo formato usado pelos armazéns gerais.
+- A tabela é **fixada no talhão no aceite da custódia**: mudanças posteriores valem só para novas custódias.
+- No cadastro do talhão a fazenda define **quem paga** (investidores, descontado do resultado antes das comissões, ou a própria fazenda) e o **tempo previsto no armazém**, vendo a estimativa por unidade e no total.
+- **Cobrança pelo tempo real**: conta da confirmação da armazenagem até a aprovação do pagamento.
+- No pagamento da colheita: despesa descontada de cada investidor quando for o caso, transação "Tarifa de armazenagem" creditada ao armazém e detalhe na descrição do pagamento.
+- Investidor vê a despesa estimada no painel de compra e no card "Garantia do armazém"; a administração vê a despesa até o dia antes de aprovar; a carteira da fazenda mostra a armazenagem; o painel do armazém mostra as tarifas recebidas.
+- Correções: concordância "da safra"/"do ciclo"; mensagem clara quando a lista de cidades (IBGE) não carrega.
+
 ## 1.3.2 — listas de fazendas e armazéns padronizadas na administração
 
 - Fazendas e armazéns usam o mesmo componente de lista: ícone, nome, situação, estrelas, identificação (cidade, CNPJ), responsável com e-mail, números do negócio e ações.

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Warehouse, ShieldCheck, Check, X, ClipboardCheck, Inbox, PackageCheck, Pencil, Camera, MapPin } from "lucide-react";
+import { Coins, Warehouse, ShieldCheck, Check, X, ClipboardCheck, Inbox, PackageCheck, Pencil, Camera, MapPin } from "lucide-react";
 import { FASE_MINIMA_CUSTODIA } from "../config/theme";
 import { fasesDe, etapasDe, culturaTexto, cicloLabels, fmtData } from "../config/culturas";
-import { fmtNumber, unitPlural } from "../lib/format";
+import { fmtNumber, unitPlural, fmtBRL } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { readImageFile } from "../lib/files";
 import { api } from "../lib/api";
@@ -115,6 +115,7 @@ export default function WarehouseDashboard() {
         <Stat label="Pedidos de custódia" value={counts.pedidos} icon={Inbox} />
         <Stat label="Em acompanhamento" value={counts.acompanhamento} icon={ClipboardCheck} />
         <Stat label="Safras concluídas" value={counts.concluidos} icon={PackageCheck} tone="success" />
+        <Stat label="Tarifas recebidas" value={fmtBRL(warehouse.tarifas_recebidas || 0)} icon={Coins} tone="success" />
       </div>
 
       <Tabs label="Talhões do armazém" value={tab} onChange={setTab} tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: counts[t.id] }))} />
@@ -306,7 +307,11 @@ function WarehouseEditDialog({ open, warehouse, onClose, onSaved }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (open) setF({ name: warehouse.name, location: warehouse.location, capacidade_t: warehouse.capacidade_t ?? "", descricao: warehouse.descricao || "" });
+    if (open) setF({
+      name: warehouse.name, location: warehouse.location, capacidade_t: warehouse.capacidade_t ?? "", descricao: warehouse.descricao || "",
+      tarifa_recepcao: warehouse.tarifa_recepcao ?? 0, tarifa_quinzena: warehouse.tarifa_quinzena ?? 0,
+      carencia_quinzenas: warehouse.carencia_quinzenas ?? 1, quebra_quinzena_pct: warehouse.quebra_quinzena_pct ?? 0,
+    });
   }, [open, warehouse]);
   const set = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
 
@@ -332,6 +337,16 @@ function WarehouseEditDialog({ open, warehouse, onClose, onSaved }) {
         <CityStateSelect key={open ? "aberto" : "fechado"} value={f.location} onChange={set("location")} required />
         <TextField label="Capacidade estática (toneladas)" type="number" inputMode="decimal" min={0} value={f.capacidade_t} onChange={set("capacidade_t")} />
         <TextAreaField label="Apresentação" hint="Aparece para o investidor na página do talhão: estrutura, certificações, tempo de mercado." value={f.descricao} onChange={set("descricao")} rows={4} maxLength={2000} />
+        <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+          <legend className="card-title" style={{ marginBottom: 4 }}>Tabela de tarifas</legend>
+          <p className="text-sm text-2" style={{ marginBottom: 10 }}>Valores por unidade de venda (saca, arroba…). Ficam gravados em cada talhão no momento do aceite; mudar aqui vale só para novas custódias.</p>
+          <div className="form-grid">
+            <TextField label="Recepção (R$ por unidade)" hint="Recebimento, limpeza, secagem e expedição, cobrados uma vez." type="number" inputMode="decimal" step="0.01" min={0} value={f.tarifa_recepcao} onChange={set("tarifa_recepcao")} />
+            <TextField label="Armazenagem (R$ por unidade, por quinzena)" type="number" inputMode="decimal" step="0.01" min={0} value={f.tarifa_quinzena} onChange={set("tarifa_quinzena")} />
+            <TextField label="Carência (quinzenas sem cobrança)" type="number" inputMode="numeric" min={0} max={24} value={f.carencia_quinzenas} onChange={set("carencia_quinzenas")} />
+            <TextField label="Quebra técnica (% por quinzena)" hint="Perda natural de peso, cobrada em valor. Ex.: 0,15." type="number" inputMode="decimal" step="0.01" min={0} max={2} value={f.quebra_quinzena_pct} onChange={set("quebra_quinzena_pct")} />
+          </div>
+        </fieldset>
         <div className="dialog-actions" style={{ marginTop: 4 }}>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button type="submit" loading={saving}>Salvar</Button>

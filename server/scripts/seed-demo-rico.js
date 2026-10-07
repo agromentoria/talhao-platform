@@ -103,6 +103,8 @@ async function main() {
   await call("PATCH", "/warehouses/mine", whToken, {
     name: "Armazéns Gerais Sudoeste", location: "Rio Verde, GO", capacidade_t: 48000,
     descricao: "Complexo com 6 silos metálicos, balança rodoviária e laboratório de classificação.",
+    // tabela de tarifas no padrão dos armazéns gerais (por saca de 60 kg)
+    tarifa_recepcao: 1.4, tarifa_quinzena: 0.4, carencia_quinzenas: 1, quebra_quinzena_pct: 0.15,
   });
   await call("PUT", "/warehouses/mine/characteristics", whToken, {
     keys: ["silo_metalico", "balanca_rodoviaria", "secador", "termometria", "aeracao_automatica", "laboratorio", "monitoramento_cftv", "seguro_estoque", "certificado_mapa", "armazem_geral"],

@@ -162,6 +162,7 @@ export const api = {
   updateMyWarehouse: (payload) => request("/warehouses/mine", { method: "PATCH", body: payload }),
   decideCustody: (plotId, decisao, motivo) => request(`/warehouses/plots/${plotId}/custody`, { method: "POST", body: { decisao, motivo } }),
   validatePlot: (plotId, payload) => request(`/warehouses/plots/${plotId}/validations`, { method: "POST", body: payload }),
+  setPlotStorage: (plotId, payload) => request(`/plots/${plotId}/armazenagem`, { method: "PATCH", body: payload }),
   setPlotWarehouse: (plotId, warehouse_id) => request(`/plots/${plotId}/warehouse`, { method: "PATCH", body: { warehouse_id } }),
   adminWarehouses: () => request("/warehouses"),
   setWarehouseStatus: (id, status) => request(`/warehouses/${id}/status`, { method: "PATCH", body: { status } }),

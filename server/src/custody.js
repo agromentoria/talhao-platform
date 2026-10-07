@@ -49,7 +49,8 @@ async function getWarehouseCharacteristics(db, warehouseId) {
 async function getPublicWarehouse(db, warehouseId) {
   if (!warehouseId) return null;
   const { rows } = await db.query(
-    `SELECT w.id, w.name, w.cnpj, w.location, w.capacidade_t, w.descricao, w.status, ${WAREHOUSE_STARS_SQL} AS estrelas
+    `SELECT w.id, w.name, w.cnpj, w.location, w.capacidade_t, w.descricao, w.status, ${WAREHOUSE_STARS_SQL} AS estrelas,
+            w.tarifa_recepcao, w.tarifa_quinzena, w.carencia_quinzenas, w.quebra_quinzena_pct
      FROM warehouses w WHERE w.id = $1`,
     [warehouseId]
   );

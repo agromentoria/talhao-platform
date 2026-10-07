@@ -461,6 +461,28 @@ CREATE TABLE IF NOT EXISTS warehouse_characteristics_catalog (
   categoria TEXT NOT NULL,
   pontos INTEGER NOT NULL DEFAULT 1
 );
+-- ===================== Despesa de armazenagem =====================
+-- Tabela de tarifas do armazém, no padrão dos armazéns gerais:
+--   recepção: valor fixo por unidade (recebimento, limpeza, secagem, expedição)
+--   armazenagem: valor por unidade a cada quinzena guardada, após a carência
+--   quebra técnica: % do volume perdido por quinzena (cobrado em valor)
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS tarifa_recepcao REAL NOT NULL DEFAULT 0;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS tarifa_quinzena REAL NOT NULL DEFAULT 0;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS carencia_quinzenas INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS quebra_quinzena_pct REAL NOT NULL DEFAULT 0;
+
+-- no aceite da custódia a tabela do armazém é copiada para o talhão: mudar a
+-- tabela depois não altera o combinado com fazenda e investidores
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_tarifa_recepcao REAL;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_tarifa_quinzena REAL;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_carencia INTEGER;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_quebra_pct REAL;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_pagador TEXT NOT NULL DEFAULT 'investidores'; -- investidores | fazenda
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_quinzenas_previstas INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_entrada_em TIMESTAMPTZ;  -- quando o armazém confirmou o recebimento
+
+ALTER TABLE payouts ADD COLUMN IF NOT EXISTS despesa_armazem REAL NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS warehouse_characteristics (
   warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
   characteristic_key TEXT NOT NULL REFERENCES warehouse_characteristics_catalog(key),

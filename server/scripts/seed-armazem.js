@@ -51,6 +51,7 @@ const login = async (email, password = "senha12345") => (await call("POST", "/au
   await call("PATCH", "/warehouses/mine", wh, {
     name: "Armazéns Gerais Sudoeste", location: "Rio Verde, GO", capacidade_t: 48000,
     descricao: "Complexo com 6 silos metálicos, balança rodoviária e laboratório de classificação. Credenciado no MAPA.",
+    tarifa_recepcao: 1.4, tarifa_quinzena: 0.4, carencia_quinzenas: 1, quebra_quinzena_pct: 0.15,
   });
 
   let garantidos = 0;

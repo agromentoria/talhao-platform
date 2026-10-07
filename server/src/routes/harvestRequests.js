@@ -1,4 +1,5 @@
 const express = require("express");
+const { despesaReal } = require("../storageFees");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -34,7 +35,20 @@ router.get("/", asyncHandler(async (req, res) => {
   }
   sql += " ORDER BY hr.created_at DESC";
   const { rows } = await pool.query(sql, params);
-  res.json({ requests: rows });
+  // despesa de armazenagem até hoje, para a administração conferir antes de aprovar
+  const { rows: plots } = rows.length
+    ? await pool.query("SELECT * FROM plots WHERE id = ANY($1)", [rows.map((r) => r.plot_id)])
+    : { rows: [] };
+  const byId = Object.fromEntries(plots.map((p) => [p.id, p]));
+  const enriched = rows.map((r) => {
+    const p = byId[r.plot_id];
+    if (!p || !p.warehouse_id) return r;
+    const vendidas = p.cotas_totais - p.cotas_disponiveis;
+    const precoVenda = p.preco_venda_estimado * (1 + Number(r.retorno_final ?? p.previsao_retorno) / 100);
+    const d = despesaReal(p, { unidades: vendidas, precoVenda });
+    return { ...r, armazenagem: { ...d, pagador: p.arm_pagador, entrada_em: p.arm_entrada_em } };
+  });
+  res.json({ requests: enriched });
 }));
 
 router.post("/:id/approve", asyncHandler(async (req, res) => {

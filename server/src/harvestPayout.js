@@ -2,6 +2,7 @@ const { fmtBRL } = require("./format");
 const { pool } = require("./db");
 const { notifyUsers } = require("./notify");
 const { recordTransaction } = require("./ledger");
+const { despesaReal } = require("./storageFees");
 
 // Executa de fato o pagamento da colheita (só deve ser chamado depois que
 // um admin aprova a solicitação). Usa o mesmo modelo de preço por unidade
@@ -12,6 +13,8 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
   let investidoresPagos = 0;
   let totalComissaoFazenda = 0;
   let totalComissaoApp = 0;
+  let totalDespesaArmazem = 0;
+  let despesaInfo = null;
   const investorNotifications = [];
 
   try {
@@ -23,19 +26,25 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
     );
 
     const precoVendaReal = plot.preco_venda_estimado * (1 + retorno / 100);
+    // despesa do armazém sobre a parte dos investidores, da entrada até hoje
+    const investidoresPagam = plot.warehouse_id && plot.arm_pagador !== "fazenda";
 
     for (const inv of investments) {
       const precoUnitario = inv.preco_unitario || (inv.valor_investido / inv.cotas);
       const valorBruto = inv.cotas * precoVendaReal;
-      const lucroBruto = valorBruto - inv.valor_investido;
+      const despesa = plot.warehouse_id ? despesaReal(plot, { unidades: inv.cotas, precoVenda: precoVendaReal }) : null;
+      if (despesa && !despesaInfo) despesaInfo = despesa;
+      const despesaArmazem = investidoresPagam && despesa ? despesa.total : 0;
+      totalDespesaArmazem += despesa ? despesa.total : 0;
+      const lucroBruto = valorBruto - despesaArmazem - inv.valor_investido;
       const comissaoFazenda = Math.max(0, lucroBruto) * (farm.commission_pct / 100);
       const comissaoApp = Math.max(0, lucroBruto) * (appCommissionPct / 100);
-      const valorLiquido = valorBruto - comissaoFazenda - comissaoApp;
+      const valorLiquido = valorBruto - despesaArmazem - comissaoFazenda - comissaoApp;
 
       await client.query(
-        `INSERT INTO payouts (investment_id, valor_bruto, comissao_fazenda, comissao_app, valor_liquido)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [inv.id, valorBruto, comissaoFazenda, comissaoApp, valorLiquido]
+        `INSERT INTO payouts (investment_id, valor_bruto, comissao_fazenda, comissao_app, valor_liquido, despesa_armazem)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [inv.id, valorBruto, comissaoFazenda, comissaoApp, valorLiquido, despesaArmazem]
       );
       await client.query("UPDATE investments SET status = 'pago' WHERE id = $1", [inv.id]);
 
@@ -47,7 +56,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         plotId: plot.id,
         investmentId: inv.id,
         amount: valorLiquido,
-        description: `Pagamento da colheita de ${plot.nome} (comprou a ${fmtBRL(precoUnitario)}, vendido a ${fmtBRL(precoVendaReal)} por unidade)`,
+        description: `Pagamento da colheita de ${plot.nome} (comprou a ${fmtBRL(precoUnitario)}, vendido a ${fmtBRL(precoVendaReal)} por unidade${despesaArmazem > 0 ? `, armazenagem ${fmtBRL(despesaArmazem)}` : ""})`,
       });
 
       totalComissaoFazenda += comissaoFazenda;
@@ -65,6 +74,20 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         plotId: plot.id,
         amount: totalComissaoFazenda,
         description: `Comissão da colheita de ${plot.nome} (${farm.commission_pct}%)`,
+      });
+    }
+
+    // tarifa do armazém garantidor (recepção + quinzenas + quebra técnica)
+    if (plot.warehouse_id && totalDespesaArmazem > 0) {
+      const { rows: wh } = await client.query("SELECT owner_user_id, name FROM warehouses WHERE id = $1", [plot.warehouse_id]);
+      await recordTransaction(client, {
+        type: "tarifa_armazem",
+        status: "aprovado",
+        userId: wh[0]?.owner_user_id || null,
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        amount: totalDespesaArmazem,
+        description: `Armazenagem de ${plot.nome} em ${wh[0]?.name || "armazém"}: ${despesaInfo.quinzenas} quinzena(s), ${despesaInfo.quinzenasCobradas} cobrada(s) — paga ${investidoresPagam ? "pelos investidores (descontada do resultado)" : "pela fazenda"}`,
       });
     }
 
@@ -129,7 +152,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
     console.error("[aviso] falha ao enviar notificações de pagamento:", notifyErr);
   }
 
-  return { investidoresPagos, totalComissaoFazenda, totalComissaoApp };
+  return { investidoresPagos, totalComissaoFazenda, totalComissaoApp, totalDespesaArmazem };
 }
 
 module.exports = { executeHarvestPayout };

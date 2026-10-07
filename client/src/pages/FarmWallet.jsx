@@ -12,6 +12,7 @@ export default function FarmWallet() {
   const [transactions, setTransactions] = useState([]);
   const [totalVendido, setTotalVendido] = useState(0);
   const [totalRecebido, setTotalRecebido] = useState(0);
+  const [totalArmazenagem, setTotalArmazenagem] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("todos");
@@ -22,6 +23,7 @@ export default function FarmWallet() {
         setTransactions(data.transactions);
         setTotalVendido(data.totalVendido);
         setTotalRecebido(data.totalRecebido);
+        setTotalArmazenagem(data.totalArmazenagem || 0);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -31,6 +33,7 @@ export default function FarmWallet() {
   const filtered = transactions.filter((t) => {
     if (filter === "vendas") return t.type === "compra_cota";
     if (filter === "recebimentos") return t.type === "repasse_fazenda";
+    if (filter === "armazenagem") return t.type === "tarifa_armazem";
     return true;
   });
 
@@ -43,11 +46,12 @@ export default function FarmWallet() {
         <Stat label="Total vendido" value={fmtBRL(totalVendido)} icon={Coins} />
         <Stat label="Comissão recebida" value={fmtBRL(totalRecebido)} icon={TrendingUp} tone="success" />
         <Stat label="Talhões com vendas" value={talhoesComVenda} icon={Warehouse} />
+        {totalArmazenagem > 0 && <Stat label="Armazenagem paga pela fazenda" value={fmtBRL(totalArmazenagem)} icon={Warehouse} />}
       </div>
 
       <div style={{ marginBottom: 14 }}>
         <FilterChips label="Filtrar movimentações" value={filter} onChange={setFilter}
-          options={[{ id: "todos", label: "Tudo" }, { id: "vendas", label: "Vendas" }, { id: "recebimentos", label: "Recebimentos" }]} />
+          options={[{ id: "todos", label: "Tudo" }, { id: "vendas", label: "Vendas" }, { id: "recebimentos", label: "Recebimentos" }, { id: "armazenagem", label: "Armazenagem" }]} />
       </div>
 
       {loading ? <Loading /> : filtered.length === 0 ? (
@@ -58,6 +62,19 @@ export default function FarmWallet() {
         <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {filtered.map((t) => {
             const isVenda = t.type === "compra_cota";
+            if (t.type === "tarifa_armazem") {
+              const fazendaPaga = t.arm_pagador === "fazenda";
+              return (
+                <li key={t.id} className="list-item">
+                  <GrainThumb grao={t.grao} />
+                  <div className="list-item-body">
+                    <p className="list-item-title truncate">Armazenagem · {t.plot_nome}</p>
+                    <p className="list-item-sub">{fazendaPaga ? "Paga pela fazenda" : "Descontada dos investidores"} · {fmtDateTime(t.created_at)}</p>
+                  </div>
+                  <p className={`money ${fazendaPaga ? "text-danger" : "text-2"}`} style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{fazendaPaga ? "−" : ""}{fmtBRL(t.amount)}</p>
+                </li>
+              );
+            }
             return (
               <li key={t.id} className="list-item">
                 <GrainThumb grao={t.grao} />

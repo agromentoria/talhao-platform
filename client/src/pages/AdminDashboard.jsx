@@ -15,6 +15,7 @@ const TYPE_LABEL = {
   pagamento_investidor: "Pagamento a investidor",
   repasse_fazenda: "Repasse à fazenda",
   comissao_plataforma: "Comissão da plataforma",
+  tarifa_armazem: "Tarifa de armazenagem",
 };
 
 const TABS = [
@@ -265,7 +266,7 @@ export default function AdminDashboard() {
             <Receipt size={15} /> Transações
           </p>
           <SelectField label="Tipo de transação" value={typeFilter} onChange={setTypeFilter} style={{ marginBottom: 14, maxWidth: 360 }}
-            options={[{ value: "", label: "Todos os tipos" }, { value: "compra_cota", label: "Compras" }, { value: "pagamento_investidor", label: "Pagamentos a investidores" }, { value: "repasse_fazenda", label: "Repasses a fazendas" }, { value: "comissao_plataforma", label: "Comissão da plataforma" }]} />
+            options={[{ value: "", label: "Todos os tipos" }, { value: "compra_cota", label: "Compras" }, { value: "pagamento_investidor", label: "Pagamentos a investidores" }, { value: "repasse_fazenda", label: "Repasses a fazendas" }, { value: "comissao_plataforma", label: "Comissão da plataforma" }, { value: "tarifa_armazem", label: "Tarifas de armazenagem" }]} />
 
           <div className="grid-stats" style={{ marginBottom: 16 }}>
             {Object.entries(totals).map(([type, t]) => (
@@ -697,10 +698,16 @@ function HarvestCustodyInfo({ r }) {
     return <Banner tone="error" title={`${r.warehouse_name} registrou divergência`} style={{ marginBottom: 12 }}>{r.armazenagem_observacao}</Banner>;
   }
   const qtd = Number(r.armazenagem_quantidade);
+  const a = r.armazenagem;
   return (
     <Banner tone={qtd < vendidas ? "warning" : "success"} title={`Armazenagem confirmada por ${r.warehouse_name}`} style={{ marginBottom: 12 }}>
-      {fmtNumber(qtd)} de {fmtNumber(r.cotas_totais)} {r.unidade}s declaradas ({Math.round((qtd / r.cotas_totais) * 100)}%) · {fmtNumber(vendidas)} vendidas aos investidores.
+      {fmtNumber(qtd)} de {fmtNumber(r.cotas_totais)} {unidadeNome(r.unidade, 2)} declaradas ({Math.round((qtd / r.cotas_totais) * 100)}%) · {fmtNumber(vendidas)} vendidas aos investidores.
       {qtd < vendidas ? " A quantidade armazenada é menor que a vendida." : ""}
+      {a && a.total > 0 && (
+        <span style={{ display: "block", marginTop: 6 }}>
+          Despesa de armazenagem até hoje: <strong>{fmtBRL(a.total)}</strong> ({a.quinzenas} quinzena(s), {a.quinzenasCobradas} cobrada(s): recepção {fmtBRL(a.recepcao)}, armazenagem {fmtBRL(a.armazenagem)}{a.quebra > 0 ? `, quebra ${fmtBRL(a.quebra)}` : ""}) — paga pel{a.pagador === "fazenda" ? "a fazenda" : "os investidores, descontada do resultado"}.
+        </span>
+      )}
     </Banner>
   );
 }

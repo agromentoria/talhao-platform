@@ -56,7 +56,7 @@ export default function CityStateSelect({ value, onChange, required }) {
     setError("");
     fetchCidades(uf)
       .then((lista) => { if (ativo) setCidades(lista); })
-      .catch((err) => { if (ativo) setError(err.message); })
+      .catch(() => { if (ativo) setError("Não foi possível carregar as cidades. Verifique a internet e tente de novo."); })
       .finally(() => { if (ativo) setLoading(false); });
     return () => { ativo = false; };
   }, [uf]);
@@ -88,6 +88,8 @@ export default function CityStateSelect({ value, onChange, required }) {
         autoComplete="address-level2"
       >
         <option value="">{loading ? "Carregando…" : uf ? "Selecione a cidade" : "Escolha o estado primeiro"}</option>
+        {/* mantém a cidade já salva visível mesmo se a lista não carregar */}
+        {cidade && !cidades.includes(cidade) && <option value={cidade}>{cidade}</option>}
         {cidades.map((c) => <option key={c} value={c}>{c}</option>)}
       </SelectField>
     </div>

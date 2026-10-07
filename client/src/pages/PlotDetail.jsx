@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { MapPin, QrCode, CreditCard, Plus, Minus, Award, ShieldCheck, ShieldAlert, Warehouse } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { GRAIN_COLORS } from "../config/theme";
+import { quinzenasTexto } from "../lib/armazenagem";
 import { fasesDe, faseIcone, unidadeNome, cicloLabels, fmtData, culturaTexto, TIPOS, tipoDe } from "../config/culturas";
 import { fmtBRL, fmtNumber, unitPlural } from "../lib/format";
 import { api } from "../lib/api";
@@ -22,6 +23,7 @@ export default function PlotDetail() {
   const [plot, setPlot] = useState(null);
   const [fotos, setFotos] = useState([]);
   const [armazem, setArmazem] = useState(null);
+  const [armazenagem, setArmazenagem] = useState(null);
   const [validacoes, setValidacoes] = useState([]);
   const [publico, setPublico] = useState(true);
   const [pendencias, setPendencias] = useState([]);
@@ -42,6 +44,7 @@ export default function PlotDetail() {
       // a API devolve as fotos fora do objeto do talhão (antes elas nunca apareciam)
       setFotos(data.fotos || []);
       setArmazem(data.armazem || null);
+      setArmazenagem(data.armazenagem || null);
       setValidacoes(data.validacoes || []);
       setHistorico(data.historico.map((h) => ({ fase: fasesDe(data.plot)[h.fase_atual], v: h.progresso })));
       setPublico(data.publico !== false);
@@ -74,6 +77,10 @@ export default function PlotDetail() {
   const unidade = unidadeNome(plot.unidade, 1);
   const fases = fasesDe(plot);
   const cicloNome = TIPOS[tipoDe(plot)].ciclo_curto;
+  // "da safra" / "do ciclo"
+  const fem = cicloNome === "safra";
+  const doCiclo = `${fem ? "da" : "do"} ${cicloNome}`;
+  const oCiclo = `${fem ? "a" : "o"} ${cicloNome}`;
   const ciclo = cicloLabels(plot);
   const maxCotas = Math.max(1, plot.cotas_disponiveis);
   const qtd = Math.min(Math.max(1, cotas), maxCotas);
@@ -83,10 +90,13 @@ export default function PlotDetail() {
   const precoVendaProjetado = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
   const margemPorUnidade = precoVendaProjetado - plot.cota_valor;
   const retornoBruto = qtd * precoVendaProjetado;
-  const lucroBruto = retornoBruto - custoTotal;
+  // armazenagem prevista: só desconta do investidor quando ele é quem paga
+  const investidorPagaArmazem = armazenagem && armazenagem.pagador !== "fazenda";
+  const despesaArmazem = investidorPagaArmazem ? qtd * armazenagem.porUnidade : 0;
+  const lucroBruto = retornoBruto - despesaArmazem - custoTotal;
   const comissaoFazenda = Math.max(0, lucroBruto) * (plot.commission_pct / 100);
   const comissaoApp = Math.max(0, lucroBruto) * (appCommission / 100);
-  const recebimentoLiquido = retornoBruto - comissaoFazenda - comissaoApp;
+  const recebimentoLiquido = retornoBruto - despesaArmazem - comissaoFazenda - comissaoApp;
   const lucroLiquido = recebimentoLiquido - custoTotal;
   const chartData = historico.length ? historico : [{ fase: fases[0], v: 0 }];
   const colhido = ["pago", "colhido", "arquivado", "aguardando_aprovacao"].includes(plot.status);
@@ -160,7 +170,7 @@ export default function PlotDetail() {
           )}
 
           <section className="card" aria-labelledby="etapas-t">
-            <h2 id="etapas-t" className="card-title" style={{ marginBottom: 16 }}>Etapas do {cicloNome}</h2>
+            <h2 id="etapas-t" className="card-title" style={{ marginBottom: 16 }}>Etapas {doCiclo}</h2>
             <ol className="stepper" style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {fases.map((f, i) => {
                 const state = i < plot.fase_atual ? "is-done" : i === plot.fase_atual ? "is-current" : "is-todo";
@@ -174,10 +184,10 @@ export default function PlotDetail() {
             </ol>
           </section>
 
-          <GuaranteeCard plot={plot} armazem={armazem} validacoes={validacoes} />
+          <GuaranteeCard plot={plot} armazem={armazem} validacoes={validacoes} armazenagem={armazenagem} />
 
           <section className="card" aria-labelledby="preco-t">
-            <h2 id="preco-t" className="card-title">Preço sobe conforme o {cicloNome} avança</h2>
+            <h2 id="preco-t" className="card-title">Preço sobe conforme {oCiclo} avança</h2>
             <p className="card-desc" style={{ marginBottom: 16 }}>
               Quem entra mais cedo paga menos por {unidade} e tem mais espaço de lucro. Mais perto do fim do ciclo o preço se aproxima do valor de venda: menos risco, retorno menor.
             </p>
@@ -201,7 +211,7 @@ export default function PlotDetail() {
           </section>
 
           <section className="card" aria-labelledby="prog-t">
-            <h2 id="prog-t" className="card-title">Progresso do {cicloNome}</h2>
+            <h2 id="prog-t" className="card-title">Progresso {doCiclo}</h2>
             <p className="card-desc" style={{ marginBottom: 10 }}>Atualizado pela fazenda conforme o andamento em campo. Hoje: {plot.progresso}%.</p>
             <div style={{ height: 170 }} aria-hidden>
               <ResponsiveContainer width="100%" height="100%">
@@ -255,7 +265,7 @@ export default function PlotDetail() {
                   Este talhão concluiu o ciclo{plot.status === "pago" ? " e os investidores já foram pagos" : ""}. Não aceita novos investimentos.
                 </p>
                 {plot.retorno_final != null && (
-                  <dl className="kv"><div className="total"><dt>Retorno final do {cicloNome}</dt><dd className="text-success">{plot.retorno_final}%</dd></div></dl>
+                  <dl className="kv"><div className="total"><dt>Retorno final {doCiclo}</dt><dd className="text-success">{plot.retorno_final}%</dd></div></dl>
                 )}
               </>
             ) : (
@@ -288,6 +298,9 @@ export default function PlotDetail() {
 
                 <dl className="kv" style={{ margin: "0 0 16px" }}>
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
+                  {investidorPagaArmazem && despesaArmazem > 0 && (
+                    <div><dt>Armazenagem estimada · {quinzenasTexto(armazenagem.quinzenas_previstas)}</dt><dd>− {fmtBRL(despesaArmazem)}</dd></div>
+                  )}
                   <div><dt>Recebimento estimado</dt><dd>{fmtBRL(recebimentoLiquido)}</dd></div>
                   <div className="total"><dt>Lucro líquido estimado</dt><dd className={lucroLiquido >= 0 ? "text-success" : "text-danger"}>{fmtBRL(lucroLiquido)}</dd></div>
                 </dl>
@@ -340,7 +353,7 @@ export default function PlotDetail() {
 
 // O armazém é o garantidor físico da commodity: valida de forma independente
 // que a fazenda plantou, colheu e guardou o que declarou.
-function GuaranteeCard({ plot, armazem, validacoes }) {
+function GuaranteeCard({ plot, armazem, validacoes, armazenagem }) {
   const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
   if (plot.custodia_status === "aceita" && armazem) {
     return (
@@ -365,6 +378,18 @@ function GuaranteeCard({ plot, armazem, validacoes }) {
           </div>
         )}
         <CustodyTimeline plot={plot} validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
+        {armazenagem && (
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+            <p className="card-title" style={{ marginBottom: 6 }}>Despesa de armazenagem</p>
+            <p className="text-sm text-2">
+              {armazenagem.tarifas.recepcao || armazenagem.tarifas.quinzena || armazenagem.tarifas.quebraPct
+                ? <>Recepção {fmtBRL(armazenagem.tarifas.recepcao)} por {unidadeNome(plot.unidade, 1)}, {fmtBRL(armazenagem.tarifas.quinzena)} por quinzena após {armazenagem.tarifas.carencia} quinzena(s) de carência{armazenagem.tarifas.quebraPct ? `, quebra técnica de ${String(armazenagem.tarifas.quebraPct).replace(".", ",")}% por quinzena` : ""}. </>
+                : "O armazém não cobra tarifa neste talhão. "}
+              Previsão de {quinzenasTexto(armazenagem.quinzenas_previstas)} guardado: cerca de <strong style={{ color: "var(--text)" }}>{fmtBRL(armazenagem.porUnidade)} por {unidadeNome(plot.unidade, 1)}</strong>,
+              {" "}{armazenagem.pagador === "fazenda" ? "pagos pela fazenda." : "descontados do resultado dos investidores antes das comissões."}
+            </p>
+          </div>
+        )}
       </section>
     );
   }

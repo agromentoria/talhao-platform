@@ -8,6 +8,15 @@ const { validatePhotoData } = require("../validators");
 const { getValidations, getPublicWarehouse, WAREHOUSE_STARS_SQL } = require("../custody");
 const { UNIDADES, TIPOS, getCultura, fasesDe } = require("../culturas");
 const { PUBLIC_SQL, isPublic, pendencias, maybePublish } = require("../publication");
+const { despesaPrevista } = require("../storageFees");
+
+// quem paga a armazenagem e por quanto tempo a produção deve ficar guardada
+function parseArmazenagem(body) {
+  const pagador = body.arm_pagador === "fazenda" ? "fazenda" : "investidores";
+  const q = body.arm_quinzenas_previstas === undefined || body.arm_quinzenas_previstas === "" ? 2 : Math.round(Number(body.arm_quinzenas_previstas));
+  if (Number.isNaN(q) || q < 1 || q > 24) return { error: "Período de armazenagem previsto deve ficar entre 1 e 24 quinzenas." };
+  return { pagador, quinzenas: q };
+}
 
 const router = express.Router();
 
@@ -158,9 +167,22 @@ router.get("/:id", asyncHandler(async (req, res) => {
     ? await getPublicWarehouse(pool, plot.warehouse_id) : null;
   const validacoes = plot.custodia_status === "aceita" ? await getValidations(pool, plot.id) : [];
 
+  // despesa de armazenagem prevista por unidade (usa a tabela do talhão ou, antes
+  // do aceite, a tabela atual do armazém indicado)
+  let armazenagem = null;
+  if (armazem) {
+    const ref = plot.arm_tarifa_recepcao != null ? plot : {
+      ...plot,
+      arm_tarifa_recepcao: armazem.tarifa_recepcao, arm_tarifa_quinzena: armazem.tarifa_quinzena,
+      arm_carencia: armazem.carencia_quinzenas, arm_quebra_pct: armazem.quebra_quinzena_pct,
+    };
+    const precoProjetado = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
+    const d = despesaPrevista(ref, { unidades: 1, precoVenda: precoProjetado });
+    armazenagem = { ...d, pagador: plot.arm_pagador, quinzenas_previstas: plot.arm_quinzenas_previstas, entrada_em: plot.arm_entrada_em };
+  }
   res.json({
     plot, historico: historico.rows, app_commission_pct: appCommissionPct, fotos: fotos.rows, armazem, validacoes,
-    publico: isPublic(plot), pendencias: pendencias(plot),
+    publico: isPublic(plot), pendencias: pendencias(plot), armazenagem,
   });
 }));
 
@@ -218,6 +240,8 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
 
   const c = await parseCultivo(req.body, area);
   if (c.error) return res.status(400).json({ error: c.error });
+  const arm = parseArmazenagem(req.body);
+  if (arm.error) return res.status(400).json({ error: arm.error });
 
   // preço inicial (fase 0) — o mais barato, sobe conforme a fase avança
   const multiplicadorFase0 = await getFaseMultiplier(0);
@@ -226,10 +250,10 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   const { rows } = await pool.query(
     `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra,
                         cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado,
-                        warehouse_id, custodia_status, aprovacao_status, exige_garantia)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true) RETURNING *`,
+                        warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17) RETURNING *`,
     [farm_id, String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, wh.warehouse.id]
+     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas]
   );
   const plot = rows[0];
   await notifyWarehouseIndication(wh.warehouse, plot, owned.farm.name);
@@ -491,6 +515,8 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
   }
   const c = await parseCultivo(req.body, area);
   if (c.error) return res.status(400).json({ error: c.error });
+  const arm = parseArmazenagem(req.body);
+  if (arm.error) return res.status(400).json({ error: arm.error });
 
   const multiplicadorFase0 = await getFaseMultiplier(0);
   const cotaValorInicial = c.precoVenda * multiplicadorFase0;
@@ -502,11 +528,13 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
        area_ha = $7, safra = $8, cota_valor = $9, cotas_totais = $10, cotas_disponiveis = $10, previsao_retorno = $11,
        retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao', unidade = $12, preco_venda_estimado = $13,
        custodia_status = 'pendente', custodia_motivo = NULL, custodia_em = NULL,
-       aprovacao_status = 'pendente', aprovacao_motivo = NULL, aprovacao_em = NULL, exige_garantia = true, publicado_em = NULL
+       aprovacao_status = 'pendente', aprovacao_motivo = NULL, aprovacao_em = NULL, exige_garantia = true, publicado_em = NULL,
+       arm_pagador = $15, arm_quinzenas_previstas = $16, arm_entrada_em = NULL,
+       arm_tarifa_recepcao = NULL, arm_tarifa_quinzena = NULL, arm_carencia = NULL, arm_quebra_pct = NULL
      WHERE id = $14
      RETURNING *`,
     [String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, plot.id]
+     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, plot.id, arm.pagador, arm.quinzenas]
   );
   await pool.query("DELETE FROM plot_validations WHERE plot_id = $1", [plot.id]);
   const { rows: w } = await pool.query("SELECT * FROM warehouses WHERE id = $1", [rows[0].warehouse_id]);
@@ -514,6 +542,26 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
   await notifyAdminsNewPlot(rows[0], owned.farm.name, true);
 
   res.json({ plot: rows[0], pendencias: pendencias(rows[0]) });
+}));
+
+// fazenda ajusta quem paga a armazenagem e o período previsto
+// (só antes de ir ao ar: depois disso faz parte do combinado com os investidores)
+router.patch("/:id/armazenagem", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
+  const plot = rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+  const owned = await getFarmOwned(plot.farm_id, req.user);
+  if (owned.error) return res.status(403).json({ error: owned.error });
+  if (plot.publicado_em && plot.cotas_disponiveis < plot.cotas_totais) {
+    return res.status(409).json({ error: "O talhão já tem investidores: as condições de armazenagem não podem mudar." });
+  }
+  const arm = parseArmazenagem(req.body || {});
+  if (arm.error) return res.status(400).json({ error: arm.error });
+  const { rows: up } = await pool.query(
+    "UPDATE plots SET arm_pagador = $1, arm_quinzenas_previstas = $2 WHERE id = $3 RETURNING *",
+    [arm.pagador, arm.quinzenas, plot.id]
+  );
+  res.json({ plot: up[0] });
 }));
 
 // fazenda indica (ou troca) o armazém garantidor — só enquanto a custódia

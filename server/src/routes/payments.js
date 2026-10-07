@@ -212,11 +212,11 @@ router.get("/transactions/me", requireAuth, asyncHandler(async (req, res) => {
 // vendas de cotas dos talhões da fazenda + repasses de comissão recebidos por ela
 router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT t.*, p.nome as plot_nome, p.grao, p.unidade, u.name as investidor_nome
+    `SELECT t.*, p.nome as plot_nome, p.grao, p.unidade, p.arm_pagador, u.name as investidor_nome
      FROM transactions t
      LEFT JOIN plots p ON p.id = t.plot_id
      LEFT JOIN users u ON u.id = t.user_id AND t.type = 'compra_cota'
-     WHERE t.farm_id = $1 AND t.type IN ('compra_cota', 'repasse_fazenda')
+     WHERE t.farm_id = $1 AND t.type IN ('compra_cota', 'repasse_fazenda', 'tarifa_armazem')
      ORDER BY t.created_at DESC
      LIMIT 300`,
     [req.user.farm_id]
@@ -225,7 +225,10 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
   const totalVendido = rows.filter((r) => r.type === "compra_cota").reduce((s, r) => s + Number(r.amount), 0);
   const totalRecebido = rows.filter((r) => r.type === "repasse_fazenda").reduce((s, r) => s + Number(r.amount), 0);
 
-  res.json({ transactions: rows, totalVendido, totalRecebido });
+  // armazenagem que a própria fazenda assumiu (quando os investidores pagam, só aparece como informação)
+  const totalArmazenagem = rows.filter((r) => r.type === "tarifa_armazem" && r.arm_pagador === "fazenda").reduce((s, r) => s + Number(r.amount), 0);
+
+  res.json({ transactions: rows, totalVendido, totalRecebido, totalArmazenagem });
 }));
 
 module.exports = router;

@@ -9,7 +9,8 @@ import { useAuth } from "../context/AuthContext";
 import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../lib/validators";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
-import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo } from "../components/domain";
+import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields } from "../components/domain";
+import { tarifasTexto, quinzenasTexto } from "../lib/armazenagem";
 
 const STATUS_FILTERS = [
   { id: "ativos", label: "Ativos", match: (s) => s === "captacao" || s === "em_andamento" || s === "aguardando_aprovacao" },
@@ -176,7 +177,9 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
   const [warehouseId, setWarehouseId] = useState("");
   const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "" });
   const [cultivo, setCultivo] = useState(emptyCultivo());
+  const [arm, setArm] = useState({ pagador: "investidores", quinzenas: 2 });
   const [saving, setSaving] = useState(false);
+  const warehouse = warehouses.find((w) => String(w.id) === String(warehouseId));
 
   function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
 
@@ -184,7 +187,10 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
     e.preventDefault();
     setSaving(true);
     try {
-      await api.createPlot({ farm_id: farmId, ...form, ...cultivoPayload(cultivo), warehouse_id: warehouseId ? Number(warehouseId) : null });
+      await api.createPlot({
+        farm_id: farmId, ...form, ...cultivoPayload(cultivo), warehouse_id: warehouseId ? Number(warehouseId) : null,
+        arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas,
+      });
       onCreated();
     } catch (err) {
       setError(err.message);
@@ -211,6 +217,8 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
       <div className="span-all">
         <WarehousePicker warehouses={warehouses} value={warehouseId} onChange={setWarehouseId} />
       </div>
+      <ArmazenagemFields warehouse={warehouse} value={arm} onChange={setArm}
+        precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
       <p className="span-all text-sm text-2">
         Depois de enviar, o talhão passa pela aprovação da administração e pelo aceite do armazém. Ele só aparece para os investidores quando os dois confirmarem.
       </p>
@@ -511,7 +519,7 @@ function PlotAdminCard({ plot, references, fasePricing, warehouses = [], onChang
             <EditPlotForm plot={plot} onDone={() => { setShowEdit(false); onChanged(); }} setError={setError} />
           )}
           {showRestart && (
-            <RestartPlotForm plot={plot} references={references} fasePricing={fasePricing} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
+            <RestartPlotForm plot={plot} references={references} fasePricing={fasePricing} warehouses={warehouses} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
           )}
         </>
       )}
@@ -559,9 +567,10 @@ function EditPlotForm({ plot, onDone, setError }) {
   );
 }
 
-function RestartPlotForm({ plot, references, fasePricing, onDone, setError }) {
+function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDone, setError }) {
   const [form, setForm] = useState({ nome: plot.nome, area_ha: plot.area_ha, safra: "", previsao_retorno: plot.previsao_retorno });
   const [cultivo, setCultivo] = useState(emptyCultivo(plot));
+  const [arm, setArm] = useState({ pagador: plot.arm_pagador || "investidores", quinzenas: plot.arm_quinzenas_previstas || 2 });
   const [saving, setSaving] = useState(false);
 
   function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
@@ -570,7 +579,7 @@ function RestartPlotForm({ plot, references, fasePricing, onDone, setError }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.restartPlot(plot.id, { ...form, ...cultivoPayload(cultivo) });
+      await api.restartPlot(plot.id, { ...form, ...cultivoPayload(cultivo), arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas });
       onDone();
     } catch (err) {
       setError(err.message);
@@ -589,6 +598,8 @@ function RestartPlotForm({ plot, references, fasePricing, onDone, setError }) {
       <CultivoFields value={cultivo} onChange={setCultivo} area={form.area_ha} references={references} fasePricing={fasePricing} />
       <Field label="Nova safra / ciclo (ex: 2027/28)" value={form.safra} onChange={(v) => update("safra", v)} required />
       <Field label="Retorno estimado ao investidor (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+      <ArmazenagemFields warehouse={warehouses.find((w) => w.id === plot.warehouse_id)} value={arm} onChange={setArm}
+        precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
       <div className="span-all">
         <Button type="submit" variant="success" loading={saving}>Enviar novo ciclo para aprovação</Button>
       </div>
@@ -640,6 +651,7 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
       </div>
       {plot.custodia_status === "recusada" && plot.custodia_motivo && <p className="text-sm text-danger" style={{ marginBottom: 10 }}>Motivo da recusa: {plot.custodia_motivo}</p>}
       {plot.custodia_status === "pendente" && <p className="text-sm text-2" style={{ marginBottom: 10 }}>O armazém ainda não respondeu. Investidores veem que a garantia está em análise.</p>}
+      <StorageTerms plot={plot} warehouses={warehouses} onChanged={onChanged} setNotice={setNotice} setError={setError} />
       {plot.custodia_status === "aceita" && (
         <CustodyTimeline plot={plot} validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
       )}
@@ -653,6 +665,53 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
         </div>
       )}
     </section>
+  );
+}
+
+// condições de armazenagem do talhão (podem mudar enquanto não houver investidor)
+function StorageTerms({ plot, warehouses, onChanged, setNotice, setError }) {
+  const [editing, setEditing] = useState(false);
+  const [arm, setArm] = useState({ pagador: plot.arm_pagador || "investidores", quinzenas: plot.arm_quinzenas_previstas || 2 });
+  const [saving, setSaving] = useState(false);
+  const temInvestidor = plot.cotas_disponiveis < plot.cotas_totais;
+  const tabela = plot.arm_tarifa_recepcao != null
+    ? { tarifa_recepcao: plot.arm_tarifa_recepcao, tarifa_quinzena: plot.arm_tarifa_quinzena, carencia_quinzenas: plot.arm_carencia, quebra_quinzena_pct: plot.arm_quebra_pct }
+    : warehouses.find((w) => w.id === plot.warehouse_id);
+  if (!plot.warehouse_id) return null;
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.setPlotStorage(plot.id, { arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas });
+      setNotice("Condições de armazenagem atualizadas.");
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="form-grid" style={{ marginBottom: 10 }}>
+        <ArmazenagemFields warehouse={tabela ? { ...tabela, name: plot.warehouse_name } : null} value={arm} onChange={setArm}
+          precoVenda={plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100)} unidade={plot.unidade} quantidade={plot.cotas_totais} />
+        <div className="span-all" style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" onClick={() => setEditing(false)}>Cancelar</Button>
+          <Button onClick={save} loading={saving}>Salvar</Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <p className="text-sm text-2" style={{ marginBottom: 10 }}>
+      Armazenagem: paga pel{plot.arm_pagador === "fazenda" ? "a fazenda" : "os investidores"} · {quinzenasTexto(plot.arm_quinzenas_previstas || 2)} previstas
+      {tabela ? ` · ${tarifasTexto(tabela, plot.unidade)}` : ""}
+      {plot.arm_tarifa_recepcao != null ? " (tabela fixada no aceite)" : ""}
+      {!temInvestidor && <> · <button type="button" className="link-btn" onClick={() => setEditing(true)}>alterar</button></>}
+    </p>
   );
 }
 

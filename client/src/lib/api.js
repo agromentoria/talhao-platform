@@ -156,6 +156,15 @@ export const api = {
   updateWarehouseCharacteristicPoints: (key, pontos) => request(`/warehouses/characteristics/${key}`, { method: "PUT", body: { pontos } }),
   setMyWarehouseCharacteristics: (keys) => request("/warehouses/mine/characteristics", { method: "PUT", body: { keys } }),
 
+  // gestão financeira da administração
+  financeTransactions: (qs) => request(`/admin/finance/transactions?${qs}`),
+  financeTransaction: (id) => request(`/admin/finance/transactions/${id}`),
+  financeSeries: (qs) => request(`/admin/finance/series?${qs}`),
+  financeReport: (qs) => request(`/admin/finance/report?${qs}`),
+  financeFilterOptions: () => request("/admin/finance/filter-options"),
+  resetInfo: () => request("/admin/finance/reset/info"),
+  resetData: (payload) => request("/admin/finance/reset", { method: "POST", body: payload }),
+
   // armazém garantidor (custódia e validações)
   approvedWarehouses: () => request("/warehouses/approved"),
   myWarehouse: () => request("/warehouses/mine"),

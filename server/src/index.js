@@ -109,6 +109,8 @@ async function start() {
   app.use("/api/plots", plotRoutes);
   app.use("/api/investments", investmentRoutes);
   app.use("/api/admin/harvest-requests", harvestRequestRoutes);
+  // gestão financeira (transações, relatórios, exportação, zerar dados)
+  app.use("/api/admin/finance", require("./routes/adminFinance"));
   app.use("/api/admin", adminRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/conversations", conversationRoutes);

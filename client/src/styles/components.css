@@ -388,3 +388,45 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
   .entity-actions { grid-column: 3; flex-direction: column; align-items: stretch; min-width: 130px; }
 }
 @media (max-width: 599px) { .entity-actions { grid-column: 1 / -1; } .entity-actions > .btn { flex: 1; } }
+
+/* ---------- financeiro (administração) ---------- */
+.fin-filters { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.fin-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: 0; flex-shrink: 0; }
+.fin-table-wrap { display: none; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.fin-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.fin-table th { text-align: left; font-weight: 600; color: var(--text-2); padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--surface-well); white-space: nowrap; }
+.fin-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text); }
+.fin-table tbody tr { cursor: pointer; }
+.fin-table tbody tr:hover, .fin-table tbody tr:focus-visible { background: var(--surface-raised); }
+.fin-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fin-table tfoot td { font-weight: 700; background: var(--surface-well); border-bottom: none; }
+.fin-table tbody tr:last-child td { border-bottom: none; }
+.fin-cards { display: flex; }
+@media (min-width: 760px) {
+  .fin-table-wrap { display: block; }
+  .fin-cards { display: none; }
+}
+.fin-table--report td:first-child { min-width: 180px; }
+
+/* ---------- impressão (relatórios) ---------- */
+.print-only { display: none; }
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff !important; }
+  #app-background, .topbar, .tabbar, .rail, .sidebar, .no-print, .page-back, .page-actions, .toast-region, .mobile-invest-bar { display: none !important; }
+  .shell-main { margin: 0 !important; padding: 0 !important; }
+  .page { padding: 0 !important; max-width: none !important; }
+  .print-only { display: block; }
+  .print-head { display: flex; justify-content: space-between; border-bottom: 2px solid #445f1c; padding-bottom: 6px; margin-bottom: 12px; font-size: 12px; }
+  .card, .stat { box-shadow: none !important; break-inside: avoid; }
+  .fin-table-wrap { display: block !important; border: none; overflow: visible; }
+  .fin-cards { display: none !important; }
+  .fin-table { font-size: 10.5px; }
+  .fin-table th, .fin-table td { padding: 5px 6px; }
+  .fin-table tr { break-inside: avoid; }
+  .grid-stats { grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
+  .stat { padding: 8px 10px !important; }
+  .stat-value { font-size: 15px !important; }
+  .stat-label { font-size: 10px !important; }
+  .recharts-legend-wrapper { font-size: 10px !important; }
+}

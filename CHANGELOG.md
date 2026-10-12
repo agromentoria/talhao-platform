@@ -1,5 +1,17 @@
 # Registro de mudanças
 
+## 1.5.0 — financeiro da administração e zerar dados
+
+- **Nova tela Financeiro** (`/admin/financeiro`, no menu da administração) com **todas as transações** da plataforma.
+- **Busca** por nome, e-mail, fazenda, talhão, armazém, descrição ou número (#123).
+- **Filtros** combináveis: período (atalhos 7 dias, 30 dias, mês, ano ou datas livres), tipo de transação, investidor, fazenda, armazém, talhão, forma de pagamento e faixa de valor. Os filtros ficam no endereço da página (dá para salvar e compartilhar o link).
+- **Resumo** do recorte: entradas, saídas, receita da plataforma e quantidade; **gráfico mensal** por tipo.
+- **Lista** com ordenação e paginação (tabela no computador, cartões no celular) e **detalhe** de cada transação, incluindo o investimento ligado e a composição do pagamento (venda, armazenagem, comissões, líquido).
+- **Relatórios** agrupados por fazenda, investidor, armazém, talhão ou mês, com totais; tocar numa linha abre as transações dela.
+- **Exportação CSV** (abre no Excel em português) da lista ou do relatório, sempre com os filtros aplicados; no celular usa a folha de compartilhamento.
+- **Impressão / PDF** do relatório com cabeçalho, filtros aplicados e layout próprio para papel.
+- **Zerar dados** em três níveis (só financeiro; financeiro + talhões; tudo menos a administração), com senha, palavra ZERAR, registro de quem fez e opção de desligar no servidor com `DISABLE_DATA_RESET=true`.
+
 ## 1.4.1 — correções encontradas na revisão das telas
 
 - **Celular:** a página do talhão ficava mais larga que a tela (etapas, card de garantia e gráfico empurravam a coluna), fazendo a página rolar para o lado e cortando o diálogo de confirmação. Colunas e formulários agora respeitam a largura em qualquer celular (testado em 360 e 390 px, todas as telas).

@@ -1,4 +1,4 @@
-import { LayoutGrid, Wallet, Tractor, ShieldCheck, MessageCircle, Bell, UserRound, Coins, Warehouse } from "lucide-react";
+import { BarChart3, LayoutGrid, Wallet, Tractor, ShieldCheck, MessageCircle, Bell, UserRound, Coins, Warehouse } from "lucide-react";
 
 // Fonte única da navegação. Antes os menus de cima e de baixo tinham listas
 // próprias (e divergiam). Cada item diz em quais superfícies aparece:
@@ -11,7 +11,8 @@ const ITEMS = {
   fazenda:   { to: "/fazenda", label: "Minha fazenda", short: "Fazenda", icon: Tractor, match: (p) => p === "/fazenda" },
   carteiraFazenda: { to: "/fazenda/carteira", label: "Carteira", icon: Coins, match: (p) => p === "/fazenda/carteira" },
   armazem:   { to: "/armazem", label: "Meu armazém", short: "Armazém", icon: Warehouse, match: (p) => p === "/armazem" },
-  admin:     { to: "/admin", label: "Administração", short: "Admin", icon: ShieldCheck, match: (p) => p.startsWith("/admin") },
+  admin:     { to: "/admin", label: "Administração", short: "Admin", icon: ShieldCheck, match: (p) => p === "/admin" },
+  financeiro: { to: "/admin/financeiro", label: "Financeiro", icon: BarChart3, match: (p) => p === "/admin/financeiro" },
   conversas: { to: "/conversas", label: "Conversas", icon: MessageCircle, badge: "messages", match: (p) => p.startsWith("/conversas") },
   avisos:    { to: "/avisos", label: "Avisos", icon: Bell, badge: "notifications", match: (p) => p === "/avisos" },
   perfil:    { to: "/perfil", label: "Perfil", icon: UserRound, match: (p) => p === "/perfil" || p === "/pagamentos" },
@@ -21,7 +22,7 @@ const BY_ROLE = {
   visitante:  { tab: ["talhoes"], side: ["talhoes"] },
   investidor: { tab: ["talhoes", "carteira", "conversas", "perfil"], side: ["talhoes", "carteira", "conversas", "avisos", "perfil"] },
   fazenda:    { tab: ["talhoes", "fazenda", "carteiraFazenda", "conversas", "perfil"], side: ["talhoes", "fazenda", "carteiraFazenda", "conversas", "avisos", "perfil"] },
-  admin:      { tab: ["talhoes", "admin", "conversas", "perfil"], side: ["talhoes", "admin", "conversas", "avisos", "perfil"] },
+  admin:      { tab: ["talhoes", "admin", "financeiro", "conversas", "perfil"], side: ["talhoes", "admin", "financeiro", "conversas", "avisos", "perfil"] },
   armazem:    { tab: ["armazem", "talhoes", "conversas", "perfil"], side: ["armazem", "talhoes", "conversas", "avisos", "perfil"] },
 };
 

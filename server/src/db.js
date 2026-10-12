@@ -483,6 +483,16 @@ ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_entrada_em TIMESTAMPTZ;  -- quand
 
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS despesa_armazem REAL NOT NULL DEFAULT 0;
 
+-- registro das ações sensíveis da administração (ex.: zerar dados)
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id SERIAL PRIMARY KEY,
+  admin_id INTEGER,
+  acao TEXT NOT NULL,
+  escopo TEXT,
+  detalhes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS warehouse_characteristics (
   warehouse_id INTEGER NOT NULL REFERENCES warehouses(id),
   characteristic_key TEXT NOT NULL REFERENCES warehouse_characteristics_catalog(key),

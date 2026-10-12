@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, ArrowDownCircle, ArrowUpCircle, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
+import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, UNIT_LABEL, FASES, ICONS } from "../config/theme";
 import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS } from "../config/culturas";
 import { fmtBRL, fmtNumber } from "../lib/format";
@@ -8,15 +8,8 @@ import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Stars } from "../components/domain";
-import { FilterChips, Button, Banner, ErrorBanner, Tabs, SelectField, EmptyState, Badge, useDialog, useToast } from "../components/ui";
+import { FilterChips, Button, Banner, ErrorBanner, Tabs, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
-const TYPE_LABEL = {
-  compra_cota: "Compra de cota",
-  pagamento_investidor: "Pagamento a investidor",
-  repasse_fazenda: "Repasse à fazenda",
-  comissao_plataforma: "Comissão da plataforma",
-  tarifa_armazem: "Tarifa de armazenagem",
-};
 
 const TABS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
@@ -37,9 +30,7 @@ export default function AdminDashboard() {
   const [overview, setOverview] = useState(null);
   const [farms, setFarms] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
-  const [transactions, setTransactions] = useState([]);
   const [totals, setTotals] = useState({});
-  const [typeFilter, setTypeFilter] = useState("");
   const [appCommission, setAppCommission] = useState(null);
   const [references, setReferences] = useState([]);
   const [fasePricing, setFasePricing] = useState({});
@@ -67,10 +58,10 @@ export default function AdminDashboard() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    api.adminTransactions(typeFilter || undefined)
-      .then((data) => { setTransactions(data.transactions); setTotals(data.totals); })
+    api.adminTransactions()
+      .then((data) => setTotals(data.totals))
       .catch((err) => setError(err.message));
-  }, [typeFilter]);
+  }, []);
 
 
   async function setWarehouseStatus(w, status) {
@@ -262,40 +253,15 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.soil, margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}>
-            <Receipt size={15} /> Transações
-          </p>
-          <SelectField label="Tipo de transação" value={typeFilter} onChange={setTypeFilter} style={{ marginBottom: 14, maxWidth: 360 }}
-            options={[{ value: "", label: "Todos os tipos" }, { value: "compra_cota", label: "Compras" }, { value: "pagamento_investidor", label: "Pagamentos a investidores" }, { value: "repasse_fazenda", label: "Repasses a fazendas" }, { value: "comissao_plataforma", label: "Comissão da plataforma" }, { value: "tarifa_armazem", label: "Tarifas de armazenagem" }]} />
-
-          <div className="grid-stats" style={{ marginBottom: 16 }}>
-            {Object.entries(totals).map(([type, t]) => (
-              <div key={type} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 12 }}>
-                <p style={{ fontSize: 12, color: COLORS.soilLight, margin: "0 0 4px" }}>{TYPE_LABEL[type] || type}</p>
-                <p style={{ fontSize: 15, fontWeight: 700, color: COLORS.soil, margin: 0, fontFamily: "'Baloo 2', cursive" }}>{fmtBRL(t.total)}</p>
-                <p style={{ fontSize: 12, color: COLORS.clay, margin: 0 }}>{t.count} transação(ões)</p>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {transactions.map((t) => {
-              const isIncoming = t.type === "compra_cota";
-              return (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: "10px 12px", flexWrap: "wrap" }}>
-                  {isIncoming ? <ArrowDownCircle size={18} color={COLORS.leaf} /> : <ArrowUpCircle size={18} color={COLORS.orange} />}
-                  <div style={{ flex: 1, minWidth: 140 }}>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.soil, margin: 0 }}>
-                      {TYPE_LABEL[t.type] || t.type} {t.user_name ? `· ${t.user_name}` : ""}
-                    </p>
-                    <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{t.description}</p>
-                  </div>
-                  <p style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.soil, margin: 0, whiteSpace: "nowrap" }}>{fmtBRL(t.amount)}</p>
-                </div>
-              );
-            })}
-            {transactions.length === 0 && <p style={{ fontSize: 13, color: COLORS.soilLight }}>Nenhuma transação registrada ainda.</p>}
-          </div>
+          <section className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <p className="card-title" style={{ display: "flex", gap: 6, alignItems: "center" }}><Receipt size={16} aria-hidden /> Transações</p>
+              <p className="card-desc">
+                {Object.values(totals).reduce((n, t) => n + t.count, 0)} movimentações registradas. Busque, filtre por investidor, fazenda ou armazém, gere relatórios e exporte.
+              </p>
+            </div>
+            <Button to="/admin/financeiro" icon={Receipt}>Abrir o financeiro</Button>
+          </section>
         </>
       )}
 

@@ -15,6 +15,10 @@ próprio ao lado do site institucional.
   precisa de armazém garantidor antes de aparecer para os investidores.
 - **Nível do investidor** (Iniciante, Intermediário, Profissional) e **nota
   dos armazéns** em estrelas. Faixas em `server/src/investorLevel.js`.
+- **Financeiro da administração**: todas as transações com busca, filtros
+  por investidor, fazenda, armazém, talhão e período, relatórios agrupados,
+  gráfico mensal, exportação CSV e impressão em PDF. Inclui o "zerar dados"
+  para limpar os testes antes da operação (desligável com `DISABLE_DATA_RESET=true`).
 - **Armazéns garantidores**: a fazenda indica um armazém credenciado ao
   publicar o talhão; o armazém aceita a custódia e valida, de forma
   independente, o **plantio**, a **colheita** e a **quantidade armazenada**.

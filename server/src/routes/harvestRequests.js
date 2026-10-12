@@ -1,10 +1,11 @@
 const express = require("express");
 const { despesaReal, parteInvestidores, pagadorTexto } = require("../storageFees");
+const { dividirLucro } = require("../profitSplit");
+const { getAppCommissionPct } = require("../settings");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { notifyUsers } = require("../notify");
-const { getAppCommissionPct } = require("../settings");
 const { executeHarvestPayout } = require("../harvestPayout");
 const { harvestBlockReason } = require("../custody");
 
@@ -40,14 +41,34 @@ router.get("/", asyncHandler(async (req, res) => {
     ? await pool.query("SELECT * FROM plots WHERE id = ANY($1)", [rows.map((r) => r.plot_id)])
     : { rows: [] };
   const byId = Object.fromEntries(plots.map((p) => [p.id, p]));
-  const enriched = rows.map((r) => {
+  const appPct = await getAppCommissionPct();
+  const enriched = [];
+  for (const r of rows) {
     const p = byId[r.plot_id];
-    if (!p || !p.warehouse_id) return r;
-    const vendidas = p.cotas_totais - p.cotas_disponiveis;
+    if (!p) { enriched.push(r); continue; }
     const precoVenda = p.preco_venda_estimado * (1 + Number(r.retorno_final ?? p.previsao_retorno) / 100);
-    const d = despesaReal(p, { unidades: vendidas, precoVenda });
-    return { ...r, armazenagem: { ...d, pagador: p.arm_pagador, parte_investidores: parteInvestidores(p), pagador_texto: pagadorTexto(p), entrada_em: p.arm_entrada_em } };
-  });
+    const out = { ...r, preco_venda_declarado: precoVenda, preco_meta: p.preco_venda_estimado * (1 + p.previsao_retorno / 100), perf_excedente_pct: p.perf_excedente_pct };
+    const parteInv = p.warehouse_id ? parteInvestidores(p) : 0;
+    if (p.warehouse_id) {
+      const vendidas = p.cotas_totais - p.cotas_disponiveis;
+      const d = despesaReal(p, { unidades: vendidas, precoVenda });
+      out.armazenagem = { ...d, pagador: p.arm_pagador, parte_investidores: parteInv, pagador_texto: pagadorTexto(p), entrada_em: p.arm_entrada_em };
+    }
+    // prévia exata do pagamento (mesma conta do harvestPayout), para conferir antes de aprovar
+    const { rows: invs } = await pool.query("SELECT cotas, valor_investido FROM investments WHERE plot_id = $1 AND status = 'ativo'", [p.id]);
+    const { rows: fr } = await pool.query("SELECT commission_pct FROM farms WHERE id = $1", [p.farm_id]);
+    const prev = { investidores: 0, fazenda: 0, performance: 0, app: 0, armazem: 0 };
+    for (const i of invs) {
+      const desp = p.warehouse_id ? despesaReal(p, { unidades: i.cotas, precoVenda }).total : 0;
+      const x = dividirLucro({ cotas: i.cotas, valorInvestido: i.valor_investido, precoReferencia: p.preco_venda_estimado,
+        retornoPrometidoPct: p.previsao_retorno, precoVenda, despesa: desp * parteInv, comissaoFazendaPct: fr[0]?.commission_pct || 0,
+        comissaoAppPct: appPct, performancePct: Number(p.perf_excedente_pct) || 0 });
+      prev.investidores += x.valorLiquido; prev.fazenda += x.comissaoFazenda; prev.performance += x.performanceFazenda;
+      prev.app += x.comissaoApp; prev.armazem += desp;
+    }
+    out.previa = prev;
+    enriched.push(out);
+  }
   res.json({ requests: enriched });
 }));
 

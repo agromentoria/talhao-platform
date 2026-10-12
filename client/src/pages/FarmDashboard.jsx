@@ -249,7 +249,9 @@ function PlotAdminCard({ plot, references, fasePricing, warehouses = [], onChang
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
   const [fase, setFase] = useState(plot.fase_atual);
   const [progresso, setProgresso] = useState(plot.progresso);
-  const [retornoFinal, setRetornoFinal] = useState(plot.previsao_retorno);
+  // a fazenda informa o preço real de venda; o retorno é calculado (antes vinha
+  // preenchido com o retorno prometido e, se ninguém mudasse, a performance zerava)
+  const [precoVendaReal, setPrecoVendaReal] = useState("");
   const [comprovanteTexto, setComprovanteTexto] = useState("");
   const [comprovanteImagem, setComprovanteImagem] = useState(null);
   const [showFinalizeForm, setShowFinalizeForm] = useState(false);
@@ -336,7 +338,10 @@ function PlotAdminCard({ plot, references, fasePricing, warehouses = [], onChang
     e.preventDefault();
     setSaving(true);
     try {
-      await api.finalizeHarvest(plot.id, retornoFinal, comprovanteTexto, comprovanteImagem);
+      const preco = Number(String(precoVendaReal).replace(",", "."));
+      if (!(preco > 0)) throw new Error("Informe o preço médio de venda por unidade.");
+      const retornoCalculado = Math.round(((preco / plot.preco_venda_estimado) - 1) * 10000) / 100;
+      await api.finalizeHarvest(plot.id, retornoCalculado, comprovanteTexto, comprovanteImagem);
       setNotice("Solicitação enviada! A administração vai revisar o comprovante antes de liberar o pagamento aos investidores.");
       setShowFinalizeForm(false);
       onChanged();
@@ -478,10 +483,7 @@ function PlotAdminCard({ plot, references, fasePricing, warehouses = [], onChang
               <p style={{ fontSize: 12, color: COLORS.soilLight, margin: 0, lineHeight: 1.5 }}>
                 O pagamento só é liberado depois que a administração revisar o comprovante. Isso protege os investidores contra informações incorretas.
               </p>
-              <div>
-                <label htmlFor={`f5-${uid}`} style={{ fontSize: 12.5, color: COLORS.soilLight }}>Retorno final do ciclo (%)</label>
-                <input id={`f5-${uid}`} type="number" required value={retornoFinal} onChange={(e) => setRetornoFinal(Number(e.target.value))} className="input" inputMode="decimal" style={{ marginTop: 4, width: 140 }} />
-              </div>
+              <FinalizePreview plot={plot} preco={precoVendaReal} onChange={setPrecoVendaReal} uid={uid} />
               <div>
                 <label htmlFor={`f6-${uid}`} style={{ fontSize: 12.5, color: COLORS.soilLight }}>Comprovante (nota fiscal, comprador, silo, etc.) — mínimo 15 caracteres</label>
                 <textarea id={`f6-${uid}`} required minLength={15} rows={3} value={comprovanteTexto} onChange={(e) => setComprovanteTexto(e.target.value)}
@@ -671,6 +673,37 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
         </div>
       )}
     </section>
+  );
+}
+
+// preço real de venda → retorno calculado e efeito da regra de performance
+function FinalizePreview({ plot, preco, onChange, uid }) {
+  const u = unitPlural(plot.unidade, 1);
+  const p = Number(String(preco).replace(",", "."));
+  const meta = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
+  const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
+  const retorno = p > 0 ? ((p / plot.preco_venda_estimado) - 1) * 100 : null;
+  const perf = Number(plot.perf_excedente_pct) || 0;
+  const excedenteBruto = p > meta ? vendidas * (p - meta) : 0;
+  return (
+    <div>
+      <label htmlFor={`fpv-${uid}`} style={{ fontSize: 12.5, color: COLORS.soilLight }}>Preço médio de venda por {u} (R$)</label>
+      <input id={`fpv-${uid}`} type="number" required min={0.01} step="0.01" inputMode="decimal" value={preco}
+        onChange={(e) => onChange(e.target.value)} className="input" style={{ marginTop: 4, width: 180 }} placeholder={meta.toFixed(2)} />
+      <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "6px 0 0", lineHeight: 1.5 }}>
+        Referência: {fmtBRL(plot.preco_venda_estimado)} · meta prometida: {fmtBRL(meta)} por {u} ({fmtPct(plot.previsao_retorno)}).
+      </p>
+      {retorno !== null && (
+        <p style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, color: COLORS.soil }}>
+          Retorno do ciclo: <strong>{fmtPct(retorno, 2)}</strong>
+          {p > meta
+            ? <> · {fmtBRL(p - meta)} por {u} acima da meta{perf > 0
+                ? <> — a fazenda recebe {fmtPct(perf)} do lucro excedente (cerca de <strong>{fmtBRL(excedenteBruto * perf / 100)}</strong>, antes da armazenagem).</>
+                : <> — sem performance definida neste talhão, o excedente segue a divisão padrão.</>}</>
+            : p < meta ? <> · abaixo da meta prometida.</> : <> · exatamente na meta.</>}
+        </p>
+      )}
+    </div>
   );
 }
 

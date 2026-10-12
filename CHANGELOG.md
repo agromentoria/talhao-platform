@@ -1,5 +1,11 @@
 # Registro de mudanças
 
+## 1.7.2 — finalização pelo preço de venda e precisão dos valores
+
+- **Corrigido:** o campo "Retorno final do ciclo (%)" da finalização vinha preenchido com o retorno prometido. Se a fazenda não alterasse, a venda era registrada exatamente na meta e a performance acima da meta ficava zerada. Agora a fazenda informa o **preço médio de venda por unidade** (campo vazio, obrigatório) e o app calcula o retorno, mostrando na hora se ficou acima da meta e a performance estimada da fazenda.
+- **Prévia do pagamento para a administração:** antes de aprovar, a colheita mostra o preço declarado, a meta e quanto recebem investidores, fazenda (com a parte de performance), armazém e plataforma — a mesma conta do pagamento real.
+- **Corrigido:** valores em dinheiro eram gravados com precisão simples (cerca de 7 dígitos) e perdiam os centavos acima de ~R$ 100 mil (ex.: 8.036.718,88 virava 8.036.719,00). Todas as colunas numéricas passam para precisão dupla automaticamente ao iniciar o servidor, e os valores são gravados em centavos exatos. Valores já gravados antes desta versão mantêm o arredondamento antigo.
+
 ## 1.7.1 — correção na aprovação de talhões
 
 - **Corrigido:** talhão aguardando aprovação sumia da aba "Aprovar talhões" quando a fazenda registrava o andamento da safra (ex.: Plantio) antes da aprovação. Ele mudava para "em andamento" e a lista só mostrava talhões "em captação", deixando o talhão preso. Agora a lista e o contador incluem os dois casos, e o cartão mostra o andamento já informado.

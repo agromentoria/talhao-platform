@@ -272,7 +272,7 @@ export default function AdminDashboard() {
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {harvestRequests.map((r) => (
-              <div key={r.id} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 }}>
+              <article key={r.id} className="card">
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
                   <img src={culturaIcone(r.grao)} alt="" style={{ width: 30, height: 30, objectFit: "contain", background: COLORS.bg, borderRadius: 8, padding: 4 }} />
                   <div style={{ flex: 1, minWidth: 160 }}>
@@ -298,13 +298,14 @@ export default function AdminDashboard() {
                 </div>
 
                 <HarvestCustodyInfo r={r} />
+                <HarvestPreview r={r} />
 
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <Button variant="danger-ghost" icon={X} onClick={() => rejectHarvest(r.id)} style={{ flex: 1, border: "1px solid var(--danger)" }}>Rejeitar</Button>
                   <Button variant="success" icon={Check} onClick={() => approveHarvest(r.id)} style={{ flex: 2 }}
                     disabled={r.custodia_status === "aceita" && r.armazenagem_resultado !== "confirmado"}>Aprovar e pagar</Button>
                 </div>
-              </div>
+              </article>
             ))}
             {harvestRequests.length === 0 && (
               <EmptyState image="/icons/icon_talhoes_colhendo_meu_talhao.svg" title="Nenhuma colheita aguardando">Quando uma fazenda pedir a finalização, a solicitação aparece aqui.</EmptyState>
@@ -659,6 +660,26 @@ function EntityRow({ icon, iconTone, title, estrelas, lines, metrics, status, ac
 }
 
 // o que o armazém garantidor validou — base para aprovar o pagamento
+// prévia exata do pagamento calculada pelo servidor
+function HarvestPreview({ r }) {
+  const v = r.previa;
+  if (!v) return null;
+  return (
+    <div className="card card--well" style={{ padding: 12, marginBottom: 12 }}>
+      <p className="text-sm" style={{ marginBottom: 6 }}>
+        Venda declarada: <strong>{fmtBRL(r.preco_venda_declarado)}</strong> por {unidadeNome(r.unidade, 1)} · meta {fmtBRL(r.preco_meta)}
+        {Number(r.perf_excedente_pct) > 0 && <> · performance da fazenda: {fmtPct(r.perf_excedente_pct)} do excedente</>}
+      </p>
+      <dl className="kv" style={{ margin: 0 }}>
+        <div><dt>Investidores recebem</dt><dd>{fmtBRL(v.investidores)}</dd></div>
+        <div><dt>Fazenda recebe</dt><dd>{fmtBRL(v.fazenda)}{v.performance > 0 ? ` (inclui ${fmtBRL(v.performance)} de performance)` : ""}</dd></div>
+        <div><dt>Armazém recebe</dt><dd>{fmtBRL(v.armazem)}</dd></div>
+        <div className="total"><dt>Comissão da plataforma</dt><dd>{fmtBRL(v.app)}</dd></div>
+      </dl>
+    </div>
+  );
+}
+
 function HarvestCustodyInfo({ r }) {
   const vendidas = r.cotas_totais - r.cotas_disponiveis;
   if (r.custodia_status !== "aceita") {

@@ -506,6 +506,19 @@ CREATE TABLE IF NOT EXISTS warehouse_characteristics (
   characteristic_key TEXT NOT NULL REFERENCES warehouse_characteristics_catalog(key),
   PRIMARY KEY (warehouse_id, characteristic_key)
 );
+
+-- Precisão de valores: colunas REAL guardam só ~7 dígitos e arredondavam
+-- valores acima de ~R$ 100 mil (ex.: 8.036.718,88 virava 8.036.719,00).
+-- Todas passam para DOUBLE PRECISION (~15 dígitos). Roda só onde ainda há REAL.
+DO $$
+DECLARE c record;
+BEGIN
+  FOR c IN SELECT table_name, column_name FROM information_schema.columns
+           WHERE table_schema = 'public' AND data_type = 'real'
+  LOOP
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I TYPE DOUBLE PRECISION', c.table_name, c.column_name);
+  END LOOP;
+END $$;
 `;
 
 // referências de mercado de cada cultura (ver culturas.js)

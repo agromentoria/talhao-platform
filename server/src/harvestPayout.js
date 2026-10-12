@@ -1,7 +1,7 @@
 const { fmtBRL } = require("./format");
 const { pool } = require("./db");
 const { notifyUsers } = require("./notify");
-const { recordTransaction } = require("./ledger");
+const { recordTransaction, centavos } = require("./ledger");
 const { despesaReal, parteInvestidores, pagadorTexto } = require("./storageFees");
 const { dividirLucro } = require("./profitSplit");
 
@@ -49,7 +49,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
       await client.query(
         `INSERT INTO payouts (investment_id, valor_bruto, comissao_fazenda, comissao_app, valor_liquido, despesa_armazem, perf_fazenda)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [inv.id, valorBruto, comissaoFazenda, comissaoApp, valorLiquido, despesaArmazem, d.performanceFazenda]
+        [inv.id, centavos(valorBruto), centavos(comissaoFazenda), centavos(comissaoApp), centavos(valorLiquido), centavos(despesaArmazem), centavos(d.performanceFazenda)]
       );
       await client.query("UPDATE investments SET status = 'pago' WHERE id = $1", [inv.id]);
 

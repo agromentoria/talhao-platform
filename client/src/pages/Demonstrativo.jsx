@@ -183,9 +183,9 @@ export default function Demonstrativo() {
         <h2 id="dem-res" className="card-title">Resultado da fazenda neste talhão</h2>
         <dl className="kv" style={{ marginTop: 10 }}>
           <div><dt>Recebido dos investidores (venda antecipada da produção)</dt><dd>{fmtBRL(tot.captado)}</dd></div>
-          <div><dt>(−) Custos da operação lançados</dt><dd>− {fmtBRL(tot.realizado)}</dd></div>
+          <div><dt>(−) Custos da operação lançados</dt><dd>{"−\u00a0"}{fmtBRL(tot.realizado)}</dd></div>
           <div><dt>(+) Comissão e performance na colheita</dt><dd>{fmtBRL(recebidoFazenda)}</dd></div>
-          {t.arm_pagador !== "investidores" && <div><dt>(−) Armazenagem paga pela fazenda</dt><dd>− {fmtBRL(tot.captado - tot.realizado + recebidoFazenda - d.resultadoFazenda)}</dd></div>}
+          {t.arm_pagador !== "investidores" && <div><dt>(−) Armazenagem paga pela fazenda</dt><dd>{"−\u00a0"}{fmtBRL(tot.captado - tot.realizado + recebidoFazenda - d.resultadoFazenda)}</dd></div>}
           <div className="total"><dt>Resultado {dist.tipo === "previsto" ? "previsto" : ""}</dt><dd className="text-success">{fmtBRL(d.resultadoFazenda)}</dd></div>
         </dl>
         <p className="text-xs text-3" style={{ marginTop: 10 }}>

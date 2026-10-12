@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Warehouse, Camera, UserRound, Mail, Phone, Lock, Tractor, CreditCard, QrCode, Landmark, MessageCircle, Bell, Coins, ChevronRight, LogOut, FileText, Shield, Trash2 } from "lucide-react";
+import { HelpCircle, Warehouse, Camera, UserRound, Mail, Phone, Lock, Tractor, CreditCard, QrCode, Landmark, MessageCircle, Bell, Coins, ChevronRight, LogOut, FileText, Shield, Trash2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_LABEL } from "../config/theme";
 import { api } from "../lib/api";
@@ -179,6 +179,7 @@ function MoreTab({ onLogout }) {
     user.role === "armazem" && { to: "/armazem", icon: Warehouse, label: "Painel do armazém" },
     { to: "/conversas", icon: MessageCircle, label: "Conversas" },
     { to: "/avisos", icon: Bell, label: "Avisos" },
+    { to: "/como-funciona", icon: HelpCircle, label: "Como funciona: ganhos, percentuais e comissões" },
     { to: "/termos", icon: FileText, label: "Termos de uso" },
     { to: "/privacidade", icon: Shield, label: "Política de privacidade" },
   ].filter(Boolean);

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { culturaIcone } from "../config/culturas";
 import { api } from "../lib/api";
@@ -36,7 +37,7 @@ export default function Marketplace() {
     <Page title="Talhões">
       <PageHeader
         title="Invista direto no talhão"
-        subtitle="Escolha uma produção de fazenda verificada e garantida por armazém credenciado, compre sua parte na fase que preferir e acompanhe até o fim do ciclo."
+        subtitle={<>Escolha uma produção de fazenda verificada e garantida por armazém credenciado, compre sua parte na fase que preferir e acompanhe até o fim do ciclo. <Link to="/como-funciona" style={{ fontWeight: 700 }}>Como funcionam os ganhos</Link></>}
       />
 
       <div style={{ marginBottom: 20 }}>

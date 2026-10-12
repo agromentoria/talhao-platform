@@ -114,7 +114,7 @@ router.get("/transactions", asyncHandler(async (req, res) => {
 // ar. Junto com o aceite do armazém, evita talhão sem garantia na vitrine.
 router.get("/plot-approvals", asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT p.*, f.name AS farm_name, f.location AS farm_location, f.status AS farm_status,
+    `SELECT p.*, f.name AS farm_name, f.location AS farm_location, f.status AS farm_status, f.commission_pct AS farm_commission_pct,
             w.name AS warehouse_name, ${WAREHOUSE_STARS_SQL} AS warehouse_estrelas
      FROM plots p JOIN farms f ON f.id = p.farm_id LEFT JOIN warehouses w ON w.id = p.warehouse_id
      -- inclui talhões em andamento: a fazenda pode registrar a safra antes da

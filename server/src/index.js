@@ -122,6 +122,23 @@ async function start() {
   app.use("/api/warehouses", warehouseRoutes);
   // demonstrativo financeiro do talhão (orçamento, custos e resultado)
   app.use("/api/plots", require("./routes/plotFinance"));
+  // regras públicas da plataforma (página "Como funciona" e simuladores)
+  app.get("/api/regras", async (req, res, next) => {
+    try {
+      const { getAppCommissionPct } = require("./settings");
+      const { pool } = require("./db");
+      const { PERFORMANCE_MAX } = require("./profitSplit");
+      const { NIVEIS } = require("./investorLevel");
+      const { rows } = await pool.query("SELECT fase, multiplicador FROM fase_pricing ORDER BY fase");
+      res.json({
+        app_commission_pct: await getAppCommissionPct(),
+        multiplicadores: Object.fromEntries(rows.map((r) => [r.fase, Math.round(Number(r.multiplicador) * 10000) / 10000])),
+        performance_max: PERFORMANCE_MAX,
+        niveis: NIVEIS.map(({ id, label, minimo }) => ({ id, label, minimo })),
+      });
+    } catch (err) { next(err); }
+  });
+
   // catálogo de culturas, variedades, unidades e fases (fonte única do app)
   app.get("/api/culturas", (req, res) => {
     const { CULTURAS, TIPOS, UNIDADES } = require("./culturas");

@@ -540,6 +540,8 @@ BEGIN
     EXECUTE format('ALTER TABLE %I ALTER COLUMN %I TYPE DOUBLE PRECISION', c.table_name, c.column_name);
   END LOOP;
 END $$;
+-- resíduos da precisão antiga nos fatores por fase (1.0099999 → 1.01)
+UPDATE fase_pricing SET multiplicador = ROUND(multiplicador::numeric, 4) WHERE multiplicador <> ROUND(multiplicador::numeric, 4);
 `;
 
 // referências de mercado de cada cultura (ver culturas.js)

@@ -189,7 +189,8 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .kv { display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); }
 .kv > div { display: flex; justify-content: space-between; gap: var(--sp-3); }
 .kv dt, .kv .k { color: var(--text-2); }
-.kv dd, .kv .v { margin: 0; font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kv dd, .kv .v { margin: 0; font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.kv dt { min-width: 0; }
 .kv .total { border-top: 1px solid var(--border); padding-top: var(--sp-2); }
 .text-success { color: var(--success-text) !important; }
 .text-danger { color: var(--danger) !important; }
@@ -441,3 +442,29 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .dem-split { display: flex; height: 14px; border-radius: var(--r-full); overflow: hidden; gap: 2px; }
 .dem-split > span { display: block; min-width: 3px; }
 @media print { .dem-bar, .dem-split { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+/* ---------- quadro de regras do talhão ---------- */
+.regras { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.regras > * { min-width: 0; max-width: 100%; }
+.regras-meta { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: var(--r-md); background: var(--primary-soft); }
+.regras-meta strong { font-family: var(--font-display); font-size: var(--fs-xl); color: var(--primary-pressed); line-height: 1.15; }
+.regras-sub { font-weight: 700; font-size: var(--fs-sm); margin-top: 6px; }
+.regras-tabela td, .regras-tabela th { padding: 8px 10px; }
+.regras-tabela tr.is-atual td { background: var(--surface-raised); }
+.regras-divisao { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; }
+.regras-divisao > div { padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-well); }
+.regras-divisao ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); }
+.regras-divisao li { display: flex; justify-content: space-between; gap: 8px; }
+.regras-exemplo { padding: 10px 12px; border-radius: var(--r-md); border: 1px dashed var(--border-strong); }
+.regras-nota { display: flex; gap: 6px; align-items: flex-start; font-size: var(--fs-xs); color: var(--text-3); line-height: 1.5; }
+.regras-nota svg { flex-shrink: 0; margin-top: 2px; }
+@media (max-width: 599px) {
+  .hide-sm { display: none; }
+  .regras-tabela td, .regras-tabela th { padding: 8px 6px; }
+}
+.show-sm { display: none; }
+@media (max-width: 599px) {
+  .show-sm { display: inline; }
+  .regras-tabela { font-size: 13px; }
+  .regras-tabela td:first-child { max-width: 110px; }
+}

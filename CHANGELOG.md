@@ -1,5 +1,18 @@
 # Registro de mudanças
 
+## 1.9.0 — regras de ganhos, percentuais e comissões claras para todos
+
+- **Novo quadro "Regras deste talhão"**, calculado com os números de cada talhão e igual para todos:
+  - meta de venda em reais (preço de referência + retorno prometido);
+  - tabela por fase: quanto o investidor paga, recebe, ganho líquido no período e taxa equivalente ao ano (pelas datas do ciclo e da armazenagem);
+  - quem fica com o lucro até a meta e acima dela (investidor, fazenda, plataforma);
+  - exemplo com 100 unidades vendidas na meta e 10 pontos acima.
+- O quadro aparece **no cadastro do talhão** (atualiza enquanto a fazenda digita), **na página do talhão** (com a fase atual destacada) e **na aprovação da administração**.
+- **Rótulos mais claros:** "Retorno estimado ao investidor" passou a "Retorno prometido — meta de venda", com explicação e exemplo; o card da vitrine mostra "meta de retorno".
+- **Nova página "Como funciona"** (`/como-funciona`), pública: participantes, preço de referência, meta, preço por fase (com os fatores atuais), comissões, performance, armazenagem, pagamento, riscos e um **simulador** para testar qualquer cenário. Links na vitrine, no cadastro, no quadro de regras e em Perfil › Mais.
+- Novo endereço público `/api/regras` (comissão da plataforma, fatores por fase, limite de performance, níveis).
+- Correções: fatores por fase com resíduo da precisão antiga (1,0099999 → 1,01); valores longos nas listas quebram de linha sem estourar a tela no celular.
+
 ## 1.8.0 — demonstrativo financeiro e performance no financeiro
 
 - **Performance da fazenda como lançamento próprio:** o pagamento da colheita agora registra "Comissão da fazenda" (até a meta) e "Performance da fazenda" (acima da meta) separadamente. No Financeiro da administração a performance aparece na lista, nos filtros, no gráfico, nos relatórios por fazenda e por talhão e na exportação.

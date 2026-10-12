@@ -26,6 +26,7 @@ const Notifications = lazy(() => import("../pages/Notifications"));
 const Conversations = lazy(() => import("../pages/Conversations"));
 const ChatView = lazy(() => import("../pages/ChatView"));
 const PaymentMethods = lazy(() => import("../pages/PaymentMethods"));
+const ComoFunciona = lazy(() => import("../pages/ComoFunciona"));
 const Privacy = lazy(() => import("../pages/legal/Privacy"));
 const Terms = lazy(() => import("../pages/legal/Terms"));
 
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/talhao/:id/demonstrativo" element={<Demonstrativo />} />
             <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
             <Route path="/cadastro" element={<GuestOnly><Register /></GuestOnly>} />
+            <Route path="/como-funciona" element={<ComoFunciona />} />
             <Route path="/privacidade" element={<Privacy />} />
             <Route path="/termos" element={<Terms />} />
 

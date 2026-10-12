@@ -105,7 +105,7 @@ export default function Register() {
               investidor: "Compre parte da produção de talhões e acompanhe a safra até a colheita.",
               fazenda: "Publique talhões e receba investimento para a safra.",
               armazem: "Seja o garantidor: valide plantio, colheita e armazenagem dos talhões que as fazendas indicarem.",
-            }[role]}
+            }[role]}{" "}<Link to="/como-funciona" style={{ color: "#fff", fontWeight: 700 }}>Como funciona</Link>
           </p>
           <TextField label={role === "armazem" ? "Nome do responsável" : "Nome completo"} value={form.name} onChange={update("name")} required autoComplete="name" autoCapitalize="words" />
           <TextField label="E-mail" type="email" value={form.email} onChange={update("email")} required autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} />

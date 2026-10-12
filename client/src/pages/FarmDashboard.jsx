@@ -9,7 +9,8 @@ import { useAuth } from "../context/AuthContext";
 import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../lib/validators";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
-import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField } from "../components/domain";
+import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasTalhao } from "../components/domain";
+import { despesaPorUnidade, parteInvestidores } from "../lib/armazenagem";
 import { tarifasTexto, quinzenasTexto, armDoTalhao, pagadorTexto } from "../lib/armazenagem";
 
 const STATUS_FILTERS = [
@@ -29,6 +30,7 @@ export default function FarmDashboard() {
   const [plots, setPlots] = useState([]);
   const [references, setReferences] = useState([]);
   const [fasePricing, setFasePricing] = useState({});
+  const [appPct, setAppPct] = useState(5);
   const [warehouses, setWarehouses] = useState([]);
   const [error, setError] = useState("");
   const [notice, setNoticeState] = useState("");
@@ -42,7 +44,7 @@ export default function FarmDashboard() {
 
   const load = useCallback(() => {
     api.getFarm(user.farm_id).then((data) => setFarm(data.farm)).catch((err) => setError(err.message));
-    api.myFarmPlots().then((data) => setPlots(data.plots)).catch((err) => setError(err.message));
+    api.myFarmPlots().then((data) => { setPlots(data.plots); if (data.app_commission_pct != null) setAppPct(data.app_commission_pct); }).catch((err) => setError(err.message));
     api.commodityReferences().then((data) => setReferences(data.references)).catch(() => {});
     api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch(() => {});
     api.approvedWarehouses().then((data) => setWarehouses(data.warehouses)).catch(() => {});
@@ -103,7 +105,7 @@ export default function FarmDashboard() {
       </div>
 
       <Dialog open={showForm} onClose={() => setShowForm(false)} title="Publicar novo talhão" width={680}>
-        <NewPlotForm farmId={farm.id} farmCommission={farm.commission_pct} references={references} fasePricing={fasePricing} warehouses={warehouses}
+        <NewPlotForm farmId={farm.id} farmCommission={farm.commission_pct} appPct={appPct} references={references} fasePricing={fasePricing} warehouses={warehouses}
           onCreated={() => { setShowForm(false); toast("Talhão publicado"); load(); }} setError={setError} />
       </Dialog>
 
@@ -120,7 +122,7 @@ export default function FarmDashboard() {
       ) : (
         <div className="list">
           {filteredPlots.map((p) => (
-            <PlotAdminCard key={p.id} plot={p} references={references} fasePricing={fasePricing} warehouses={warehouses} onChanged={load} setNotice={setNotice} setError={setError} />
+            <PlotAdminCard key={p.id} plot={p} farmCommission={farm.commission_pct} appPct={appPct} references={references} fasePricing={fasePricing} warehouses={warehouses} onChanged={load} setNotice={setNotice} setError={setError} />
           ))}
         </div>
       )}
@@ -173,7 +175,7 @@ function CommissionCard({ farm, onSaved, onError }) {
   );
 }
 
-function NewPlotForm({ farmId, farmCommission = 0, references, fasePricing, warehouses = [], onCreated, setError }) {
+function NewPlotForm({ farmId, farmCommission = 0, appPct = 5, references, fasePricing, warehouses = [], onCreated, setError }) {
   const [warehouseId, setWarehouseId] = useState("");
   const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "" });
   const [cultivo, setCultivo] = useState(emptyCultivo());
@@ -214,7 +216,8 @@ function NewPlotForm({ farmId, farmCommission = 0, references, fasePricing, ware
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <CultivoFields value={cultivo} onChange={setCultivo} area={form.area_ha} references={references} fasePricing={fasePricing} />
       <Field label="Safra / ciclo (ex: 2026/27)" value={form.safra} onChange={(v) => update("safra", v)} required />
-      <Field label="Retorno estimado ao investidor (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+<Field label="Retorno prometido — meta de venda (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required
+        hint="Quanto acima do preço de referência a fazenda espera vender. Ex.: 7,5% sobre R$ 120 = meta de R$ 129 por saca. Acima da meta entra a performance." />
       <div className="span-all">
         <WarehousePicker warehouses={warehouses} value={warehouseId} onChange={setWarehouseId} />
       </div>
@@ -222,6 +225,14 @@ function NewPlotForm({ farmId, farmCommission = 0, references, fasePricing, ware
         precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
       <PerformanceField value={perf} onChange={setPerf} precoReferencia={cultivo.preco} retornoPct={form.previsao_retorno}
         comissaoFazendaPct={farmCommission} unidade={cultivo.unidade || "saca"} />
+      <div className="span-all card" style={{ padding: 14 }}>
+        <p className="card-title" style={{ marginBottom: 8 }}>Resumo das regras deste talhão</p>
+        {Number(cultivo.preco) > 0 ? (
+          <RegrasTalhao precoRef={cultivo.preco} metaPct={form.previsao_retorno} perfPct={Number(perf) || 0} comissaoFazendaPct={farmCommission} appPct={appPct}
+            multiplicadores={fasePricing} unidade={cultivo.unidade || "saca"} tipoProducao={cultivo.tipo_producao} inicioCiclo={cultivo.plantio_ate} fimCiclo={cultivo.colheita_prevista}
+            quinzenasArmazem={arm.quinzenas} despesaInvestidorUnidade={warehouse ? despesaPorUnidade(warehouse, { quinzenas: arm.quinzenas, precoVenda: Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100) }).total * parteInvestidores(arm) : 0} />
+        ) : <p className="text-sm text-2">Preencha a cultura e o preço para ver como ficam os ganhos de cada lado.</p>}
+      </div>
       <p className="span-all text-sm text-2">
         Depois de enviar, o talhão passa pela aprovação da administração e pelo aceite do armazém. Ele só aparece para os investidores quando os dois confirmarem.
       </p>
@@ -243,7 +254,7 @@ const STATUS_LABEL = {
 
 const MAX_PLOT_PHOTOS = 6;
 
-function PlotAdminCard({ plot, references, fasePricing, warehouses = [], onChanged, setNotice, setError }) {
+function PlotAdminCard({ plot, farmCommission = 0, appPct = 5, references, fasePricing, warehouses = [], onChanged, setNotice, setError }) {
   const uid = useId();
   const dialog = useDialog();
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
@@ -528,7 +539,7 @@ function PlotAdminCard({ plot, references, fasePricing, warehouses = [], onChang
             <EditPlotForm plot={plot} onDone={() => { setShowEdit(false); onChanged(); }} setError={setError} />
           )}
           {showRestart && (
-            <RestartPlotForm plot={plot} references={references} fasePricing={fasePricing} warehouses={warehouses} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
+            <RestartPlotForm plot={plot} farmCommission={farmCommission} appPct={appPct} references={references} fasePricing={fasePricing} warehouses={warehouses} onDone={() => { setShowRestart(false); onChanged(); }} setError={setError} />
           )}
         </>
       )}
@@ -568,7 +579,7 @@ function EditPlotForm({ plot, onDone, setError }) {
       <Field label="Variedade" value={form.variedade} onChange={(v) => update("variedade", v)} />
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <Field label="Safra / ciclo" value={form.safra} onChange={(v) => update("safra", v)} required />
-      <Field label="Retorno estimado (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+      <Field label="Retorno prometido — meta (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
       <div className="span-all">
         <Button type="submit" variant="secondary" loading={saving}>Salvar alterações</Button>
       </div>
@@ -576,7 +587,7 @@ function EditPlotForm({ plot, onDone, setError }) {
   );
 }
 
-function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDone, setError }) {
+function RestartPlotForm({ plot, farmCommission = 0, appPct = 5, references, fasePricing, warehouses = [], onDone, setError }) {
   const [form, setForm] = useState({ nome: plot.nome, area_ha: plot.area_ha, safra: "", previsao_retorno: plot.previsao_retorno });
   const [cultivo, setCultivo] = useState(emptyCultivo(plot));
   const [arm, setArm] = useState(armDoTalhao(plot));
@@ -607,10 +618,19 @@ function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDon
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <CultivoFields value={cultivo} onChange={setCultivo} area={form.area_ha} references={references} fasePricing={fasePricing} />
       <Field label="Nova safra / ciclo (ex: 2027/28)" value={form.safra} onChange={(v) => update("safra", v)} required />
-      <Field label="Retorno estimado ao investidor (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+<Field label="Retorno prometido — meta de venda (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required
+        hint="Quanto acima do preço de referência a fazenda espera vender. Ex.: 7,5% sobre R$ 120 = meta de R$ 129 por saca. Acima da meta entra a performance." />
       <ArmazenagemFields warehouse={warehouses.find((w) => w.id === plot.warehouse_id)} value={arm} onChange={setArm}
         precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
-      <PerformanceField value={perf} onChange={setPerf} precoReferencia={cultivo.preco} retornoPct={form.previsao_retorno} unidade={cultivo.unidade || "saca"} />
+      <PerformanceField value={perf} onChange={setPerf} precoReferencia={cultivo.preco} retornoPct={form.previsao_retorno} comissaoFazendaPct={farmCommission} unidade={cultivo.unidade || "saca"} />
+      {Number(cultivo.preco) > 0 && (
+        <div className="span-all card" style={{ padding: 14 }}>
+          <p className="card-title" style={{ marginBottom: 8 }}>Resumo das regras do novo ciclo</p>
+          <RegrasTalhao precoRef={cultivo.preco} metaPct={form.previsao_retorno} perfPct={Number(perf) || 0} comissaoFazendaPct={farmCommission} appPct={appPct}
+            multiplicadores={fasePricing} unidade={cultivo.unidade || "saca"} tipoProducao={cultivo.tipo_producao} inicioCiclo={cultivo.plantio_ate} fimCiclo={cultivo.colheita_prevista}
+            quinzenasArmazem={arm.quinzenas} />
+        </div>
+      )}
       <div className="span-all">
         <Button type="submit" variant="success" loading={saving}>Enviar novo ciclo para aprovação</Button>
       </div>
@@ -805,9 +825,9 @@ function StorageTerms({ plot, warehouses, onChanged, setNotice, setError }) {
 }
 
 // campos somente leitura ganham o visual de .input:read-only (tokens), sem estilo embutido
-function Field({ label, value, onChange, type = "text", required, readOnly }) {
+function Field({ label, value, onChange, type = "text", required, readOnly, hint }) {
   return (
-    <TextField label={label} type={type} required={required} value={value} readOnly={readOnly} onChange={onChange}
+    <TextField label={label} type={type} required={required} value={value} readOnly={readOnly} onChange={onChange} hint={hint}
       inputMode={type === "number" ? "decimal" : undefined} step={type === "number" ? "any" : undefined} />
   );
 }

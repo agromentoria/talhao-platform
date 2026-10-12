@@ -149,6 +149,7 @@ export const api = {
   unreadMessagesCount: () => request("/conversations/unread-count"),
 
   culturas: () => request("/culturas", { auth: false }),
+  regras: () => request("/regras", { auth: false }),
   plotApprovals: () => request("/admin/plot-approvals"),
   approvePlot: (id) => request(`/admin/plot-approvals/${id}/approve`, { method: "POST" }),
   rejectPlot: (id, motivo) => request(`/admin/plot-approvals/${id}/reject`, { method: "POST", body: { motivo } }),

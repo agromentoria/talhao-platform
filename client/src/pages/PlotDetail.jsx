@@ -4,7 +4,6 @@ import { MapPin, QrCode, CreditCard, Plus, Minus, Award, ShieldCheck, ShieldAler
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { GRAIN_COLORS } from "../config/theme";
 import { quinzenasTexto, pagadorTexto } from "../lib/armazenagem";
-import { dividirLucro } from "../lib/divisaoLucro";
 import { DemonstrativoResumo } from "./Demonstrativo";
 import { fasesDe, faseIcone, unidadeNome, cicloLabels, fmtData, culturaTexto, TIPOS, tipoDe } from "../config/culturas";
 import { fmtBRL, fmtNumber, unitPlural, fmtPct } from "../lib/format";
@@ -12,7 +11,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
-import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars } from "../components/domain";
+import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao } from "../components/domain";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -28,6 +27,7 @@ export default function PlotDetail() {
   const [armazenagem, setArmazenagem] = useState(null);
   const [validacoes, setValidacoes] = useState([]);
   const [publico, setPublico] = useState(true);
+  const [regras, setRegras] = useState(null);
   const [pendencias, setPendencias] = useState([]);
   const [historico, setHistorico] = useState([]);
   const [appCommission, setAppCommission] = useState(5);
@@ -56,6 +56,7 @@ export default function PlotDetail() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { api.regras().then(setRegras).catch(() => {}); }, []);
 
   useEffect(() => {
     if (user?.role !== "investidor") return;
@@ -101,15 +102,6 @@ export default function PlotDetail() {
   const comissaoApp = Math.max(0, lucroBruto) * (appCommission / 100);
   const recebimentoLiquido = retornoBruto - despesaArmazem - comissaoFazenda - comissaoApp;
   const perfPct = Number(plot.perf_excedente_pct) || 0;
-  const exemploPerf = perfPct > 0 ? (() => {
-    const preco = plot.preco_venda_estimado * (1 + (Number(plot.previsao_retorno) + 10) / 100);
-    const d = dividirLucro({
-      cotas: 100, valorInvestido: 100 * plot.cota_valor, precoReferencia: plot.preco_venda_estimado, retornoPrometidoPct: plot.previsao_retorno,
-      precoVenda: preco, despesa: 100 * (armazenagem?.porUnidade || 0) * parteArmazemInvestidor,
-      comissaoFazendaPct: plot.commission_pct, comissaoAppPct: appCommission, performancePct: perfPct,
-    });
-    return { preco, lucro: d.valorLiquido - 100 * plot.cota_valor };
-  })() : null;
   const lucroLiquido = recebimentoLiquido - custoTotal;
   const chartData = historico.length ? historico : [{ fase: fases[0], v: 0 }];
   const colhido = ["pago", "colhido", "arquivado", "aguardando_aprovacao"].includes(plot.status);
@@ -210,16 +202,16 @@ export default function PlotDetail() {
                 <p className="stat-value text-primary" style={{ marginTop: 2 }}>{fmtBRL(plot.cota_valor)}</p>
               </div>
               <div>
-                <p className="label-xs">Venda projetada no fim do ciclo</p>
+                <p className="label-xs">Meta de venda no fim do ciclo</p>
                 <p className="stat-value" style={{ marginTop: 2 }}>{fmtBRL(precoVendaProjetado)}</p>
               </div>
               <div>
-                <p className="label-xs">Margem bruta por {unidade}</p>
+                <p className="label-xs">Margem bruta por {unidade} (antes das comissões)</p>
                 <p className={`stat-value ${margemPorUnidade >= 0 ? "text-success" : "text-danger"}`} style={{ marginTop: 2 }}>{fmtBRL(margemPorUnidade)}</p>
               </div>
             </div>
             <p className="text-xs text-3" style={{ marginTop: 12 }}>
-              Referência de mercado: {fmtBRL(plot.preco_venda_estimado)} por {unidade}, com retorno estimado de {fmtPct(plot.previsao_retorno)} informado pela fazenda.
+              Preço de referência: {fmtBRL(plot.preco_venda_estimado)} por {unidade}. A fazenda promete vender {fmtPct(plot.previsao_retorno)} acima dele (meta de {fmtBRL(precoVendaProjetado)}).
             </p>
           </section>
 
@@ -245,33 +237,14 @@ export default function PlotDetail() {
           </section>
 
           <section className="card" aria-labelledby="com-t">
-            <h2 id="com-t" className="card-title" style={{ marginBottom: 12 }}>Como o lucro é dividido</h2>
-            <p className="text-sm text-2" style={{ marginBottom: 8 }}>
-              Até a meta: venda por até {fmtBRL(plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100))} por {unidade} (retorno prometido de {fmtPct(plot.previsao_retorno)}).
+            <h2 id="com-t" className="card-title" style={{ marginBottom: 4 }}>Regras deste talhão: ganhos e comissões</h2>
+            <p className="card-desc" style={{ marginBottom: 12 }}>
+              A fazenda promete uma meta de venda. Até a meta, o lucro é dividido pelas comissões abaixo; acima dela vale a regra de performance{perfPct > 0 ? ` (${fmtPct(perfPct)} do excedente para a fazenda)` : ""}. Regras validadas pela administração.
             </p>
-            <dl className="kv" style={{ margin: 0 }}>
-              <div><dt>Comissão da fazenda ({plot.farm_name})</dt><dd>{plot.commission_pct}% do lucro</dd></div>
-              <div><dt>Comissão do Meu Talhão</dt><dd>{appCommission}% do lucro</dd></div>
-              <div className="total"><dt>Sua parte do lucro</dt><dd className="text-success">{100 - plot.commission_pct - appCommission}%</dd></div>
-            </dl>
-            {perfPct > 0 ? (
-              <>
-                <p className="text-sm text-2" style={{ margin: "14px 0 8px" }}>Acima da meta (performance definida pela fazenda e validada pela administração):</p>
-                <dl className="kv" style={{ margin: 0 }}>
-                  <div><dt>Fazenda</dt><dd>{perfPct}% do excedente</dd></div>
-                  <div><dt>Meu Talhão</dt><dd>{appCommission}% do excedente</dd></div>
-                  <div className="total"><dt>Sua parte do excedente</dt><dd className="text-success">{Math.max(0, 100 - perfPct - appCommission)}%</dd></div>
-                </dl>
-                {exemploPerf && (
-                  <p className="text-xs text-3" style={{ marginTop: 10 }}>
-                    Exemplo: se a venda sair a {fmtBRL(exemploPerf.preco)} por {unidade} (10 pontos acima da meta), cada {fmtBRL(plot.cota_valor * 100)} investidos rendem {fmtBRL(exemploPerf.lucro)} de lucro líquido.
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-xs text-3" style={{ marginTop: 10 }}>Se a venda passar da meta, todo o lucro extra segue a mesma divisão acima.</p>
-            )}
-            <p className="text-xs text-3" style={{ marginTop: 10 }}>As comissões incidem só sobre o lucro, nunca sobre o valor investido.</p>
+            <RegrasTalhao precoRef={plot.preco_venda_estimado} metaPct={plot.previsao_retorno} perfPct={perfPct} comissaoFazendaPct={plot.commission_pct}
+              appPct={appCommission} multiplicadores={regras?.multiplicadores || {}} unidade={plot.unidade} tipoProducao={plot.tipo_producao}
+              inicioCiclo={plot.plantio_ate} fimCiclo={plot.colheita_prevista} quinzenasArmazem={armazenagem?.quinzenas_previstas || 0}
+              despesaInvestidorUnidade={(armazenagem?.porUnidade || 0) * parteArmazemInvestidor} faseAtual={plot.fase_atual} />
           </section>
 
           <DemonstrativoCard plotId={plot.id} />
@@ -334,7 +307,7 @@ export default function PlotDetail() {
                 <dl className="kv" style={{ margin: "0 0 16px" }}>
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
                   {investidorPagaArmazem && despesaArmazem > 0 && (
-                    <div><dt>Armazenagem estimada{parteArmazemInvestidor < 1 ? ` (sua parte: ${String(Math.round(parteArmazemInvestidor * 1000) / 10).replace(".", ",")}%)` : ""} · {quinzenasTexto(armazenagem.quinzenas_previstas)}</dt><dd>− {fmtBRL(despesaArmazem)}</dd></div>
+                    <div><dt>Armazenagem estimada{parteArmazemInvestidor < 1 ? ` (sua parte: ${String(Math.round(parteArmazemInvestidor * 1000) / 10).replace(".", ",")}%)` : ""} · {quinzenasTexto(armazenagem.quinzenas_previstas)}</dt><dd>{"−\u00a0"}{fmtBRL(despesaArmazem)}</dd></div>
                   )}
                   <div><dt>Recebimento estimado</dt><dd>{fmtBRL(recebimentoLiquido)}</dd></div>
                   <div className="total"><dt>Lucro líquido estimado</dt><dd className={lucroLiquido >= 0 ? "text-success" : "text-danger"}>{fmtBRL(lucroLiquido)}</dd></div>

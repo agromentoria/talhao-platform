@@ -379,9 +379,9 @@ function TransactionDetail({ id, onClose }) {
                 {inv.valor_bruto != null && (
                   <>
                     <div><dt>Valor bruto da venda</dt><dd>{fmtBRL(inv.valor_bruto)}</dd></div>
-                    {inv.despesa_armazem > 0 && <div><dt>Armazenagem</dt><dd>− {fmtBRL(inv.despesa_armazem)}</dd></div>}
-                    <div><dt>Comissão da fazenda</dt><dd>− {fmtBRL(inv.comissao_fazenda)}</dd></div>
-                    <div><dt>Comissão da plataforma</dt><dd>− {fmtBRL(inv.comissao_app)}</dd></div>
+                    {inv.despesa_armazem > 0 && <div><dt>Armazenagem</dt><dd>{"−\u00a0"}{fmtBRL(inv.despesa_armazem)}</dd></div>}
+                    <div><dt>Comissão da fazenda</dt><dd>{"−\u00a0"}{fmtBRL(inv.comissao_fazenda)}</dd></div>
+                    <div><dt>Comissão da plataforma</dt><dd>{"−\u00a0"}{fmtBRL(inv.comissao_app)}</dd></div>
                     <div className="total"><dt>Valor líquido pago</dt><dd className="text-success">{fmtBRL(inv.valor_liquido)}</dd></div>
                   </>
                 )}

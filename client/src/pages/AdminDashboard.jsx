@@ -7,7 +7,7 @@ import { fmtBRL, fmtNumber, fmtPct } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
-import { Stars } from "../components/domain";
+import { Stars, RegrasTalhao } from "../components/domain";
 import { FilterChips, Button, Banner, ErrorBanner, Tabs, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
 
@@ -32,6 +32,7 @@ export default function AdminDashboard() {
   const [warehouses, setWarehouses] = useState([]);
   const [totals, setTotals] = useState({});
   const [appCommission, setAppCommission] = useState(null);
+  const [regras, setRegras] = useState(null);
   const [references, setReferences] = useState([]);
   const [fasePricing, setFasePricing] = useState({});
   const [harvestRequests, setHarvestRequests] = useState([]);
@@ -47,6 +48,7 @@ export default function AdminDashboard() {
     api.overview().then(setOverview).catch((err) => setError(err.message));
     api.adminFarms().then((data) => setFarms(data.farms)).catch((err) => setError(err.message));
     api.adminWarehouses().then((data) => setWarehouses(data.warehouses)).catch((err) => setError(err.message));
+    api.regras().then(setRegras).catch(() => {});
     api.platformSettings().then((data) => { setAppCommission(data.app_commission_pct); savedCommission.current = data.app_commission_pct; }).catch((err) => setError(err.message));
     api.commodityReferences().then((data) => setReferences(data.references)).catch((err) => setError(err.message));
     api.fasePricing().then((data) => setFasePricing(data.multiplicadores)).catch((err) => setError(err.message));
@@ -340,6 +342,14 @@ export default function AdminDashboard() {
                 <div><dt>Performance da fazenda acima da meta</dt><dd>{Number(p.perf_excedente_pct) > 0 ? `${p.perf_excedente_pct}% do excedente` : "não cobra"}</dd></div>
                 <div className="total"><dt>Armazém garantidor</dt><dd>{p.warehouse_name ? `${p.warehouse_name}${p.warehouse_estrelas ? ` · ★ ${Number(p.warehouse_estrelas).toFixed(1)}` : ""} · ${p.custodia_status === "aceita" ? "custódia aceita" : p.custodia_status === "recusada" ? "recusou" : "aguardando aceite"}` : "nenhum"}</dd></div>
               </dl>
+              <details style={{ marginBottom: 12 }}>
+                <summary className="text-sm" style={{ cursor: "pointer", fontWeight: 600, color: "var(--link)" }}>Ver ganhos do investidor e divisão do lucro</summary>
+                <div style={{ marginTop: 10 }}>
+                  <RegrasTalhao precoRef={p.preco_venda_estimado} metaPct={p.previsao_retorno} perfPct={Number(p.perf_excedente_pct) || 0}
+                    comissaoFazendaPct={p.farm_commission_pct ?? 0} appPct={appCommission ?? 5} multiplicadores={regras?.multiplicadores || {}}
+                    unidade={p.unidade} tipoProducao={p.tipo_producao} inicioCiclo={p.plantio_ate} fimCiclo={p.colheita_prevista} quinzenasArmazem={p.arm_quinzenas_previstas || 0} />
+                </div>
+              </details>
               {p.aprovacao_status === "rejeitado" && p.aprovacao_motivo && <Banner tone="error" style={{ marginBottom: 12 }}>Ajuste pedido: {p.aprovacao_motivo}</Banner>}
               {Number(p.perf_excedente_pct) > 50 && (
                 <Banner tone="warning" style={{ marginBottom: 12 }}>

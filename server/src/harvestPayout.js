@@ -2,7 +2,7 @@ const { fmtBRL } = require("./format");
 const { pool } = require("./db");
 const { notifyUsers } = require("./notify");
 const { recordTransaction } = require("./ledger");
-const { despesaReal } = require("./storageFees");
+const { despesaReal, parteInvestidores, pagadorTexto } = require("./storageFees");
 const { dividirLucro } = require("./profitSplit");
 
 // Executa de fato o pagamento da colheita (só deve ser chamado depois que
@@ -29,14 +29,14 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
 
     const precoVendaReal = plot.preco_venda_estimado * (1 + retorno / 100);
     // despesa do armazém sobre a parte dos investidores, da entrada até hoje
-    const investidoresPagam = plot.warehouse_id && plot.arm_pagador !== "fazenda";
+    const parteInv = plot.warehouse_id ? parteInvestidores(plot) : 0;
 
     for (const inv of investments) {
       const precoUnitario = inv.preco_unitario || (inv.valor_investido / inv.cotas);
       const valorBruto = inv.cotas * precoVendaReal;
       const despesa = plot.warehouse_id ? despesaReal(plot, { unidades: inv.cotas, precoVenda: precoVendaReal }) : null;
       if (despesa && !despesaInfo) despesaInfo = despesa;
-      const despesaArmazem = investidoresPagam && despesa ? despesa.total : 0;
+      const despesaArmazem = despesa ? despesa.total * parteInv : 0;
       totalDespesaArmazem += despesa ? despesa.total : 0;
       const d = dividirLucro({
         cotas: inv.cotas, valorInvestido: inv.valor_investido, precoReferencia: plot.preco_venda_estimado,
@@ -94,7 +94,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         farmId: plot.farm_id,
         plotId: plot.id,
         amount: totalDespesaArmazem,
-        description: `Armazenagem de ${plot.nome} em ${wh[0]?.name || "armazém"}: ${despesaInfo.quinzenas} quinzena(s), ${despesaInfo.quinzenasCobradas} cobrada(s) — paga ${investidoresPagam ? "pelos investidores (descontada do resultado)" : "pela fazenda"}`,
+        description: `Armazenagem de ${plot.nome} em ${wh[0]?.name || "armazém"}: ${despesaInfo.quinzenas} quinzena(s), ${despesaInfo.quinzenasCobradas} cobrada(s) — ${pagadorTexto(plot)}`,
       });
     }
 

@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { MapPin, QrCode, CreditCard, Plus, Minus, Award, ShieldCheck, ShieldAlert, Warehouse } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { GRAIN_COLORS } from "../config/theme";
-import { quinzenasTexto } from "../lib/armazenagem";
+import { quinzenasTexto, pagadorTexto } from "../lib/armazenagem";
 import { dividirLucro } from "../lib/divisaoLucro";
 import { fasesDe, faseIcone, unidadeNome, cicloLabels, fmtData, culturaTexto, TIPOS, tipoDe } from "../config/culturas";
 import { fmtBRL, fmtNumber, unitPlural, fmtPct } from "../lib/format";
@@ -92,8 +92,9 @@ export default function PlotDetail() {
   const margemPorUnidade = precoVendaProjetado - plot.cota_valor;
   const retornoBruto = qtd * precoVendaProjetado;
   // armazenagem prevista: só desconta do investidor quando ele é quem paga
-  const investidorPagaArmazem = armazenagem && armazenagem.pagador !== "fazenda";
-  const despesaArmazem = investidorPagaArmazem ? qtd * armazenagem.porUnidade : 0;
+  const parteArmazemInvestidor = armazenagem ? Number(armazenagem.parte_investidores ?? (armazenagem.pagador === "fazenda" ? 0 : 1)) : 0;
+  const investidorPagaArmazem = parteArmazemInvestidor > 0;
+  const despesaArmazem = qtd * (armazenagem?.porUnidade || 0) * parteArmazemInvestidor;
   const lucroBruto = retornoBruto - despesaArmazem - custoTotal;
   const comissaoFazenda = Math.max(0, lucroBruto) * (plot.commission_pct / 100);
   const comissaoApp = Math.max(0, lucroBruto) * (appCommission / 100);
@@ -103,7 +104,7 @@ export default function PlotDetail() {
     const preco = plot.preco_venda_estimado * (1 + (Number(plot.previsao_retorno) + 10) / 100);
     const d = dividirLucro({
       cotas: 100, valorInvestido: 100 * plot.cota_valor, precoReferencia: plot.preco_venda_estimado, retornoPrometidoPct: plot.previsao_retorno,
-      precoVenda: preco, despesa: investidorPagaArmazem ? 100 * armazenagem.porUnidade : 0,
+      precoVenda: preco, despesa: 100 * (armazenagem?.porUnidade || 0) * parteArmazemInvestidor,
       comissaoFazendaPct: plot.commission_pct, comissaoAppPct: appCommission, performancePct: perfPct,
     });
     return { preco, lucro: d.valorLiquido - 100 * plot.cota_valor };
@@ -330,7 +331,7 @@ export default function PlotDetail() {
                 <dl className="kv" style={{ margin: "0 0 16px" }}>
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
                   {investidorPagaArmazem && despesaArmazem > 0 && (
-                    <div><dt>Armazenagem estimada · {quinzenasTexto(armazenagem.quinzenas_previstas)}</dt><dd>− {fmtBRL(despesaArmazem)}</dd></div>
+                    <div><dt>Armazenagem estimada{parteArmazemInvestidor < 1 ? ` (sua parte: ${String(Math.round(parteArmazemInvestidor * 1000) / 10).replace(".", ",")}%)` : ""} · {quinzenasTexto(armazenagem.quinzenas_previstas)}</dt><dd>− {fmtBRL(despesaArmazem)}</dd></div>
                   )}
                   <div><dt>Recebimento estimado</dt><dd>{fmtBRL(recebimentoLiquido)}</dd></div>
                   <div className="total"><dt>Lucro líquido estimado</dt><dd className={lucroLiquido >= 0 ? "text-success" : "text-danger"}>{fmtBRL(lucroLiquido)}</dd></div>
@@ -417,7 +418,7 @@ function GuaranteeCard({ plot, armazem, validacoes, armazenagem }) {
                 ? <>Recepção {fmtBRL(armazenagem.tarifas.recepcao)} por {unidadeNome(plot.unidade, 1)}, {fmtBRL(armazenagem.tarifas.quinzena)} por quinzena após {armazenagem.tarifas.carencia} quinzena(s) de carência{armazenagem.tarifas.quebraPct ? `, quebra técnica de ${String(armazenagem.tarifas.quebraPct).replace(".", ",")}% por quinzena` : ""}. </>
                 : "O armazém não cobra tarifa neste talhão. "}
               Previsão de {quinzenasTexto(armazenagem.quinzenas_previstas)} guardado: cerca de <strong style={{ color: "var(--text)" }}>{fmtBRL(armazenagem.porUnidade)} por {unidadeNome(plot.unidade, 1)}</strong>,
-              {" "}{armazenagem.pagador === "fazenda" ? "pagos pela fazenda." : "descontados do resultado dos investidores antes das comissões."}
+              {" "}{pagadorTexto({ pagador: armazenagem.pagador, investidorPct: armazenagem.parte_investidores * 100 })}.
             </p>
           </div>
         )}

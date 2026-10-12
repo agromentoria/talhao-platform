@@ -8,7 +8,7 @@ const { validatePhotoData } = require("../validators");
 const { getValidations, getPublicWarehouse, WAREHOUSE_STARS_SQL } = require("../custody");
 const { UNIDADES, TIPOS, getCultura, fasesDe } = require("../culturas");
 const { PUBLIC_SQL, isPublic, pendencias, maybePublish } = require("../publication");
-const { despesaPrevista } = require("../storageFees");
+const { despesaPrevista, parteInvestidores } = require("../storageFees");
 const { PERFORMANCE_MAX } = require("../profitSplit");
 
 function parsePerformance(body) {
@@ -21,10 +21,18 @@ function parsePerformance(body) {
 
 // quem paga a armazenagem e por quanto tempo a produção deve ficar guardada
 function parseArmazenagem(body) {
-  const pagador = body.arm_pagador === "fazenda" ? "fazenda" : "investidores";
+  const pagador = ["fazenda", "dividido"].includes(body.arm_pagador) ? body.arm_pagador : "investidores";
+  let investidorPct = null;
+  if (pagador === "dividido") {
+    investidorPct = Number(body.arm_investidor_pct);
+    if (Number.isNaN(investidorPct) || investidorPct <= 0 || investidorPct >= 100) {
+      return { error: "Na divisão da armazenagem, a parte dos investidores deve ficar entre 1% e 99%." };
+    }
+    investidorPct = Math.round(investidorPct * 10) / 10;
+  }
   const q = body.arm_quinzenas_previstas === undefined || body.arm_quinzenas_previstas === "" ? 2 : Math.round(Number(body.arm_quinzenas_previstas));
   if (Number.isNaN(q) || q < 1 || q > 24) return { error: "Período de armazenagem previsto deve ficar entre 1 e 24 quinzenas." };
-  return { pagador, quinzenas: q };
+  return { pagador, quinzenas: q, investidorPct };
 }
 
 const router = express.Router();
@@ -189,7 +197,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
     };
     const precoProjetado = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
     const d = despesaPrevista(ref, { unidades: 1, precoVenda: precoProjetado });
-    armazenagem = { ...d, pagador: plot.arm_pagador, quinzenas_previstas: plot.arm_quinzenas_previstas, entrada_em: plot.arm_entrada_em };
+    armazenagem = { ...d, pagador: plot.arm_pagador, parte_investidores: parteInvestidores(plot), quinzenas_previstas: plot.arm_quinzenas_previstas, entrada_em: plot.arm_entrada_em };
   }
   res.json({
     plot, historico: historico.rows, app_commission_pct: appCommissionPct, fotos: fotos.rows, armazem, validacoes,
@@ -263,10 +271,10 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   const { rows } = await pool.query(
     `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra,
                         cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado,
-                        warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18) RETURNING *`,
+                        warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_investidor_pct)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18, $19) RETURNING *`,
     [farm_id, String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct]
+     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct]
   );
   const plot = rows[0];
   await notifyWarehouseIndication(wh.warehouse, plot, owned.farm.name);
@@ -544,12 +552,12 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
        retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao', unidade = $12, preco_venda_estimado = $13,
        custodia_status = 'pendente', custodia_motivo = NULL, custodia_em = NULL,
        aprovacao_status = 'pendente', aprovacao_motivo = NULL, aprovacao_em = NULL, exige_garantia = true, publicado_em = NULL,
-       arm_pagador = $15, arm_quinzenas_previstas = $16, arm_entrada_em = NULL, perf_excedente_pct = $17,
+       arm_pagador = $15, arm_quinzenas_previstas = $16, arm_entrada_em = NULL, perf_excedente_pct = $17, arm_investidor_pct = $18,
        arm_tarifa_recepcao = NULL, arm_tarifa_quinzena = NULL, arm_carencia = NULL, arm_quebra_pct = NULL
      WHERE id = $14
      RETURNING *`,
     [String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, plot.id, arm.pagador, arm.quinzenas, perf.pct]
+     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, plot.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct]
   );
   await pool.query("DELETE FROM plot_validations WHERE plot_id = $1", [plot.id]);
   const { rows: w } = await pool.query("SELECT * FROM warehouses WHERE id = $1", [rows[0].warehouse_id]);
@@ -573,8 +581,8 @@ router.patch("/:id/armazenagem", requireAuth, requireRole("fazenda", "admin"), a
   const arm = parseArmazenagem(req.body || {});
   if (arm.error) return res.status(400).json({ error: arm.error });
   const { rows: up } = await pool.query(
-    "UPDATE plots SET arm_pagador = $1, arm_quinzenas_previstas = $2 WHERE id = $3 RETURNING *",
-    [arm.pagador, arm.quinzenas, plot.id]
+    "UPDATE plots SET arm_pagador = $1, arm_quinzenas_previstas = $2, arm_investidor_pct = $3 WHERE id = $4 RETURNING *",
+    [arm.pagador, arm.quinzenas, arm.investidorPct, plot.id]
   );
   res.json({ plot: up[0] });
 }));

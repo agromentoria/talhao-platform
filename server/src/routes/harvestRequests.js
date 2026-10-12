@@ -1,5 +1,5 @@
 const express = require("express");
-const { despesaReal } = require("../storageFees");
+const { despesaReal, parteInvestidores, pagadorTexto } = require("../storageFees");
 const { pool } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -46,7 +46,7 @@ router.get("/", asyncHandler(async (req, res) => {
     const vendidas = p.cotas_totais - p.cotas_disponiveis;
     const precoVenda = p.preco_venda_estimado * (1 + Number(r.retorno_final ?? p.previsao_retorno) / 100);
     const d = despesaReal(p, { unidades: vendidas, precoVenda });
-    return { ...r, armazenagem: { ...d, pagador: p.arm_pagador, entrada_em: p.arm_entrada_em } };
+    return { ...r, armazenagem: { ...d, pagador: p.arm_pagador, parte_investidores: parteInvestidores(p), pagador_texto: pagadorTexto(p), entrada_em: p.arm_entrada_em } };
   });
   res.json({ requests: enriched });
 }));

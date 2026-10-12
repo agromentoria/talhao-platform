@@ -10,7 +10,7 @@ import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
 import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField } from "../components/domain";
-import { tarifasTexto, quinzenasTexto } from "../lib/armazenagem";
+import { tarifasTexto, quinzenasTexto, armDoTalhao, pagadorTexto } from "../lib/armazenagem";
 
 const STATUS_FILTERS = [
   { id: "ativos", label: "Ativos", match: (s) => s === "captacao" || s === "em_andamento" || s === "aguardando_aprovacao" },
@@ -177,7 +177,7 @@ function NewPlotForm({ farmId, farmCommission = 0, references, fasePricing, ware
   const [warehouseId, setWarehouseId] = useState("");
   const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "" });
   const [cultivo, setCultivo] = useState(emptyCultivo());
-  const [arm, setArm] = useState({ pagador: "investidores", quinzenas: 2 });
+  const [arm, setArm] = useState({ pagador: "investidores", quinzenas: 2, investidorPct: 50 });
   const [perf, setPerf] = useState("0");
   const [saving, setSaving] = useState(false);
   const warehouse = warehouses.find((w) => String(w.id) === String(warehouseId));
@@ -190,7 +190,7 @@ function NewPlotForm({ farmId, farmCommission = 0, references, fasePricing, ware
     try {
       await api.createPlot({
         farm_id: farmId, ...form, ...cultivoPayload(cultivo), warehouse_id: warehouseId ? Number(warehouseId) : null,
-        arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas, perf_excedente_pct: perf,
+        arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas, arm_investidor_pct: arm.investidorPct, perf_excedente_pct: perf,
       });
       onCreated();
     } catch (err) {
@@ -573,7 +573,7 @@ function EditPlotForm({ plot, onDone, setError }) {
 function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDone, setError }) {
   const [form, setForm] = useState({ nome: plot.nome, area_ha: plot.area_ha, safra: "", previsao_retorno: plot.previsao_retorno });
   const [cultivo, setCultivo] = useState(emptyCultivo(plot));
-  const [arm, setArm] = useState({ pagador: plot.arm_pagador || "investidores", quinzenas: plot.arm_quinzenas_previstas || 2 });
+  const [arm, setArm] = useState(armDoTalhao(plot));
   const [perf, setPerf] = useState(String(plot.perf_excedente_pct ?? 0));
   const [saving, setSaving] = useState(false);
 
@@ -583,7 +583,7 @@ function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDon
     e.preventDefault();
     setSaving(true);
     try {
-      await api.restartPlot(plot.id, { ...form, ...cultivoPayload(cultivo), arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas, perf_excedente_pct: perf });
+      await api.restartPlot(plot.id, { ...form, ...cultivoPayload(cultivo), arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas, arm_investidor_pct: arm.investidorPct, perf_excedente_pct: perf });
       onDone();
     } catch (err) {
       setError(err.message);
@@ -723,7 +723,7 @@ function PerformanceTerms({ plot, onChanged, setNotice, setError }) {
 // condições de armazenagem do talhão (podem mudar enquanto não houver investidor)
 function StorageTerms({ plot, warehouses, onChanged, setNotice, setError }) {
   const [editing, setEditing] = useState(false);
-  const [arm, setArm] = useState({ pagador: plot.arm_pagador || "investidores", quinzenas: plot.arm_quinzenas_previstas || 2 });
+  const [arm, setArm] = useState(armDoTalhao(plot));
   const [saving, setSaving] = useState(false);
   const temInvestidor = plot.cotas_disponiveis < plot.cotas_totais;
   const tabela = plot.arm_tarifa_recepcao != null
@@ -734,7 +734,7 @@ function StorageTerms({ plot, warehouses, onChanged, setNotice, setError }) {
   async function save() {
     setSaving(true);
     try {
-      await api.setPlotStorage(plot.id, { arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas });
+      await api.setPlotStorage(plot.id, { arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas, arm_investidor_pct: arm.investidorPct });
       setNotice("Condições de armazenagem atualizadas.");
       setEditing(false);
       onChanged();
@@ -759,7 +759,7 @@ function StorageTerms({ plot, warehouses, onChanged, setNotice, setError }) {
   }
   return (
     <p className="text-sm text-2" style={{ marginBottom: 10 }}>
-      Armazenagem: paga pel{plot.arm_pagador === "fazenda" ? "a fazenda" : "os investidores"} · {quinzenasTexto(plot.arm_quinzenas_previstas || 2)} previstas
+      Armazenagem: {pagadorTexto(armDoTalhao(plot)).replace("pagos", "paga").replace("divididos", "dividida").replace("descontados", "descontada")} · {quinzenasTexto(plot.arm_quinzenas_previstas || 2)} previstas
       {tabela ? ` · ${tarifasTexto(tabela, plot.unidade)}` : ""}
       {plot.arm_tarifa_recepcao != null ? " (tabela fixada no aceite)" : ""}
       {!temInvestidor && <> · <button type="button" className="link-btn" onClick={() => setEditing(true)}>alterar</button></>}

@@ -33,3 +33,24 @@ export function quinzenasTexto(q) {
 }
 
 export const OPCOES_QUINZENAS = Array.from({ length: 24 }, (_, i) => i + 1);
+
+// fração da despesa paga pelos investidores (0 a 1) — igual ao servidor
+export function parteInvestidores(arm) {
+  if (!arm || arm.pagador === "fazenda") return 0;
+  if (arm.pagador === "dividido") return Math.min(1, Math.max(0, (Number(arm.investidorPct) || 0) / 100));
+  return 1;
+}
+
+// a partir dos campos do talhão (arm_pagador / arm_investidor_pct)
+export function armDoTalhao(plot) {
+  return { pagador: plot?.arm_pagador || "investidores", investidorPct: plot?.arm_investidor_pct ?? 50, quinzenas: plot?.arm_quinzenas_previstas || 2 };
+}
+
+export function pagadorTexto(arm) {
+  const p = parteInvestidores(arm);
+  if (p === 1) return "pagos pelos investidores, descontados do resultado antes das comissões";
+  if (p === 0) return "pagos pela fazenda";
+  const inv = Math.round(p * 1000) / 10;
+  const fmt = (n) => String(n).replace(".", ",");
+  return `divididos: ${fmt(inv)}% descontados dos investidores e ${fmt(Math.round((100 - inv) * 10) / 10)}% pagos pela fazenda`;
+}

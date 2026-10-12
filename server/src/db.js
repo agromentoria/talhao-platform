@@ -477,7 +477,9 @@ ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_tarifa_recepcao REAL;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_tarifa_quinzena REAL;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_carencia INTEGER;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_quebra_pct REAL;
-ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_pagador TEXT NOT NULL DEFAULT 'investidores'; -- investidores | fazenda
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_pagador TEXT NOT NULL DEFAULT 'investidores'; -- investidores | fazenda | dividido
+-- quando "dividido": % da despesa que sai do resultado dos investidores (o resto a fazenda paga)
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_investidor_pct REAL;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_quinzenas_previstas INTEGER NOT NULL DEFAULT 2;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_entrada_em TIMESTAMPTZ;  -- quando o armazém confirmou o recebimento
 

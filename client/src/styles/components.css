@@ -189,7 +189,7 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .kv { display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); }
 .kv > div { display: flex; justify-content: space-between; gap: var(--sp-3); }
 .kv dt, .kv .k { color: var(--text-2); }
-.kv dd, .kv .v { margin: 0; font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.kv dd, .kv .v { margin: 0; font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .kv .total { border-top: 1px solid var(--border); padding-top: var(--sp-2); }
 .text-success { color: var(--success-text) !important; }
 .text-danger { color: var(--danger) !important; }

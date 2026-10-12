@@ -1,5 +1,12 @@
 # Registro de mudanças
 
+## 1.7.0 — armazenagem dividida entre fazenda e investidores
+
+- Nova opção **Dividir** em "Quem paga a armazenagem", ao lado de Investidores e Fazenda. A fazenda informa a parte dos investidores (1% a 99%) e o formulário mostra quanto cada lado paga.
+- No pagamento da colheita, cada investidor tem descontada só a parte dele (antes das comissões); a parte da fazenda aparece na carteira dela como despesa.
+- O investidor vê "Armazenagem estimada (sua parte: X%)" no painel de compra e a divisão no card da garantia; a administração vê a divisão antes de aprovar o pagamento.
+- Valores à direita nas listas não quebram mais de linha (ex.: "− R$ 1,75").
+
 ## 1.6.0 — performance da fazenda acima da meta
 
 - **Nova regra de divisão do lucro.** Até a meta (retorno prometido no talhão), o lucro segue as comissões padrão. O que passar da meta é dividido pela regra de performance: a fazenda fica com o percentual que ela definiu, o app mantém a sua comissão e o resto vai ao investidor.

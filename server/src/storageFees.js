@@ -10,6 +10,7 @@
 //   "investidores" → a despesa sai do valor de venda antes de calcular o lucro
 //                    (e as comissões incidem sobre o lucro já sem a despesa)
 //   "fazenda"      → a fazenda assume; o investidor não tem desconto
+//   "dividido"     → os investidores pagam arm_investidor_pct% e a fazenda o resto
 const DIA = 86400000;
 
 function tarifasDoTalhao(plot) {
@@ -56,4 +57,19 @@ function despesaPrevista(plot, { unidades, precoVenda }) {
   return calcularDespesa(plot, { unidades, precoVenda, quinzenas: Number(plot.arm_quinzenas_previstas) || 0 });
 }
 
-module.exports = { calcularDespesa, despesaReal, despesaPrevista, tarifasDoTalhao, quinzenasEntre };
+// fração da despesa paga pelos investidores (0 a 1)
+function parteInvestidores(plot) {
+  if (!plot || plot.arm_pagador === "fazenda") return 0;
+  if (plot.arm_pagador === "dividido") return Math.min(1, Math.max(0, (Number(plot.arm_investidor_pct) || 0) / 100));
+  return 1;
+}
+
+function pagadorTexto(plot) {
+  const p = parteInvestidores(plot);
+  if (p === 1) return "paga pelos investidores (descontada do resultado)";
+  if (p === 0) return "paga pela fazenda";
+  const pct = Math.round(p * 1000) / 10;
+  return `dividida: ${String(pct).replace(".", ",")}% investidores, ${String(Math.round((100 - pct) * 10) / 10).replace(".", ",")}% fazenda`;
+}
+
+module.exports = { parteInvestidores, pagadorTexto, calcularDespesa, despesaReal, despesaPrevista, tarifasDoTalhao, quinzenasEntre };

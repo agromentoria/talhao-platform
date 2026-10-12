@@ -63,15 +63,18 @@ export default function FarmWallet() {
           {filtered.map((t) => {
             const isVenda = t.type === "compra_cota";
             if (t.type === "tarifa_armazem") {
-              const fazendaPaga = t.arm_pagador === "fazenda";
+              const parteFazenda = Number(t.parte_fazenda_valor || 0);
+              const dividido = t.arm_pagador === "dividido";
               return (
                 <li key={t.id} className="list-item">
                   <GrainThumb grao={t.grao} />
                   <div className="list-item-body">
                     <p className="list-item-title truncate">Armazenagem · {t.plot_nome}</p>
-                    <p className="list-item-sub">{fazendaPaga ? "Paga pela fazenda" : "Descontada dos investidores"} · {fmtDateTime(t.created_at)}</p>
+                    <p className="list-item-sub">
+                      {t.arm_pagador === "fazenda" ? "Paga pela fazenda" : dividido ? `Dividida: fazenda ${fmtBRL(parteFazenda)} de ${fmtBRL(t.amount)}` : "Descontada dos investidores"} · {fmtDateTime(t.created_at)}
+                    </p>
                   </div>
-                  <p className={`money ${fazendaPaga ? "text-danger" : "text-2"}`} style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{fazendaPaga ? "−" : ""}{fmtBRL(t.amount)}</p>
+                  <p className={`money ${parteFazenda > 0 ? "text-danger" : "text-2"}`} style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{parteFazenda > 0 ? `−${fmtBRL(parteFazenda)}` : fmtBRL(t.amount)}</p>
                 </li>
               );
             }

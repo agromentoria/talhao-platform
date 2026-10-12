@@ -212,7 +212,7 @@ router.get("/transactions/me", requireAuth, asyncHandler(async (req, res) => {
 // vendas de cotas dos talhões da fazenda + repasses de comissão recebidos por ela
 router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT t.*, p.nome as plot_nome, p.grao, p.unidade, p.arm_pagador, u.name as investidor_nome
+    `SELECT t.*, p.nome as plot_nome, p.grao, p.unidade, p.arm_pagador, p.arm_investidor_pct, u.name as investidor_nome
      FROM transactions t
      LEFT JOIN plots p ON p.id = t.plot_id
      LEFT JOIN users u ON u.id = t.user_id AND t.type = 'compra_cota'
@@ -226,7 +226,10 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
   const totalRecebido = rows.filter((r) => r.type === "repasse_fazenda").reduce((s, r) => s + Number(r.amount), 0);
 
   // armazenagem que a própria fazenda assumiu (quando os investidores pagam, só aparece como informação)
-  const totalArmazenagem = rows.filter((r) => r.type === "tarifa_armazem" && r.arm_pagador === "fazenda").reduce((s, r) => s + Number(r.amount), 0);
+  // parte da fazenda: tudo quando ela assume, o complemento quando é dividido
+  const parteFazenda = (r) => (r.arm_pagador === "fazenda" ? 1 : r.arm_pagador === "dividido" ? 1 - (Number(r.arm_investidor_pct) || 0) / 100 : 0);
+  for (const r of rows) if (r.type === "tarifa_armazem") r.parte_fazenda_valor = Number(r.amount) * parteFazenda(r);
+  const totalArmazenagem = rows.filter((r) => r.type === "tarifa_armazem").reduce((s, r) => s + r.parte_fazenda_valor, 0);
 
   res.json({ transactions: rows, totalVendido, totalRecebido, totalArmazenagem });
 }));

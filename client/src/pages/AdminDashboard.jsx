@@ -677,7 +677,7 @@ function HarvestCustodyInfo({ r }) {
       {qtd < vendidas ? " A quantidade armazenada é menor que a vendida." : ""}
       {a && a.total > 0 && (
         <span style={{ display: "block", marginTop: 6 }}>
-          Despesa de armazenagem até hoje: <strong>{fmtBRL(a.total)}</strong> ({a.quinzenas} quinzena(s), {a.quinzenasCobradas} cobrada(s): recepção {fmtBRL(a.recepcao)}, armazenagem {fmtBRL(a.armazenagem)}{a.quebra > 0 ? `, quebra ${fmtBRL(a.quebra)}` : ""}) — paga pel{a.pagador === "fazenda" ? "a fazenda" : "os investidores, descontada do resultado"}.
+          Despesa de armazenagem até hoje: <strong>{fmtBRL(a.total)}</strong> ({a.quinzenas} quinzena(s), {a.quinzenasCobradas} cobrada(s): recepção {fmtBRL(a.recepcao)}, armazenagem {fmtBRL(a.armazenagem)}{a.quebra > 0 ? `, quebra ${fmtBRL(a.quebra)}` : ""}) — {a.pagador_texto || (a.pagador === "fazenda" ? "paga pela fazenda" : "paga pelos investidores")}.
         </span>
       )}
     </Banner>

@@ -60,7 +60,7 @@ export default function ComoFunciona() {
           <li><strong>Investidor:</strong> o restante. Se não houver lucro, não há comissão.</li>
         </ul>
         <h3 style={{ fontSize: "var(--fs-md)", margin: "14px 0 4px" }}>5. Performance acima da meta</h3>
-        <p>Se a venda passar da meta, a fazenda pode ficar com um percentual do lucro extra (de 0% a {fmtPct(regras?.performance_max ?? 70)}), definido no cadastro do talhão, validado pela administração e mostrado antes da compra.</p>
+        <p>Se a venda passar da meta, a fazenda fica com um percentual do valor que passou (de 0% a {fmtPct(regras?.performance_max ?? 70)}), definido no cadastro do talhão, validado pela administração e mostrado antes da compra. Exemplo: meta de R$ 144, venda a R$ 145, 60.000 sacas e performance de 40% → excedente de R$ 60.000 e R$ 24.000 para a fazenda. O excedente nunca passa do lucro do investidor.</p>
         <h3 style={{ fontSize: "var(--fs-md)", margin: "14px 0 4px" }}>6. Armazenagem</h3>
         <p>O armazém cobra recepção, um valor por quinzena após a carência e a quebra técnica. Em cada talhão aparece quem paga: os investidores (descontado do resultado antes das comissões), a fazenda, ou os dois em partes.</p>
         <h3 style={{ fontSize: "var(--fs-md)", margin: "14px 0 4px" }}>7. Pagamento</h3>

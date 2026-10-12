@@ -3,8 +3,8 @@
 // 1) Lucro até a meta: a meta é o retorno prometido pela fazenda no talhão
 //    (preço de referência × (1 + retorno prometido)). Esse lucro segue a
 //    regra padrão: comissão da fazenda + comissão do app, o resto ao investidor.
-// 2) Excedente: o lucro que passar do lucro da meta (já descontada a
-//    armazenagem, quando o investidor paga). A fazenda fica com o
+// 2) Excedente: o valor de venda acima da meta (preço acima da meta ×
+//    quantidade), limitado ao lucro do investidor. A fazenda fica com o
 //    percentual de performance que ela definiu no talhão (validado pela
 //    administração e mostrado ao investidor antes da compra); o app mantém a
 //    comissão dele; o resto é do investidor.
@@ -15,10 +15,13 @@ function dividirLucro({ cotas, valorInvestido, precoReferencia, retornoPrometido
   const valorBruto = cotas * precoVenda;
   const lucro = valorBruto - despesa - valorInvestido;
   const valorMeta = cotas * precoReferencia * (1 + retornoPrometidoPct / 100);
-  // lucro que o investidor teria se a venda saísse exatamente na meta; só o
-  // que passar disso (já descontada a armazenagem) é excedente
   const lucroMeta = Math.max(0, valorMeta - valorInvestido);
-  const excedente = performancePct > 0 ? Math.max(0, lucro - lucroMeta) : 0;
+  // excedente medido pelo PREÇO: tudo o que a venda passar da meta
+  // (preço acima da meta × quantidade). A armazenagem é tratada à parte, pela
+  // divisão combinada no talhão. Proteção do investidor: o excedente nunca
+  // passa do lucro dele.
+  const excedenteVenda = Math.max(0, valorBruto - valorMeta);
+  const excedente = performancePct > 0 ? Math.min(excedenteVenda, Math.max(0, lucro)) : 0;
   const lucroBase = Math.max(0, lucro - excedente);
 
   const comissaoFazendaBase = lucroBase * (comissaoFazendaPct / 100);

@@ -677,7 +677,7 @@ function EntityRow({ icon, iconTone, title, estrelas, lines, metrics, status, ac
 function performanceMotivo(r) {
   if (!(Number(r.perf_excedente_pct) > 0)) return "não definida neste talhão (0%)";
   if (r.preco_venda_declarado <= r.preco_meta + 0.004) return "venda não passou da meta";
-  return "lucro acima da meta ficou abaixo do previsto (armazenagem ou fase da compra)";
+  return "o lucro do investidor não cobriu o excedente (proteção do investidor)";
 }
 
 function HarvestPreview({ r }) {

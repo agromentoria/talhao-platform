@@ -5,7 +5,8 @@ export function dividirLucro({ cotas, valorInvestido, precoReferencia, retornoPr
   const lucro = valorBruto - despesa - valorInvestido;
   const valorMeta = cotas * precoReferencia * (1 + retornoPrometidoPct / 100);
   const lucroMeta = Math.max(0, valorMeta - valorInvestido);
-  const excedente = performancePct > 0 ? Math.max(0, lucro - lucroMeta) : 0;
+  // excedente = venda acima da meta (preço × quantidade), limitado ao lucro do investidor
+  const excedente = performancePct > 0 ? Math.min(Math.max(0, valorBruto - valorMeta), Math.max(0, lucro)) : 0;
   const lucroBase = Math.max(0, lucro - excedente);
   const performanceFazenda = excedente * (performancePct / 100);
   const comissaoFazenda = lucroBase * (comissaoFazendaPct / 100) + performanceFazenda;

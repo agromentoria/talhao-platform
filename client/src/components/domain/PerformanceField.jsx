@@ -21,7 +21,7 @@ export default function PerformanceField({ value, onChange, precoReferencia, ret
     <div className="span-all card card--well" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
       <p className="card-title" style={{ display: "flex", gap: 6, alignItems: "center" }}><TrendingUp size={16} aria-hidden /> Performance acima da meta</p>
       <p className="text-sm text-2">
-        Até o retorno prometido ({fmtPct(r)}), o lucro segue a divisão padrão. Se a venda passar da meta, a fazenda fica com o percentual abaixo do lucro excedente.
+        Até o retorno prometido ({fmtPct(r)}), o lucro segue a divisão padrão. Se a venda passar da meta, a fazenda fica com o percentual abaixo do excedente (preço acima da meta × quantidade).
         A administração valida a regra e o investidor vê antes de comprar.
       </p>
       <TextField label="Sua participação no excedente (%)" type="number" inputMode="decimal" min={0} max={PERFORMANCE_MAX} step="1"

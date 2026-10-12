@@ -13,7 +13,7 @@ export default function Terms() {
       <h2>Comissões</h2>
       <p>A fazenda e a plataforma cobram comissões percentuais sobre o lucro de cada colheita, exibidas antes da compra. Não há comissão sobre o valor investido.</p>
       <h2>Performance acima da meta</h2>
-      <p>Cada talhão tem um retorno prometido (meta). O lucro até a meta segue as comissões padrão. Se a venda superar a meta, a fazenda pode ficar com um percentual do lucro excedente, definido por ela no cadastro do talhão, validado pela administração e exibido antes da compra. A regra não muda depois que houver investidores.</p>
+      <p>Cada talhão tem um retorno prometido (meta). O lucro até a meta segue as comissões padrão. Se a venda superar a meta, a fazenda fica com um percentual do excedente — o preço de venda acima da meta multiplicado pela quantidade —, definido por ela no cadastro do talhão, validado pela administração e exibido antes da compra. O excedente nunca é maior que o lucro do investidor; a armazenagem segue a divisão informada no talhão. A regra não muda depois que houver investidores.</p>
       <h2>Demonstrativo financeiro</h2>
       <p>A fazenda informa o orçamento e os custos de cada talhão (preparo do solo, sementes, defensivos, operações e outros). Esses valores ficam visíveis aos investidores no demonstrativo do talhão e são de responsabilidade da fazenda. O demonstrativo mostra também como o resultado da venda é dividido entre investidores, fazenda, armazém e plataforma.</p>
       <h2>Pagamento da colheita</h2>

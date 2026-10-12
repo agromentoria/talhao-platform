@@ -1,5 +1,13 @@
 # Registro de mudanças
 
+## 1.9.2 — performance pelo preço de venda
+
+- **Regra da performance mudou:** o excedente passa a ser medido pelo **preço de venda acima da meta × quantidade**. Antes ele era medido sobre o lucro já descontada a armazenagem, e uma venda acima da meta podia não gerar performance (ex.: meta R$ 144, venda R$ 145, 60.000 sacas, armazenagem dividida → performance R$ 0). Agora o mesmo caso gera excedente de R$ 60.000 e R$ 24.000 para a fazenda (40%).
+- Proteção do investidor mantida: o excedente nunca passa do lucro dele. A armazenagem segue a divisão combinada no talhão.
+- A finalização da colheita envia o retorno com precisão alta, para o preço declarado ser reproduzido ao centavo (antes R$ 145,00 virava R$ 144,996).
+- Textos atualizados no cadastro, no "Como funciona", nos Termos de uso e no motivo exibido na prévia de pagamento.
+- Vale para os pagamentos aprovados a partir desta versão.
+
 ## 1.9.1 — performance visível em "Aprovar e pagar"
 
 - A prévia do pagamento da colheita mostra a fazenda em linhas separadas: **comissão até a meta**, **performance acima da meta** e **total**. Quando a performance é zero, aparece o motivo (sem performance definida no talhão, venda não passou da meta, ou excedente consumido por armazenagem/fase da compra).

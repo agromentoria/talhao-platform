@@ -351,7 +351,8 @@ function PlotAdminCard({ plot, farmCommission = 0, appPct = 5, references, faseP
     try {
       const preco = Number(String(precoVendaReal).replace(",", "."));
       if (!(preco > 0)) throw new Error("Informe o preço médio de venda por unidade.");
-      const retornoCalculado = Math.round(((preco / plot.preco_venda_estimado) - 1) * 10000) / 100;
+      // precisão alta: o preço de venda declarado precisa ser reproduzido ao centavo
+      const retornoCalculado = Math.round(((preco / plot.preco_venda_estimado) - 1) * 100 * 1e6) / 1e6;
       await api.finalizeHarvest(plot.id, retornoCalculado, comprovanteTexto, comprovanteImagem);
       setNotice("Solicitação enviada! A administração vai revisar o comprovante antes de liberar o pagamento aos investidores.");
       setShowFinalizeForm(false);
@@ -722,7 +723,7 @@ function FinalizePreview({ plot, preco, onChange, uid }) {
           Retorno do ciclo: <strong>{fmtPct(retorno, 2)}</strong>
           {p > meta
             ? <> · {fmtBRL(p - meta)} por {u} acima da meta{perf > 0
-                ? <> — a fazenda recebe {fmtPct(perf)} do lucro excedente (cerca de <strong>{fmtBRL(excedenteBruto * perf / 100)}</strong>, antes da armazenagem).</>
+                ? <> — a fazenda recebe {fmtPct(perf)} do excedente: cerca de <strong>{fmtBRL(excedenteBruto * perf / 100)}</strong>.</>
                 : <> — sem performance definida neste talhão, o excedente segue a divisão padrão.</>}</>
             : p < meta ? <> · abaixo da meta prometida.</> : <> · exatamente na meta.</>}
         </p>

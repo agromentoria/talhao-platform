@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, UNIT_LABEL, FASES, ICONS } from "../config/theme";
 import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS } from "../config/culturas";
-import { fmtBRL, fmtNumber } from "../lib/format";
+import { fmtBRL, fmtNumber, fmtPct } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
@@ -280,9 +280,9 @@ export default function AdminDashboard() {
                     <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "2px 0 0" }}>{r.farm_location} · solicitado por {r.solicitado_por || "—"}</p>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ fontSize: 12, color: COLORS.soilLight, margin: 0 }}>prometido {r.previsao_retorno}% · declarado</p>
+                    <p style={{ fontSize: 12, color: COLORS.soilLight, margin: 0 }}>prometido {fmtPct(r.previsao_retorno)} · declarado</p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: r.retorno_final >= r.previsao_retorno ? COLORS.leaf : COLORS.danger, margin: 0, fontFamily: "'Baloo 2', cursive" }}>
-                      {r.retorno_final}%
+                      {fmtPct(r.retorno_final)}
                     </p>
                   </div>
                 </div>
@@ -334,10 +334,16 @@ export default function AdminDashboard() {
                 <div><dt>Produção prevista</dt><dd>{fmtNumber(p.cotas_totais)} {unidadeNome(p.unidade, p.cotas_totais)}</dd></div>
                 <div><dt>Preço de venda estimado</dt><dd>{fmtBRL(p.preco_venda_estimado)} por {unidadeNome(p.unidade, 1)}</dd></div>
                 <div><dt>Captação inicial</dt><dd>{fmtBRL(p.cota_valor * p.cotas_totais)}</dd></div>
-                <div><dt>Retorno prometido</dt><dd>{p.previsao_retorno}%</dd></div>
+                <div><dt>Retorno prometido (meta)</dt><dd>{fmtPct(p.previsao_retorno)}</dd></div>
+                <div><dt>Performance da fazenda acima da meta</dt><dd>{Number(p.perf_excedente_pct) > 0 ? `${p.perf_excedente_pct}% do excedente` : "não cobra"}</dd></div>
                 <div className="total"><dt>Armazém garantidor</dt><dd>{p.warehouse_name ? `${p.warehouse_name}${p.warehouse_estrelas ? ` · ★ ${Number(p.warehouse_estrelas).toFixed(1)}` : ""} · ${p.custodia_status === "aceita" ? "custódia aceita" : p.custodia_status === "recusada" ? "recusou" : "aguardando aceite"}` : "nenhum"}</dd></div>
               </dl>
               {p.aprovacao_status === "rejeitado" && p.aprovacao_motivo && <Banner tone="error" style={{ marginBottom: 12 }}>Ajuste pedido: {p.aprovacao_motivo}</Banner>}
+              {Number(p.perf_excedente_pct) > 50 && (
+                <Banner tone="warning" style={{ marginBottom: 12 }}>
+                  A fazenda pede mais da metade do lucro acima da meta. Confira se a regra continua atrativa para o investidor antes de aprovar.
+                </Banner>
+              )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <Button variant="secondary" to={`/talhao/${p.id}`}>Ver página</Button>
                 <Button variant="danger-ghost" icon={X} onClick={() => rejectPlot(p)}>Pedir ajustes</Button>

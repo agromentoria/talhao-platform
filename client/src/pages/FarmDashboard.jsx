@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { Warehouse, Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText, Image as ImageIcon } from "lucide-react";
 import { COLORS, GRAIN_COLORS, ICONS } from "../config/theme";
 import { fasesDe, culturaTexto, cicloLabels, fmtData } from "../config/culturas";
-import { fmtBRL, unitPlural } from "../lib/format";
+import { fmtBRL, unitPlural, fmtPct } from "../lib/format";
 import { api } from "../lib/api";
 import { readImageFile } from "../lib/files";
 import { useAuth } from "../context/AuthContext";
 import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../lib/validators";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
-import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields } from "../components/domain";
+import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField } from "../components/domain";
 import { tarifasTexto, quinzenasTexto } from "../lib/armazenagem";
 
 const STATUS_FILTERS = [
@@ -103,7 +103,7 @@ export default function FarmDashboard() {
       </div>
 
       <Dialog open={showForm} onClose={() => setShowForm(false)} title="Publicar novo talhão" width={680}>
-        <NewPlotForm farmId={farm.id} references={references} fasePricing={fasePricing} warehouses={warehouses}
+        <NewPlotForm farmId={farm.id} farmCommission={farm.commission_pct} references={references} fasePricing={fasePricing} warehouses={warehouses}
           onCreated={() => { setShowForm(false); toast("Talhão publicado"); load(); }} setError={setError} />
       </Dialog>
 
@@ -173,11 +173,12 @@ function CommissionCard({ farm, onSaved, onError }) {
   );
 }
 
-function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreated, setError }) {
+function NewPlotForm({ farmId, farmCommission = 0, references, fasePricing, warehouses = [], onCreated, setError }) {
   const [warehouseId, setWarehouseId] = useState("");
   const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "" });
   const [cultivo, setCultivo] = useState(emptyCultivo());
   const [arm, setArm] = useState({ pagador: "investidores", quinzenas: 2 });
+  const [perf, setPerf] = useState("0");
   const [saving, setSaving] = useState(false);
   const warehouse = warehouses.find((w) => String(w.id) === String(warehouseId));
 
@@ -189,7 +190,7 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
     try {
       await api.createPlot({
         farm_id: farmId, ...form, ...cultivoPayload(cultivo), warehouse_id: warehouseId ? Number(warehouseId) : null,
-        arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas,
+        arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas, perf_excedente_pct: perf,
       });
       onCreated();
     } catch (err) {
@@ -219,6 +220,8 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
       </div>
       <ArmazenagemFields warehouse={warehouse} value={arm} onChange={setArm}
         precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
+      <PerformanceField value={perf} onChange={setPerf} precoReferencia={cultivo.preco} retornoPct={form.previsao_retorno}
+        comissaoFazendaPct={farmCommission} unidade={cultivo.unidade || "saca"} />
       <p className="span-all text-sm text-2">
         Depois de enviar, o talhão passa pela aprovação da administração e pelo aceite do armazém. Ele só aparece para os investidores quando os dois confirmarem.
       </p>
@@ -513,7 +516,7 @@ function PlotAdminCard({ plot, references, fasePricing, warehouses = [], onChang
           <p style={{ fontSize: 12.5, color: plot.status === "arquivado" ? COLORS.soilLight : COLORS.leaf, marginTop: 12 }}>
             {plot.status === "arquivado"
               ? "Talhão arquivado — não aparece mais na vitrine. O histórico dos investidores continua preservado."
-              : `Colheita finalizada com retorno de ${plot.retorno_final}% — investidores já pagos. Este talhão não aparece mais para venda.`}
+              : `Colheita finalizada com retorno de ${fmtPct(plot.retorno_final)} — investidores já pagos. Este talhão não aparece mais para venda.`}
           </p>
           {showEdit && (
             <EditPlotForm plot={plot} onDone={() => { setShowEdit(false); onChanged(); }} setError={setError} />
@@ -571,6 +574,7 @@ function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDon
   const [form, setForm] = useState({ nome: plot.nome, area_ha: plot.area_ha, safra: "", previsao_retorno: plot.previsao_retorno });
   const [cultivo, setCultivo] = useState(emptyCultivo(plot));
   const [arm, setArm] = useState({ pagador: plot.arm_pagador || "investidores", quinzenas: plot.arm_quinzenas_previstas || 2 });
+  const [perf, setPerf] = useState(String(plot.perf_excedente_pct ?? 0));
   const [saving, setSaving] = useState(false);
 
   function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
@@ -579,7 +583,7 @@ function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDon
     e.preventDefault();
     setSaving(true);
     try {
-      await api.restartPlot(plot.id, { ...form, ...cultivoPayload(cultivo), arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas });
+      await api.restartPlot(plot.id, { ...form, ...cultivoPayload(cultivo), arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas, perf_excedente_pct: perf });
       onDone();
     } catch (err) {
       setError(err.message);
@@ -600,6 +604,7 @@ function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDon
       <Field label="Retorno estimado ao investidor (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
       <ArmazenagemFields warehouse={warehouses.find((w) => w.id === plot.warehouse_id)} value={arm} onChange={setArm}
         precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
+      <PerformanceField value={perf} onChange={setPerf} precoReferencia={cultivo.preco} retornoPct={form.previsao_retorno} unidade={cultivo.unidade || "saca"} />
       <div className="span-all">
         <Button type="submit" variant="success" loading={saving}>Enviar novo ciclo para aprovação</Button>
       </div>
@@ -652,6 +657,7 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
       {plot.custodia_status === "recusada" && plot.custodia_motivo && <p className="text-sm text-danger" style={{ marginBottom: 10 }}>Motivo da recusa: {plot.custodia_motivo}</p>}
       {plot.custodia_status === "pendente" && <p className="text-sm text-2" style={{ marginBottom: 10 }}>O armazém ainda não respondeu. Investidores veem que a garantia está em análise.</p>}
       <StorageTerms plot={plot} warehouses={warehouses} onChanged={onChanged} setNotice={setNotice} setError={setError} />
+      <PerformanceTerms plot={plot} onChanged={onChanged} setNotice={setNotice} setError={setError} />
       {plot.custodia_status === "aceita" && (
         <CustodyTimeline plot={plot} validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
       )}
@@ -665,6 +671,52 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
         </div>
       )}
     </section>
+  );
+}
+
+// regra de performance (só muda antes de ter investidores; volta para aprovação)
+function PerformanceTerms({ plot, onChanged, setNotice, setError }) {
+  const dialog = useDialog();
+  const [editing, setEditing] = useState(false);
+  const [perf, setPerf] = useState(String(plot.perf_excedente_pct ?? 0));
+  const [saving, setSaving] = useState(false);
+  const temInvestidor = plot.cotas_disponiveis < plot.cotas_totais;
+  const atual = Number(plot.perf_excedente_pct) || 0;
+
+  async function save() {
+    if (plot.aprovacao_status === "aprovado") {
+      const ok = await dialog.confirm({ title: "Enviar a nova regra para aprovação?", message: "O talhão sai da vitrine até a administração validar a mudança.", confirmLabel: "Enviar" });
+      if (!ok) return;
+    }
+    setSaving(true);
+    try {
+      const r = await api.setPlotPerformance(plot.id, perf);
+      setNotice(r.revalidar ? "Regra enviada para a administração validar." : "Regra de performance atualizada.");
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="form-grid" style={{ marginBottom: 10 }}>
+        <PerformanceField value={perf} onChange={setPerf} precoReferencia={plot.preco_venda_estimado} retornoPct={plot.previsao_retorno} unidade={plot.unidade} />
+        <div className="span-all" style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" onClick={() => setEditing(false)}>Cancelar</Button>
+          <Button onClick={save} loading={saving}>Salvar</Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <p className="text-sm text-2" style={{ marginBottom: 10 }}>
+      Performance: {atual > 0 ? `${atual}% do lucro acima da meta de ${fmtPct(plot.previsao_retorno)} fica com a fazenda` : "todo o lucro acima da meta vai para os investidores"}
+      {!temInvestidor && <> · <button type="button" className="link-btn" onClick={() => setEditing(true)}>alterar</button></>}
+    </p>
   );
 }
 

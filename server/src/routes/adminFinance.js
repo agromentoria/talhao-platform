@@ -115,7 +115,7 @@ router.get("/transactions/:id", asyncHandler(async (req, res) => {
   let payout = null;
   if (t.investment_id) {
     const r = await pool.query(
-      `SELECT i.cotas, i.valor_investido, i.preco_unitario, i.status, po.valor_bruto, po.comissao_fazenda, po.comissao_app, po.despesa_armazem, po.valor_liquido
+      `SELECT i.cotas, i.valor_investido, i.preco_unitario, i.status, po.valor_bruto, po.comissao_fazenda, po.comissao_app, po.despesa_armazem, po.perf_fazenda, po.valor_liquido
        FROM investments i LEFT JOIN payouts po ON po.investment_id = i.id WHERE i.id = $1`,
       [t.investment_id]
     );

@@ -3,6 +3,7 @@ const { pool } = require("./db");
 const { notifyUsers } = require("./notify");
 const { recordTransaction } = require("./ledger");
 const { despesaReal } = require("./storageFees");
+const { dividirLucro } = require("./profitSplit");
 
 // Executa de fato o pagamento da colheita (só deve ser chamado depois que
 // um admin aprova a solicitação). Usa o mesmo modelo de preço por unidade
@@ -14,6 +15,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
   let totalComissaoFazenda = 0;
   let totalComissaoApp = 0;
   let totalDespesaArmazem = 0;
+  let totalPerformance = 0;
   let despesaInfo = null;
   const investorNotifications = [];
 
@@ -36,15 +38,18 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
       if (despesa && !despesaInfo) despesaInfo = despesa;
       const despesaArmazem = investidoresPagam && despesa ? despesa.total : 0;
       totalDespesaArmazem += despesa ? despesa.total : 0;
-      const lucroBruto = valorBruto - despesaArmazem - inv.valor_investido;
-      const comissaoFazenda = Math.max(0, lucroBruto) * (farm.commission_pct / 100);
-      const comissaoApp = Math.max(0, lucroBruto) * (appCommissionPct / 100);
-      const valorLiquido = valorBruto - despesaArmazem - comissaoFazenda - comissaoApp;
+      const d = dividirLucro({
+        cotas: inv.cotas, valorInvestido: inv.valor_investido, precoReferencia: plot.preco_venda_estimado,
+        retornoPrometidoPct: plot.previsao_retorno, precoVenda: precoVendaReal, despesa: despesaArmazem,
+        comissaoFazendaPct: farm.commission_pct, comissaoAppPct: appCommissionPct, performancePct: Number(plot.perf_excedente_pct) || 0,
+      });
+      const { comissaoFazenda, comissaoApp, valorLiquido } = d;
+      totalPerformance += d.performanceFazenda;
 
       await client.query(
-        `INSERT INTO payouts (investment_id, valor_bruto, comissao_fazenda, comissao_app, valor_liquido, despesa_armazem)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [inv.id, valorBruto, comissaoFazenda, comissaoApp, valorLiquido, despesaArmazem]
+        `INSERT INTO payouts (investment_id, valor_bruto, comissao_fazenda, comissao_app, valor_liquido, despesa_armazem, perf_fazenda)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [inv.id, valorBruto, comissaoFazenda, comissaoApp, valorLiquido, despesaArmazem, d.performanceFazenda]
       );
       await client.query("UPDATE investments SET status = 'pago' WHERE id = $1", [inv.id]);
 
@@ -56,7 +61,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         plotId: plot.id,
         investmentId: inv.id,
         amount: valorLiquido,
-        description: `Pagamento da colheita de ${plot.nome} (comprou a ${fmtBRL(precoUnitario)}, vendido a ${fmtBRL(precoVendaReal)} por unidade${despesaArmazem > 0 ? `, armazenagem ${fmtBRL(despesaArmazem)}` : ""})`,
+        description: `Pagamento da colheita de ${plot.nome} (comprou a ${fmtBRL(precoUnitario)}, vendido a ${fmtBRL(precoVendaReal)} por unidade${despesaArmazem > 0 ? `, armazenagem ${fmtBRL(despesaArmazem)}` : ""}${d.performanceFazenda > 0 ? `, performance da fazenda ${fmtBRL(d.performanceFazenda)} sobre o excedente da meta` : ""})`,
       });
 
       totalComissaoFazenda += comissaoFazenda;
@@ -73,7 +78,9 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         farmId: plot.farm_id,
         plotId: plot.id,
         amount: totalComissaoFazenda,
-        description: `Comissão da colheita de ${plot.nome} (${farm.commission_pct}%)`,
+        description: totalPerformance > 0
+          ? `Comissão da colheita de ${plot.nome} (${farm.commission_pct}% até a meta + ${plot.perf_excedente_pct}% do excedente: ${fmtBRL(totalPerformance)})`
+          : `Comissão da colheita de ${plot.nome} (${farm.commission_pct}%)`,
       });
     }
 
@@ -135,7 +142,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
         plotId: plot.id,
         type: "repasse_recebido",
         title: "Repasse de comissão recebido",
-        body: `Você recebeu ${fmtBRL(totalComissaoFazenda)} de comissão pela colheita de ${plot.nome}.`,
+        body: `Você recebeu ${fmtBRL(totalComissaoFazenda)} pela colheita de ${plot.nome}${totalPerformance > 0 ? `, dos quais ${fmtBRL(totalPerformance)} de performance acima da meta` : ""}.`,
       });
     }
 
@@ -152,7 +159,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
     console.error("[aviso] falha ao enviar notificações de pagamento:", notifyErr);
   }
 
-  return { investidoresPagos, totalComissaoFazenda, totalComissaoApp, totalDespesaArmazem };
+  return { investidoresPagos, totalComissaoFazenda, totalComissaoApp, totalDespesaArmazem, totalPerformance };
 }
 
 module.exports = { executeHarvestPayout };

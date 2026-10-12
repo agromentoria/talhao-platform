@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { MapPin, TrendingUp, Star } from "lucide-react";
 import { GRAIN_COLORS } from "../../config/theme";
 import { culturaIcone, faseNome, faseIcone, unidadeNome, cicloLabels, fmtData } from "../../config/culturas";
-import { fmtBRL } from "../../lib/format";
+import { fmtBRL, fmtPct } from "../../lib/format";
 import { ProgressBar } from "../ui";
 import { ShareButton } from "./ShareButton";
 import { GuaranteeSeal } from "./Custody";
@@ -70,7 +70,7 @@ export function PlotCard({ plot }) {
             </div>
             <div style={{ textAlign: "right" }}>
               <p className="label-xs">retorno estimado</p>
-              <p className="plot-card-return"><TrendingUp size={15} aria-hidden /> {plot.previsao_retorno}%</p>
+              <p className="plot-card-return"><TrendingUp size={15} aria-hidden /> {fmtPct(plot.previsao_retorno)}</p>
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

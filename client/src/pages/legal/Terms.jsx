@@ -12,6 +12,8 @@ export default function Terms() {
       <p>Investimentos no agro estão sujeitos a clima, pragas, produtividade e preço de mercado. Os retornos exibidos são estimativas e não garantem resultado. Invista apenas valores compatíveis com seu perfil.</p>
       <h2>Comissões</h2>
       <p>A fazenda e a plataforma cobram comissões percentuais sobre o lucro de cada colheita, exibidas antes da compra. Não há comissão sobre o valor investido.</p>
+      <h2>Performance acima da meta</h2>
+      <p>Cada talhão tem um retorno prometido (meta). O lucro até a meta segue as comissões padrão. Se a venda superar a meta, a fazenda pode ficar com um percentual do lucro excedente, definido por ela no cadastro do talhão, validado pela administração e exibido antes da compra. A regra não muda depois que houver investidores.</p>
       <h2>Pagamento da colheita</h2>
       <p>A fazenda informa o resultado com comprovante. Quando há armazém garantidor, ele confirma a quantidade armazenada; a administração revisa tudo antes de liberar o pagamento aos investidores na conta cadastrada em Perfil › Recebimento.</p>
       <h2>Responsabilidades do usuário</h2>

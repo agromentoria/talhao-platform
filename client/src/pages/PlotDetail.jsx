@@ -4,8 +4,9 @@ import { MapPin, QrCode, CreditCard, Plus, Minus, Award, ShieldCheck, ShieldAler
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { GRAIN_COLORS } from "../config/theme";
 import { quinzenasTexto } from "../lib/armazenagem";
+import { dividirLucro } from "../lib/divisaoLucro";
 import { fasesDe, faseIcone, unidadeNome, cicloLabels, fmtData, culturaTexto, TIPOS, tipoDe } from "../config/culturas";
-import { fmtBRL, fmtNumber, unitPlural } from "../lib/format";
+import { fmtBRL, fmtNumber, unitPlural, fmtPct } from "../lib/format";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
@@ -97,6 +98,16 @@ export default function PlotDetail() {
   const comissaoFazenda = Math.max(0, lucroBruto) * (plot.commission_pct / 100);
   const comissaoApp = Math.max(0, lucroBruto) * (appCommission / 100);
   const recebimentoLiquido = retornoBruto - despesaArmazem - comissaoFazenda - comissaoApp;
+  const perfPct = Number(plot.perf_excedente_pct) || 0;
+  const exemploPerf = perfPct > 0 ? (() => {
+    const preco = plot.preco_venda_estimado * (1 + (Number(plot.previsao_retorno) + 10) / 100);
+    const d = dividirLucro({
+      cotas: 100, valorInvestido: 100 * plot.cota_valor, precoReferencia: plot.preco_venda_estimado, retornoPrometidoPct: plot.previsao_retorno,
+      precoVenda: preco, despesa: investidorPagaArmazem ? 100 * armazenagem.porUnidade : 0,
+      comissaoFazendaPct: plot.commission_pct, comissaoAppPct: appCommission, performancePct: perfPct,
+    });
+    return { preco, lucro: d.valorLiquido - 100 * plot.cota_valor };
+  })() : null;
   const lucroLiquido = recebimentoLiquido - custoTotal;
   const chartData = historico.length ? historico : [{ fase: fases[0], v: 0 }];
   const colhido = ["pago", "colhido", "arquivado", "aguardando_aprovacao"].includes(plot.status);
@@ -112,7 +123,7 @@ export default function PlotDetail() {
     const card = cards.find((c) => c.id === selectedCardId);
     const ok = await dialog.confirm({
       title: "Confirmar investimento",
-      message: `${qtd} ${unitPlural(plot.unidade, qtd)} de ${plot.grao} em ${plot.nome} por ${fmtBRL(custoTotal)}, pagos ${paymentType === "pix" ? "via Pix" : `no cartão ${card?.brand} final ${card?.last4}`}. Os valores de retorno são estimativas.`,
+      message: `${qtd} ${unitPlural(plot.unidade, qtd)} de ${plot.grao} em ${plot.nome} por ${fmtBRL(custoTotal)}, pagos ${paymentType === "pix" ? "via Pix" : `no cartão ${card?.brand} final ${card?.last4}`}. Os valores de retorno são estimativas.${Number(plot.perf_excedente_pct) > 0 ? ` Acima da meta de ${fmtPct(plot.previsao_retorno)}, a fazenda fica com ${plot.perf_excedente_pct}% do lucro excedente.` : ""}`,
       confirmLabel: `Pagar ${fmtBRL(custoTotal)}`,
     });
     if (!ok) return;
@@ -206,7 +217,7 @@ export default function PlotDetail() {
               </div>
             </div>
             <p className="text-xs text-3" style={{ marginTop: 12 }}>
-              Referência de mercado: {fmtBRL(plot.preco_venda_estimado)} por {unidade}, com retorno estimado de {plot.previsao_retorno}% informado pela fazenda.
+              Referência de mercado: {fmtBRL(plot.preco_venda_estimado)} por {unidade}, com retorno estimado de {fmtPct(plot.previsao_retorno)} informado pela fazenda.
             </p>
           </section>
 
@@ -232,12 +243,32 @@ export default function PlotDetail() {
           </section>
 
           <section className="card" aria-labelledby="com-t">
-            <h2 id="com-t" className="card-title" style={{ marginBottom: 12 }}>Como a comissão funciona</h2>
+            <h2 id="com-t" className="card-title" style={{ marginBottom: 12 }}>Como o lucro é dividido</h2>
+            <p className="text-sm text-2" style={{ marginBottom: 8 }}>
+              Até a meta: venda por até {fmtBRL(plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100))} por {unidade} (retorno prometido de {fmtPct(plot.previsao_retorno)}).
+            </p>
             <dl className="kv" style={{ margin: 0 }}>
               <div><dt>Comissão da fazenda ({plot.farm_name})</dt><dd>{plot.commission_pct}% do lucro</dd></div>
               <div><dt>Comissão do Meu Talhão</dt><dd>{appCommission}% do lucro</dd></div>
               <div className="total"><dt>Sua parte do lucro</dt><dd className="text-success">{100 - plot.commission_pct - appCommission}%</dd></div>
             </dl>
+            {perfPct > 0 ? (
+              <>
+                <p className="text-sm text-2" style={{ margin: "14px 0 8px" }}>Acima da meta (performance definida pela fazenda e validada pela administração):</p>
+                <dl className="kv" style={{ margin: 0 }}>
+                  <div><dt>Fazenda</dt><dd>{perfPct}% do excedente</dd></div>
+                  <div><dt>Meu Talhão</dt><dd>{appCommission}% do excedente</dd></div>
+                  <div className="total"><dt>Sua parte do excedente</dt><dd className="text-success">{Math.max(0, 100 - perfPct - appCommission)}%</dd></div>
+                </dl>
+                {exemploPerf && (
+                  <p className="text-xs text-3" style={{ marginTop: 10 }}>
+                    Exemplo: se a venda sair a {fmtBRL(exemploPerf.preco)} por {unidade} (10 pontos acima da meta), cada {fmtBRL(plot.cota_valor * 100)} investidos rendem {fmtBRL(exemploPerf.lucro)} de lucro líquido.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-3" style={{ marginTop: 10 }}>Se a venda passar da meta, todo o lucro extra segue a mesma divisão acima.</p>
+            )}
             <p className="text-xs text-3" style={{ marginTop: 10 }}>As comissões incidem só sobre o lucro, nunca sobre o valor investido.</p>
           </section>
 
@@ -265,7 +296,7 @@ export default function PlotDetail() {
                   Este talhão concluiu o ciclo{plot.status === "pago" ? " e os investidores já foram pagos" : ""}. Não aceita novos investimentos.
                 </p>
                 {plot.retorno_final != null && (
-                  <dl className="kv"><div className="total"><dt>Retorno final {doCiclo}</dt><dd className="text-success">{plot.retorno_final}%</dd></div></dl>
+                  <dl className="kv"><div className="total"><dt>Retorno final {doCiclo}</dt><dd className="text-success">{fmtPct(plot.retorno_final)}</dd></div></dl>
                 )}
               </>
             ) : (
@@ -489,8 +520,8 @@ function FarmTrackRecord({ farmId, farmName }) {
               <li key={h.id} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4, fontSize: "var(--fs-sm)", padding: "8px 0", borderTop: "1px solid var(--border)" }}>
                 <span className="text-2">{h.nome} · {h.grao} · {h.safra}</span>
                 <span>
-                  <span className="text-2">prometeu {h.previsao_retorno}% · </span>
-                  <strong className={h.cumpriu ? "text-success" : "text-danger"}>entregou {h.retorno_final}%</strong>
+                  <span className="text-2">prometeu {fmtPct(h.previsao_retorno)} · </span>
+                  <strong className={h.cumpriu ? "text-success" : "text-danger"}>entregou {fmtPct(h.retorno_final)}</strong>
                 </span>
               </li>
             ))}

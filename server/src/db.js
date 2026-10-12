@@ -483,6 +483,12 @@ ALTER TABLE plots ADD COLUMN IF NOT EXISTS arm_entrada_em TIMESTAMPTZ;  -- quand
 
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS despesa_armazem REAL NOT NULL DEFAULT 0;
 
+-- Performance acima da meta: % do excedente (venda acima do retorno
+-- prometido) que fica com a fazenda. Definido pela fazenda no talhão,
+-- validado pela administração na aprovação e exibido ao investidor.
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS perf_excedente_pct REAL NOT NULL DEFAULT 0;
+ALTER TABLE payouts ADD COLUMN IF NOT EXISTS perf_fazenda REAL NOT NULL DEFAULT 0;
+
 -- registro das ações sensíveis da administração (ex.: zerar dados)
 CREATE TABLE IF NOT EXISTS admin_audit_log (
   id SERIAL PRIMARY KEY,

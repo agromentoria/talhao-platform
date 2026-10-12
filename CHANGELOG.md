@@ -1,5 +1,15 @@
 # Registro de mudanças
 
+## 1.6.0 — performance da fazenda acima da meta
+
+- **Nova regra de divisão do lucro.** Até a meta (retorno prometido no talhão), o lucro segue as comissões padrão. O que passar da meta é dividido pela regra de performance: a fazenda fica com o percentual que ela definiu, o app mantém a sua comissão e o resto vai ao investidor.
+- **A fazenda define** o percentual (0% a 70%) no cadastro do talhão e no novo ciclo, com exemplo calculado na hora.
+- **A administração valida** na aprovação do talhão (aviso quando passa de 50%). Se a fazenda mudar a regra de um talhão já aprovado, ele sai da vitrine e volta para aprovação. Com investidores, a regra não muda mais.
+- **O investidor vê a regra antes de comprar**: card "Como o lucro é dividido" com a meta em reais por unidade, a divisão até e acima da meta e um exemplo; a confirmação da compra repete a regra.
+- **Pagamento da colheita** aplica a divisão e mostra a performance na descrição do repasse da fazenda e no detalhe do Financeiro. O excedente é medido sobre o lucro já descontada a armazenagem.
+- Percentuais exibidos no formato brasileiro (7,5%).
+- Termos de uso atualizados.
+
 ## 1.5.0 — financeiro da administração e zerar dados
 
 - **Nova tela Financeiro** (`/admin/financeiro`, no menu da administração) com **todas as transações** da plataforma.

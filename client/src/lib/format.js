@@ -47,3 +47,9 @@ export function timeAgo(dateStr) {
 export function firstName(name = "") {
   return String(name).trim().split(/\s+/)[0] || "";
 }
+
+// 7.5 → "7,5%"
+export function fmtPct(n, casas = 1) {
+  const v = Number(n || 0);
+  return `${v.toLocaleString("pt-BR", { maximumFractionDigits: casas })}%`;
+}

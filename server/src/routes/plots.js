@@ -9,6 +9,15 @@ const { getValidations, getPublicWarehouse, WAREHOUSE_STARS_SQL } = require("../
 const { UNIDADES, TIPOS, getCultura, fasesDe } = require("../culturas");
 const { PUBLIC_SQL, isPublic, pendencias, maybePublish } = require("../publication");
 const { despesaPrevista } = require("../storageFees");
+const { PERFORMANCE_MAX } = require("../profitSplit");
+
+function parsePerformance(body) {
+  const v = body.perf_excedente_pct === undefined || body.perf_excedente_pct === "" ? 0 : Number(body.perf_excedente_pct);
+  if (Number.isNaN(v) || v < 0 || v > PERFORMANCE_MAX) {
+    return { error: `A participação da fazenda no excedente deve ficar entre 0% e ${PERFORMANCE_MAX}%.` };
+  }
+  return { pct: Math.round(v * 10) / 10 };
+}
 
 // quem paga a armazenagem e por quanto tempo a produção deve ficar guardada
 function parseArmazenagem(body) {
@@ -75,12 +84,14 @@ async function parseCultivo(body, area) {
   return { grao: catalogo?.nome || grao, variedade, tipo, unidade, cotas, precoVenda, plantio_ate, colheita_prevista };
 }
 
-async function notifyAdminsNewPlot(plot, farmName, reinicio = false) {
+async function notifyAdminsNewPlot(plot, farmName, reinicio = false, extra = "") {
   const { rows } = await pool.query("SELECT id FROM users WHERE role = 'admin' AND deleted_at IS NULL");
   await safeNotify(rows.map((r) => r.id), {
     senderRole: "sistema", farmId: plot.farm_id, plotId: plot.id, type: "talhao_para_aprovar",
-    title: reinicio ? `Novo ciclo para aprovar: ${plot.nome}` : `Talhão para aprovar: ${plot.nome}`,
-    body: `${farmName} cadastrou ${plot.grao}${plot.variedade ? ` (${plot.variedade})` : ""}, safra ${plot.safra}. Revise em Administração › Talhões.`,
+    title: extra ? `Regra alterada, revisar: ${plot.nome}` : reinicio ? `Novo ciclo para aprovar: ${plot.nome}` : `Talhão para aprovar: ${plot.nome}`,
+    body: extra
+      ? `${farmName} alterou ${plot.nome}. ${extra} Revise em Administração › Aprovar talhões.`
+      : `${farmName} cadastrou ${plot.grao}${plot.variedade ? ` (${plot.variedade})` : ""}, safra ${plot.safra}${Number(plot.perf_excedente_pct) > 0 ? `, com ${plot.perf_excedente_pct}% do excedente para a fazenda` : ""}. Revise em Administração › Aprovar talhões.`,
   });
 }
 
@@ -242,6 +253,8 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   if (c.error) return res.status(400).json({ error: c.error });
   const arm = parseArmazenagem(req.body);
   if (arm.error) return res.status(400).json({ error: arm.error });
+  const perf = parsePerformance(req.body);
+  if (perf.error) return res.status(400).json({ error: perf.error });
 
   // preço inicial (fase 0) — o mais barato, sobe conforme a fase avança
   const multiplicadorFase0 = await getFaseMultiplier(0);
@@ -250,10 +263,10 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   const { rows } = await pool.query(
     `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra,
                         cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado,
-                        warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17) RETURNING *`,
+                        warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18) RETURNING *`,
     [farm_id, String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas]
+     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct]
   );
   const plot = rows[0];
   await notifyWarehouseIndication(wh.warehouse, plot, owned.farm.name);
@@ -517,6 +530,8 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
   if (c.error) return res.status(400).json({ error: c.error });
   const arm = parseArmazenagem(req.body);
   if (arm.error) return res.status(400).json({ error: arm.error });
+  const perf = parsePerformance(req.body);
+  if (perf.error) return res.status(400).json({ error: perf.error });
 
   const multiplicadorFase0 = await getFaseMultiplier(0);
   const cotaValorInicial = c.precoVenda * multiplicadorFase0;
@@ -529,12 +544,12 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
        retorno_final = NULL, fase_atual = 0, progresso = 0, status = 'captacao', unidade = $12, preco_venda_estimado = $13,
        custodia_status = 'pendente', custodia_motivo = NULL, custodia_em = NULL,
        aprovacao_status = 'pendente', aprovacao_motivo = NULL, aprovacao_em = NULL, exige_garantia = true, publicado_em = NULL,
-       arm_pagador = $15, arm_quinzenas_previstas = $16, arm_entrada_em = NULL,
+       arm_pagador = $15, arm_quinzenas_previstas = $16, arm_entrada_em = NULL, perf_excedente_pct = $17,
        arm_tarifa_recepcao = NULL, arm_tarifa_quinzena = NULL, arm_carencia = NULL, arm_quebra_pct = NULL
      WHERE id = $14
      RETURNING *`,
     [String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, plot.id, arm.pagador, arm.quinzenas]
+     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, plot.id, arm.pagador, arm.quinzenas, perf.pct]
   );
   await pool.query("DELETE FROM plot_validations WHERE plot_id = $1", [plot.id]);
   const { rows: w } = await pool.query("SELECT * FROM warehouses WHERE id = $1", [rows[0].warehouse_id]);
@@ -562,6 +577,34 @@ router.patch("/:id/armazenagem", requireAuth, requireRole("fazenda", "admin"), a
     [arm.pagador, arm.quinzenas, plot.id]
   );
   res.json({ plot: up[0] });
+}));
+
+// fazenda muda a participação no excedente. Só antes de ter investidores,
+// e a mudança volta para validação da administração (o talhão sai do ar até lá)
+router.patch("/:id/performance", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+  const { rows } = await pool.query("SELECT p.*, f.name AS farm_name FROM plots p JOIN farms f ON f.id = p.farm_id WHERE p.id = $1", [req.params.id]);
+  const plot = rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+  const owned = await getFarmOwned(plot.farm_id, req.user);
+  if (owned.error) return res.status(403).json({ error: owned.error });
+  if (plot.cotas_disponiveis < plot.cotas_totais) {
+    return res.status(409).json({ error: "O talhão já tem investidores: a regra de divisão do lucro não pode mudar." });
+  }
+  const perf = parsePerformance(req.body || {});
+  if (perf.error) return res.status(400).json({ error: perf.error });
+  if (Number(plot.perf_excedente_pct) === perf.pct) return res.json({ plot });
+
+  const revalidar = req.user.role !== "admin" && plot.aprovacao_status === "aprovado";
+  const { rows: up } = await pool.query(
+    `UPDATE plots SET perf_excedente_pct = $1,
+       aprovacao_status = CASE WHEN $2 THEN 'pendente' ELSE aprovacao_status END,
+       aprovacao_em = CASE WHEN $2 THEN NULL ELSE aprovacao_em END,
+       publicado_em = CASE WHEN $2 THEN NULL ELSE publicado_em END
+     WHERE id = $3 RETURNING *`,
+    [perf.pct, revalidar, plot.id]
+  );
+  if (revalidar || plot.aprovacao_status === "pendente") await notifyAdminsNewPlot(up[0], plot.farm_name, false, `Nova regra de performance: ${perf.pct}% do excedente para a fazenda.`);
+  res.json({ plot: up[0], revalidar });
 }));
 
 // fazenda indica (ou troca) o armazém garantidor — só enquanto a custódia

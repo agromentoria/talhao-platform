@@ -7,3 +7,4 @@ export { Stars } from "./Custody";
 export { InvestorLevelBadge, InvestorLevelCard } from "./InvestorLevel";
 export { default as CultivoFields, cultivoPayload, emptyCultivo } from "./CultivoFields";
 export { default as ArmazenagemFields } from "./ArmazenagemFields";
+export { default as PerformanceField } from "./PerformanceField";

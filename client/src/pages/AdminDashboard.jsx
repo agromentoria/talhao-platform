@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, UNIT_LABEL, FASES, ICONS } from "../config/theme";
-import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS } from "../config/culturas";
+import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS, fasesDe } from "../config/culturas";
 import { fmtBRL, fmtNumber, fmtPct } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
@@ -334,6 +334,7 @@ export default function AdminDashboard() {
                 <div><dt>Produção prevista</dt><dd>{fmtNumber(p.cotas_totais)} {unidadeNome(p.unidade, p.cotas_totais)}</dd></div>
                 <div><dt>Preço de venda estimado</dt><dd>{fmtBRL(p.preco_venda_estimado)} por {unidadeNome(p.unidade, 1)}</dd></div>
                 <div><dt>Captação inicial</dt><dd>{fmtBRL(p.cota_valor * p.cotas_totais)}</dd></div>
+                {p.fase_atual > 0 && <div><dt>Andamento já informado pela fazenda</dt><dd>{fasesDe(p)[p.fase_atual]} · {p.progresso}%</dd></div>}
                 <div><dt>Retorno prometido (meta)</dt><dd>{fmtPct(p.previsao_retorno)}</dd></div>
                 <div><dt>Performance da fazenda acima da meta</dt><dd>{Number(p.perf_excedente_pct) > 0 ? `${p.perf_excedente_pct}% do excedente` : "não cobra"}</dd></div>
                 <div className="total"><dt>Armazém garantidor</dt><dd>{p.warehouse_name ? `${p.warehouse_name}${p.warehouse_estrelas ? ` · ★ ${Number(p.warehouse_estrelas).toFixed(1)}` : ""} · ${p.custodia_status === "aceita" ? "custódia aceita" : p.custodia_status === "recusada" ? "recusou" : "aguardando aceite"}` : "nenhum"}</dd></div>

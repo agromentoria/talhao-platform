@@ -30,5 +30,8 @@
     "react/react-in-jsx-scope": "off",
     "no-unused-vars": "warn",
     "react/no-unescaped-entities": "off"
+  },
+  "globals": {
+    "__APP_VERSION__": "readonly"
   }
 }

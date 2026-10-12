@@ -208,6 +208,7 @@ function MoreTab({ onLogout }) {
       </section>
 
       <DeleteAccountDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} />
+      <p className="text-xs text-3" style={{ textAlign: "center" }}>Meu Talhão · versão {__APP_VERSION__}</p>
     </div>
   );
 }

@@ -89,7 +89,8 @@ async function start() {
   app.use(express.json({ limit: "2mb" })); // acomoda foto de perfil em base64
 
   // health check fica fora do limite (o Render consulta com frequência)
-  app.get("/api/health", (req, res) => res.json({ ok: true }));
+  const { version } = require("../package.json");
+  app.get("/api/health", (req, res) => res.json({ ok: true, version }));
 
   // Limite geral por IP. 300 a cada 15 min era pouco: o app consulta avisos e
   // conversas em segundo plano, e várias pessoas de uma mesma fazenda ou

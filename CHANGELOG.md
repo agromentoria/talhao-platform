@@ -1,5 +1,10 @@
 # Registro de mudanças
 
+## 1.7.1 — correção na aprovação de talhões
+
+- **Corrigido:** talhão aguardando aprovação sumia da aba "Aprovar talhões" quando a fazenda registrava o andamento da safra (ex.: Plantio) antes da aprovação. Ele mudava para "em andamento" e a lista só mostrava talhões "em captação", deixando o talhão preso. Agora a lista e o contador incluem os dois casos, e o cartão mostra o andamento já informado.
+- Versão do app visível em Perfil › Mais e em `/api/health` (ajuda a conferir se o deploy subiu).
+
 ## 1.7.0 — armazenagem dividida entre fazenda e investidores
 
 - Nova opção **Dividir** em "Quem paga a armazenagem", ao lado de Investidores e Fazenda. A fazenda informa a parte dos investidores (1% a 99%) e o formulário mostra quanto cada lado paga.

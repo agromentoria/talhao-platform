@@ -34,7 +34,7 @@ router.get("/overview", asyncHandler(async (req, res) => {
   const investidores = (await pool.query("SELECT COUNT(*) as n FROM users WHERE role = 'investidor' AND deleted_at IS NULL")).rows[0].n;
   const armazensAtivos = (await pool.query("SELECT COUNT(*) as n FROM warehouses WHERE status = 'aprovado'")).rows[0].n;
   const armazensPendentes = (await pool.query("SELECT COUNT(*) as n FROM warehouses WHERE status = 'pendente'")).rows[0].n;
-  const talhoesParaAprovar = (await pool.query("SELECT COUNT(*) as n FROM plots WHERE aprovacao_status = 'pendente'")).rows[0].n;
+  const talhoesParaAprovar = (await pool.query("SELECT COUNT(*) as n FROM plots WHERE aprovacao_status = 'pendente' AND status IN ('captacao', 'em_andamento')")).rows[0].n;
   const talhoesGarantidos = (await pool.query("SELECT COUNT(*) as n FROM plots WHERE custodia_status = 'aceita' AND status IN ('captacao','em_andamento','aguardando_aprovacao')")).rows[0].n;
 
   res.json({
@@ -117,7 +117,9 @@ router.get("/plot-approvals", asyncHandler(async (req, res) => {
     `SELECT p.*, f.name AS farm_name, f.location AS farm_location, f.status AS farm_status,
             w.name AS warehouse_name, ${WAREHOUSE_STARS_SQL} AS warehouse_estrelas
      FROM plots p JOIN farms f ON f.id = p.farm_id LEFT JOIN warehouses w ON w.id = p.warehouse_id
-     WHERE p.aprovacao_status IN ('pendente', 'rejeitado') AND p.status = 'captacao'
+     -- inclui talhões em andamento: a fazenda pode registrar a safra antes da
+     -- aprovação, e antes eles sumiam desta lista (ficando presos sem aprovação)
+     WHERE p.aprovacao_status IN ('pendente', 'rejeitado') AND p.status IN ('captacao', 'em_andamento')
      ORDER BY (p.aprovacao_status = 'pendente') DESC, p.created_at DESC`
   );
   res.json({ plots: rows.map((p) => ({ ...p, pendencias: pendencias(p) })) });

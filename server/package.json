@@ -1,6 +1,6 @@
 {
   "name": "talhao-server",
-  "version": "1.0.0",
+  "version": "1.7.1",
   "description": "API do Talhão - plataforma de investimento em commodities agrícolas",
   "main": "src/index.js",
   "type": "commonjs",

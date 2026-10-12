@@ -1,5 +1,11 @@
 # Registro de mudanças
 
+## 1.9.1 — performance visível em "Aprovar e pagar"
+
+- A prévia do pagamento da colheita mostra a fazenda em linhas separadas: **comissão até a meta**, **performance acima da meta** e **total**. Quando a performance é zero, aparece o motivo (sem performance definida no talhão, venda não passou da meta, ou excedente consumido por armazenagem/fase da compra).
+- O cabeçalho da prévia informa quanto a venda ficou acima ou abaixo da meta e qual a performance definida.
+- A confirmação "Aprovar e pagar" repete os valores de cada participante, e o aviso final informa a performance paga à fazenda.
+
 ## 1.9.0 — regras de ganhos, percentuais e comissões claras para todos
 
 - **Novo quadro "Regras deste talhão"**, calculado com os números de cada talhão e igual para todos:

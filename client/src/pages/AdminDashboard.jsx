@@ -171,11 +171,14 @@ export default function AdminDashboard() {
   }
 
   async function approveHarvest(id) {
-    const ok = await dialog.confirm({ title: "Aprovar e pagar?", message: "Os investidores serão pagos imediatamente. Esta ação não pode ser desfeita.", confirmLabel: "Aprovar e pagar" });
+    const r = harvestRequests.find((x) => x.id === id);
+    const v = r?.previa;
+    const resumo = v ? ` Investidores ${fmtBRL(v.investidores)} · fazenda ${fmtBRL(v.fazenda)} (comissão ${fmtBRL(v.fazenda - v.performance)} + performance ${fmtBRL(v.performance)}) · armazém ${fmtBRL(v.armazem)} · plataforma ${fmtBRL(v.app)}.` : "";
+    const ok = await dialog.confirm({ title: "Aprovar e pagar?", message: `Todos serão pagos imediatamente. Esta ação não pode ser desfeita.${resumo}`, confirmLabel: "Aprovar e pagar" });
     if (!ok) return;
     try {
       const data = await api.approveHarvestRequest(id);
-      setNotice(`Colheita aprovada e paga: ${data.investidoresPagos} investidor(es).`);
+      setNotice(`Colheita paga: ${data.investidoresPagos} investidor(es)${data.totalPerformance > 0 ? ` · performance da fazenda ${fmtBRL(data.totalPerformance)}` : ""}.`);
       load();
     } catch (err) {
       setError(err.message);
@@ -671,18 +674,35 @@ function EntityRow({ icon, iconTone, title, estrelas, lines, metrics, status, ac
 
 // o que o armazém garantidor validou — base para aprovar o pagamento
 // prévia exata do pagamento calculada pelo servidor
+function performanceMotivo(r) {
+  if (!(Number(r.perf_excedente_pct) > 0)) return "não definida neste talhão (0%)";
+  if (r.preco_venda_declarado <= r.preco_meta + 0.004) return "venda não passou da meta";
+  return "lucro acima da meta ficou abaixo do previsto (armazenagem ou fase da compra)";
+}
+
 function HarvestPreview({ r }) {
   const v = r.previa;
   if (!v) return null;
+  const u = unidadeNome(r.unidade, 1);
+  const acima = r.preco_venda_declarado - r.preco_meta;
   return (
     <div className="card card--well" style={{ padding: 12, marginBottom: 12 }}>
-      <p className="text-sm" style={{ marginBottom: 6 }}>
-        Venda declarada: <strong>{fmtBRL(r.preco_venda_declarado)}</strong> por {unidadeNome(r.unidade, 1)} · meta {fmtBRL(r.preco_meta)}
-        {Number(r.perf_excedente_pct) > 0 && <> · performance da fazenda: {fmtPct(r.perf_excedente_pct)} do excedente</>}
+      <p className="card-title" style={{ marginBottom: 6 }}>Prévia do pagamento</p>
+      <p className="text-sm" style={{ marginBottom: 8 }}>
+        Venda declarada <strong>{fmtBRL(r.preco_venda_declarado)}</strong> por {u} · meta <strong>{fmtBRL(r.preco_meta)}</strong>
+        {acima > 0.004 ? <> · <span className="text-success">{fmtBRL(acima)} acima da meta</span></> : acima < -0.004 ? <> · <span className="text-danger">{fmtBRL(-acima)} abaixo da meta</span></> : <> · exatamente na meta</>}
+        {" "}· performance definida: <strong>{Number(r.perf_excedente_pct) > 0 ? `${fmtPct(r.perf_excedente_pct)} do excedente` : "nenhuma"}</strong>
       </p>
       <dl className="kv" style={{ margin: 0 }}>
         <div><dt>Investidores recebem</dt><dd>{fmtBRL(v.investidores)}</dd></div>
-        <div><dt>Fazenda recebe</dt><dd>{fmtBRL(v.fazenda)}{v.performance > 0 ? ` (inclui ${fmtBRL(v.performance)} de performance)` : ""}</dd></div>
+        <div><dt>Fazenda · comissão até a meta</dt><dd>{fmtBRL(v.fazenda - v.performance)}</dd></div>
+        <div>
+          <dt>Fazenda · performance acima da meta</dt>
+          <dd className={v.performance > 0 ? "text-success" : undefined}>
+            {fmtBRL(v.performance)}{v.performance > 0 ? "" : <span className="text-xs text-3" style={{ display: "block", fontWeight: 400 }}>{performanceMotivo(r)}</span>}
+          </dd>
+        </div>
+        <div><dt>Fazenda · total</dt><dd>{fmtBRL(v.fazenda)}</dd></div>
         <div><dt>Armazém recebe</dt><dd>{fmtBRL(v.armazem)}</dd></div>
         <div className="total"><dt>Comissão da plataforma</dt><dd>{fmtBRL(v.app)}</dd></div>
       </dl>

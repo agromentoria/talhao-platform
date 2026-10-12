@@ -156,6 +156,13 @@ export const api = {
   updateWarehouseCharacteristicPoints: (key, pontos) => request(`/warehouses/characteristics/${key}`, { method: "PUT", body: { pontos } }),
   setMyWarehouseCharacteristics: (keys) => request("/warehouses/mine/characteristics", { method: "PUT", body: { keys } }),
 
+  // demonstrativo financeiro do talhão
+  demonstrativo: (plotId) => request(`/plots/${plotId}/demonstrativo`, { auth: false }),
+  setOrcamento: (plotId, itens) => request(`/plots/${plotId}/orcamento`, { method: "PUT", body: { itens } }),
+  addCusto: (plotId, payload) => request(`/plots/${plotId}/custos`, { method: "POST", body: payload }),
+  editCusto: (plotId, id, payload) => request(`/plots/${plotId}/custos/${id}`, { method: "PATCH", body: payload }),
+  deleteCusto: (plotId, id) => request(`/plots/${plotId}/custos/${id}`, { method: "DELETE" }),
+
   // gestão financeira da administração
   financeTransactions: (qs) => request(`/admin/finance/transactions?${qs}`),
   financeTransaction: (id) => request(`/admin/finance/transactions/${id}`),

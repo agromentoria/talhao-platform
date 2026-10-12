@@ -120,6 +120,8 @@ async function start() {
   app.use("/api/fase-pricing", fasePricingRoutes);
   app.use("/api/farm-characteristics", farmCharacteristicsRoutes);
   app.use("/api/warehouses", warehouseRoutes);
+  // demonstrativo financeiro do talhão (orçamento, custos e resultado)
+  app.use("/api/plots", require("./routes/plotFinance"));
   // catálogo de culturas, variedades, unidades e fases (fonte única do app)
   app.get("/api/culturas", (req, res) => {
     const { CULTURAS, TIPOS, UNIDADES } = require("./culturas");

@@ -70,17 +70,29 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
     }
     investidoresPagos = investments.length;
 
-    if (farm.owner_user_id && totalComissaoFazenda > 0) {
+    // comissão até a meta e performance acima da meta ficam em lançamentos
+    // separados, para aparecerem distintos no financeiro e nos relatórios
+    const comissaoBase = totalComissaoFazenda - totalPerformance;
+    if (farm.owner_user_id && comissaoBase > 0.004) {
       await recordTransaction(client, {
         type: "repasse_fazenda",
         status: "aprovado",
         userId: farm.owner_user_id,
         farmId: plot.farm_id,
         plotId: plot.id,
-        amount: totalComissaoFazenda,
-        description: totalPerformance > 0
-          ? `Comissão da colheita de ${plot.nome} (${farm.commission_pct}% até a meta + ${plot.perf_excedente_pct}% do excedente: ${fmtBRL(totalPerformance)})`
-          : `Comissão da colheita de ${plot.nome} (${farm.commission_pct}%)`,
+        amount: comissaoBase,
+        description: `Comissão da colheita de ${plot.nome} (${farm.commission_pct}% do lucro até a meta de ${plot.previsao_retorno}%)`,
+      });
+    }
+    if (farm.owner_user_id && totalPerformance > 0.004) {
+      await recordTransaction(client, {
+        type: "performance_fazenda",
+        status: "aprovado",
+        userId: farm.owner_user_id,
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        amount: totalPerformance,
+        description: `Performance acima da meta em ${plot.nome} (${plot.perf_excedente_pct}% do lucro excedente)`,
       });
     }
 

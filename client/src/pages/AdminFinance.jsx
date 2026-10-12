@@ -13,9 +13,10 @@ import { Stat } from "./Portfolio";
 const TIPOS = {
   compra_cota: { label: "Compra de cotas", curto: "Compras", cor: "#557A22", tone: "success" },
   pagamento_investidor: { label: "Pagamento a investidor", curto: "Pagamentos", cor: "#B26000", tone: "info" },
-  repasse_fazenda: { label: "Repasse à fazenda", curto: "Repasses", cor: "#8B5A2B", tone: undefined },
+  repasse_fazenda: { label: "Comissão da fazenda", curto: "Comissão fazenda", cor: "#8B5A2B", tone: undefined },
+  performance_fazenda: { label: "Performance da fazenda", curto: "Performance", cor: "#D9822B", tone: "info" },
   tarifa_armazem: { label: "Tarifa de armazenagem", curto: "Armazenagem", cor: "#6B8CAE", tone: undefined },
-  comissao_plataforma: { label: "Comissão da plataforma", curto: "Comissão", cor: "#C9A227", tone: "warning" },
+  comissao_plataforma: { label: "Comissão da plataforma", curto: "Plataforma", cor: "#C9A227", tone: "warning" },
 };
 const PERFIL = { investidor: "Investidor", fazenda: "Fazenda", armazem: "Armazém", admin: "Administração" };
 const PAGAMENTO = { pix: "Pix", cartao_credito: "Cartão de crédito", cartao_debito: "Cartão de débito" };
@@ -212,7 +213,7 @@ export default function AdminFinance() {
       {resumo && (
         <div className="grid-stats" style={{ marginBottom: 16 }}>
           <Stat label="Entradas (compras)" value={fmtBRL(resumo.entradas)} icon={ArrowDownCircle} tone="success" />
-          <Stat label="Saídas (pagamentos, repasses, tarifas)" value={fmtBRL(resumo.saidas)} icon={ArrowUpCircle} />
+          <Stat label="Saídas (investidores, fazendas, armazéns)" value={fmtBRL(resumo.saidas)} icon={ArrowUpCircle} />
           <Stat label="Receita da plataforma" value={fmtBRL(resumo.receitaPlataforma)} icon={Coins} tone="success" />
           <Stat label="Transações" value={fmtNumber(resumo.quantidade)} icon={Receipt} />
         </div>

@@ -96,6 +96,50 @@ const REFERENCIAS = [
   ["Frango de corte", "kg", 6, 0],
 ];
 
+// Categorias de custo da operação, por tipo de produção (demonstrativo do talhão)
+const CATEGORIAS_CUSTO = {
+  lavoura: [
+    { id: "preparo_solo", label: "Preparo do solo e correção (calcário, gesso)" },
+    { id: "sementes", label: "Sementes e tratamento de sementes" },
+    { id: "fertilizantes", label: "Fertilizantes e adubação" },
+    { id: "plantio", label: "Plantio (operação)" },
+    { id: "defensivos", label: "Defensivos e combate a pragas e doenças" },
+    { id: "manejo", label: "Manejo e tratos culturais" },
+    { id: "colheita", label: "Colheita" },
+    { id: "frete", label: "Transporte e frete" },
+    { id: "mao_obra", label: "Mão de obra" },
+    { id: "maquinas", label: "Máquinas, combustível e manutenção" },
+    { id: "arrendamento", label: "Arrendamento da terra" },
+    { id: "seguro", label: "Seguro agrícola e assistência técnica" },
+    { id: "outros", label: "Outros" },
+  ],
+  pecuaria: [
+    { id: "aquisicao_animais", label: "Aquisição de animais" },
+    { id: "pastagem", label: "Formação e manutenção de pastagem" },
+    { id: "alimentacao", label: "Alimentação, sal mineral e ração" },
+    { id: "sanidade", label: "Sanidade, vacinas e veterinário" },
+    { id: "manejo", label: "Manejo e instalações" },
+    { id: "mao_obra", label: "Mão de obra" },
+    { id: "frete", label: "Transporte e frete" },
+    { id: "arrendamento", label: "Arrendamento da terra" },
+    { id: "outros", label: "Outros" },
+  ],
+  producao_animal: [
+    { id: "aquisicao_plantel", label: "Aquisição do plantel" },
+    { id: "alimentacao", label: "Alimentação e ração" },
+    { id: "sanidade", label: "Sanidade, vacinas e veterinário" },
+    { id: "instalacoes", label: "Instalações e equipamentos" },
+    { id: "energia", label: "Energia e água" },
+    { id: "mao_obra", label: "Mão de obra" },
+    { id: "embalagem_frete", label: "Embalagem e frete" },
+    { id: "outros", label: "Outros" },
+  ],
+};
+
+function categoriasCusto(plot) {
+  return CATEGORIAS_CUSTO[tipoDe(plot)];
+}
+
 function getCultura(nome) {
   return CULTURAS.find((c) => c.nome.toLowerCase() === String(nome || "").trim().toLowerCase()) || null;
 }
@@ -117,4 +161,4 @@ function unidadeTexto(unidade, n) {
   return n === 1 ? u.singular : u.plural;
 }
 
-module.exports = { UNIDADES, TIPOS, CULTURAS, REFERENCIAS, getCultura, tipoDe, fasesDe, etapaLabel, unidadeTexto };
+module.exports = { CATEGORIAS_CUSTO, categoriasCusto, UNIDADES, TIPOS, CULTURAS, REFERENCIAS, getCultura, tipoDe, fasesDe, etapaLabel, unidadeTexto };

@@ -1,5 +1,19 @@
 # Registro de mudanças
 
+## 1.8.0 — demonstrativo financeiro e performance no financeiro
+
+- **Performance da fazenda como lançamento próprio:** o pagamento da colheita agora registra "Comissão da fazenda" (até a meta) e "Performance da fazenda" (acima da meta) separadamente. No Financeiro da administração a performance aparece na lista, nos filtros, no gráfico, nos relatórios por fazenda e por talhão e na exportação.
+- **Demonstrativo financeiro do talhão** (`/talhao/:id/demonstrativo`), visível para investidores e fazenda:
+  - recebido dos investidores, custos lançados (e % aplicado), saldo da captação e resultado da fazenda;
+  - custos por etapa — preparo do solo, sementes, fertilizantes, plantio, defensivos, manejo, colheita, frete, mão de obra, máquinas, arrendamento, seguro (categorias próprias para pecuária e produção animal) — com orçamento previsto × realizado;
+  - lista de lançamentos com data e descrição; custo por hectare e por unidade;
+  - divisão do resultado da venda (real após a colheita ou simulada na meta antes dela): investidores, comissão e performance da fazenda, armazém e plataforma;
+  - impressão em PDF.
+- A **fazenda lança custos e o orçamento** direto no demonstrativo (atalho "Demonstrativo e custos" em cada talhão do painel).
+- **Carteira da fazenda reorganizada:** recebido dos investidores, custos, comissão, performance, armazenagem e resultado; lista "Por talhão" com o resultado de cada um; movimentações separando comissão e performance.
+- A página do talhão ganhou o card "Demonstrativo financeiro" com o resumo e o link para o completo.
+- Números grandes não estouram mais os cartões no celular.
+
 ## 1.7.2 — finalização pelo preço de venda e precisão dos valores
 
 - **Corrigido:** o campo "Retorno final do ciclo (%)" da finalização vinha preenchido com o retorno prometido. Se a fazenda não alterasse, a venda era registrada exatamente na meta e a performance acima da meta ficava zerada. Agora a fazenda informa o **preço médio de venda por unidade** (campo vazio, obrigatório) e o app calcula o retorno, mostrando na hora se ficou acima da meta e a performance estimada da fazenda.

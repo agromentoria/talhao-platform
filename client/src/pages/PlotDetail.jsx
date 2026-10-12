@@ -5,6 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { GRAIN_COLORS } from "../config/theme";
 import { quinzenasTexto, pagadorTexto } from "../lib/armazenagem";
 import { dividirLucro } from "../lib/divisaoLucro";
+import { DemonstrativoResumo } from "./Demonstrativo";
 import { fasesDe, faseIcone, unidadeNome, cicloLabels, fmtData, culturaTexto, TIPOS, tipoDe } from "../config/culturas";
 import { fmtBRL, fmtNumber, unitPlural, fmtPct } from "../lib/format";
 import { api } from "../lib/api";
@@ -273,6 +274,8 @@ export default function PlotDetail() {
             <p className="text-xs text-3" style={{ marginTop: 10 }}>As comissões incidem só sobre o lucro, nunca sobre o valor investido.</p>
           </section>
 
+          <DemonstrativoCard plotId={plot.id} />
+
           <FarmProfileCard farmId={plot.farm_id} estrelas={plot.farm_estrelas} />
           <FarmTrackRecord farmId={plot.farm_id} farmName={plot.farm_name} />
         </div>
@@ -462,6 +465,25 @@ function MobileInvestBar({ price, unidade }) {
   );
 }
 
+
+// resumo do demonstrativo financeiro (custos lançados pela fazenda)
+function DemonstrativoCard({ plotId }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { api.demonstrativo(plotId).then(setD).catch(() => {}); }, [plotId]);
+  if (!d || (d.totais.captado === 0 && d.totais.realizado === 0 && d.totais.previsto === 0)) return null;
+  return (
+    <section className="card" aria-labelledby="dem-card-t">
+      <div className="card-head" style={{ marginBottom: 10 }}>
+        <div>
+          <h2 id="dem-card-t" className="card-title">Demonstrativo financeiro</h2>
+          <p className="card-desc">Onde a fazenda aplica o dinheiro dos investidores, etapa por etapa.</p>
+        </div>
+        <Button size="sm" variant="secondary" to={`/talhao/${plotId}/demonstrativo`}>Ver completo</Button>
+      </div>
+      <DemonstrativoResumo d={d} />
+    </section>
+  );
+}
 
 function FarmProfileCard({ farmId, estrelas }) {
   const [data, setData] = useState(null);

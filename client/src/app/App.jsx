@@ -12,6 +12,7 @@ import Marketplace from "../pages/Marketplace";
 // Cada tela é carregada sob demanda: o investidor não baixa o código do
 // painel administrativo, e a primeira abertura fica bem mais leve.
 const PlotDetail = lazy(() => import("../pages/PlotDetail"));
+const Demonstrativo = lazy(() => import("../pages/Demonstrativo"));
 const Login = lazy(() => import("../pages/Login"));
 const Register = lazy(() => import("../pages/Register"));
 const Portfolio = lazy(() => import("../pages/Portfolio"));
@@ -63,6 +64,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Marketplace />} />
             <Route path="/talhao/:id" element={<PlotDetail />} />
+            <Route path="/talhao/:id/demonstrativo" element={<Demonstrativo />} />
             <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
             <Route path="/cadastro" element={<GuestOnly><Register /></GuestOnly>} />
             <Route path="/privacidade" element={<Privacy />} />

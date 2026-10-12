@@ -491,6 +491,27 @@ ALTER TABLE payouts ADD COLUMN IF NOT EXISTS despesa_armazem REAL NOT NULL DEFAU
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS perf_excedente_pct REAL NOT NULL DEFAULT 0;
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS perf_fazenda REAL NOT NULL DEFAULT 0;
 
+-- ===================== Demonstrativo financeiro do talhão =====================
+-- Orçamento previsto (um valor por categoria) e custos lançados pela fazenda
+CREATE TABLE IF NOT EXISTS plot_budget (
+  plot_id INTEGER NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+  categoria TEXT NOT NULL,
+  valor DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (plot_id, categoria)
+);
+CREATE TABLE IF NOT EXISTS plot_costs (
+  id SERIAL PRIMARY KEY,
+  plot_id INTEGER NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+  categoria TEXT NOT NULL,
+  descricao TEXT NOT NULL,
+  valor DOUBLE PRECISION NOT NULL,
+  data DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_by INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_plot_costs_plot ON plot_costs(plot_id);
+
 -- registro das ações sensíveis da administração (ex.: zerar dados)
 CREATE TABLE IF NOT EXISTS admin_audit_log (
   id SERIAL PRIMARY KEY,

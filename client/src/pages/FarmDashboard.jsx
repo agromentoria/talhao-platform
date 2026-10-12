@@ -408,6 +408,10 @@ function PlotAdminCard({ plot, references, fasePricing, warehouses = [], onChang
               {cicloLabels(plot).inicio}: <strong style={{ color: "var(--text)" }}>{fmtData(plot.plantio_ate)}</strong> · {cicloLabels(plot).fim}: <strong style={{ color: "var(--text)" }}>{fmtData(plot.colheita_prevista)}</strong>
             </p>
           )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            <Button size="sm" variant="secondary" icon={FileText} to={`/talhao/${plot.id}/demonstrativo`}>Demonstrativo e custos</Button>
+            <Button size="sm" variant="ghost" to={`/talhao/${plot.id}`}>Ver página pública</Button>
+          </div>
           <CustodySection plot={plot} warehouses={warehouses} onChanged={onChanged} setNotice={setNotice} setError={setError} />
           <div style={{ marginTop: 14 }}><ProgressBar value={progresso} color={color} /></div>
 

@@ -216,7 +216,7 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
      FROM transactions t
      LEFT JOIN plots p ON p.id = t.plot_id
      LEFT JOIN users u ON u.id = t.user_id AND t.type = 'compra_cota'
-     WHERE t.farm_id = $1 AND t.type IN ('compra_cota', 'repasse_fazenda', 'tarifa_armazem')
+     WHERE t.farm_id = $1 AND t.type IN ('compra_cota', 'repasse_fazenda', 'performance_fazenda', 'tarifa_armazem')
      ORDER BY t.created_at DESC
      LIMIT 300`,
     [req.user.farm_id]
@@ -224,6 +224,7 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
 
   const totalVendido = rows.filter((r) => r.type === "compra_cota").reduce((s, r) => s + Number(r.amount), 0);
   const totalRecebido = rows.filter((r) => r.type === "repasse_fazenda").reduce((s, r) => s + Number(r.amount), 0);
+  const totalPerformance = rows.filter((r) => r.type === "performance_fazenda").reduce((s, r) => s + Number(r.amount), 0);
 
   // armazenagem que a própria fazenda assumiu (quando os investidores pagam, só aparece como informação)
   // parte da fazenda: tudo quando ela assume, o complemento quando é dividido
@@ -231,7 +232,26 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
   for (const r of rows) if (r.type === "tarifa_armazem") r.parte_fazenda_valor = Number(r.amount) * parteFazenda(r);
   const totalArmazenagem = rows.filter((r) => r.type === "tarifa_armazem").reduce((s, r) => s + r.parte_fazenda_valor, 0);
 
-  res.json({ transactions: rows, totalVendido, totalRecebido, totalArmazenagem });
+  // resumo por talhão: de onde veio o dinheiro, quanto foi gasto e o resultado
+  const { rows: talhoes } = await pool.query(
+    `SELECT p.id, p.nome, p.grao, p.variedade, p.safra, p.status, p.unidade, p.area_ha,
+            COALESCE((SELECT SUM(i.valor_investido) FROM investments i WHERE i.plot_id = p.id AND i.status IN ('ativo','pago')), 0)::float8 AS captado,
+            COALESCE((SELECT SUM(c.valor) FROM plot_costs c WHERE c.plot_id = p.id), 0)::float8 AS custos,
+            COALESCE((SELECT SUM(b.valor) FROM plot_budget b WHERE b.plot_id = p.id), 0)::float8 AS orcamento,
+            COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.plot_id = p.id AND t.type = 'repasse_fazenda'), 0)::float8 AS comissao,
+            COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.plot_id = p.id AND t.type = 'performance_fazenda'), 0)::float8 AS performance
+     FROM plots p WHERE p.farm_id = $1 ORDER BY p.created_at DESC`,
+    [req.user.farm_id]
+  );
+  const armPorTalhao = {};
+  for (const r of rows) if (r.type === "tarifa_armazem") armPorTalhao[r.plot_id] = (armPorTalhao[r.plot_id] || 0) + r.parte_fazenda_valor;
+  for (const t of talhoes) {
+    t.armazenagem = armPorTalhao[t.id] || 0;
+    t.resultado = t.captado - t.custos + t.comissao + t.performance - t.armazenagem;
+  }
+  const totalCustos = talhoes.reduce((s, t) => s + t.custos, 0);
+
+  res.json({ transactions: rows, totalVendido, totalRecebido, totalPerformance, totalArmazenagem, totalCustos, talhoes });
 }));
 
 module.exports = router;

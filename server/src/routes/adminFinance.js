@@ -12,7 +12,8 @@ router.use(requireAuth, requireRole("admin"));
 const TIPOS = {
   compra_cota: { label: "Compra de cotas", sentido: "entrada" },
   pagamento_investidor: { label: "Pagamento a investidor", sentido: "saida" },
-  repasse_fazenda: { label: "Repasse à fazenda", sentido: "saida" },
+  repasse_fazenda: { label: "Comissão da fazenda", sentido: "saida" },
+  performance_fazenda: { label: "Performance da fazenda", sentido: "saida" },
   tarifa_armazem: { label: "Tarifa de armazenagem", sentido: "saida" },
   comissao_plataforma: { label: "Comissão da plataforma", sentido: "receita" },
 };
@@ -86,7 +87,7 @@ async function summary(filters) {
     porTipo,
     quantidade: rows.reduce((s, r) => s + r.n, 0),
     entradas: soma(["compra_cota"]),
-    saidas: soma(["pagamento_investidor", "repasse_fazenda", "tarifa_armazem"]),
+    saidas: soma(["pagamento_investidor", "repasse_fazenda", "performance_fazenda", "tarifa_armazem"]),
     receitaPlataforma: soma(["comissao_plataforma"]),
   };
 }
@@ -163,6 +164,8 @@ const GROUPS = {
       captado: "SUM(CASE WHEN t.type = 'compra_cota' THEN t.amount ELSE 0 END)",
       pago_investidores: "SUM(CASE WHEN t.type = 'pagamento_investidor' THEN t.amount ELSE 0 END)",
       comissao_fazenda: "SUM(CASE WHEN t.type = 'repasse_fazenda' THEN t.amount ELSE 0 END)",
+      performance_fazenda: "SUM(CASE WHEN t.type = 'performance_fazenda' THEN t.amount ELSE 0 END)",
+      custos_lancados: "(SELECT COALESCE(SUM(c.valor), 0) FROM plot_costs c JOIN plots pp ON pp.id = c.plot_id WHERE pp.farm_id = f.id)",
       armazenagem: "SUM(CASE WHEN t.type = 'tarifa_armazem' THEN t.amount ELSE 0 END)",
       comissao_plataforma: "SUM(CASE WHEN t.type = 'comissao_plataforma' THEN t.amount ELSE 0 END)",
     },
@@ -184,7 +187,10 @@ const GROUPS = {
     group: "p.id, p.nome, f.name",
     cols: {
       captado: "SUM(CASE WHEN t.type = 'compra_cota' THEN t.amount ELSE 0 END)",
+      custos_lancados: "(SELECT COALESCE(SUM(c.valor), 0) FROM plot_costs c WHERE c.plot_id = p.id)",
       pago_investidores: "SUM(CASE WHEN t.type = 'pagamento_investidor' THEN t.amount ELSE 0 END)",
+      comissao_fazenda: "SUM(CASE WHEN t.type = 'repasse_fazenda' THEN t.amount ELSE 0 END)",
+      performance_fazenda: "SUM(CASE WHEN t.type = 'performance_fazenda' THEN t.amount ELSE 0 END)",
       armazenagem: "SUM(CASE WHEN t.type = 'tarifa_armazem' THEN t.amount ELSE 0 END)",
       comissao_plataforma: "SUM(CASE WHEN t.type = 'comissao_plataforma' THEN t.amount ELSE 0 END)",
     },
@@ -196,14 +202,14 @@ const GROUPS = {
     group: "1, 2",
     cols: {
       entradas: "SUM(CASE WHEN t.type = 'compra_cota' THEN t.amount ELSE 0 END)",
-      saidas: "SUM(CASE WHEN t.type IN ('pagamento_investidor','repasse_fazenda','tarifa_armazem') THEN t.amount ELSE 0 END)",
+      saidas: "SUM(CASE WHEN t.type IN ('pagamento_investidor','repasse_fazenda','performance_fazenda','tarifa_armazem') THEN t.amount ELSE 0 END)",
       receita_plataforma: "SUM(CASE WHEN t.type = 'comissao_plataforma' THEN t.amount ELSE 0 END)",
     },
   },
 };
 const COL_LABEL = {
   investido: "Investido", recebido: "Recebido", captado: "Captado", pago_investidores: "Pago a investidores",
-  comissao_fazenda: "Comissão da fazenda", armazenagem: "Armazenagem", comissao_plataforma: "Comissão da plataforma",
+  comissao_fazenda: "Comissão da fazenda", performance_fazenda: "Performance da fazenda", custos_lancados: "Custos lançados", armazenagem: "Armazenagem", comissao_plataforma: "Comissão da plataforma",
   captado_garantido: "Captação garantida", tarifas: "Tarifas recebidas", entradas: "Entradas", saidas: "Saídas",
   receita_plataforma: "Receita da plataforma", quantidade: "Transações",
 };
@@ -277,7 +283,7 @@ router.get("/filter-options", asyncHandler(async (req, res) => {
 // administrador e a palavra ZERAR, registra quem fez e pode ser desligado
 // em produção com DISABLE_DATA_RESET=true.
 const ESCOPOS = {
-  financeiro: "Movimentação financeira: transações, investimentos, pagamentos e solicitações de colheita. Talhões, contas e cadastros ficam.",
+  financeiro: "Movimentação financeira: transações, investimentos, pagamentos, solicitações de colheita e custos lançados. Talhões, contas e cadastros ficam.",
   talhoes: "Financeiro + todos os talhões, com validações do armazém, fotos de talhão, andamento e avisos ligados a eles. Contas ficam.",
   tudo: "Tudo, exceto as contas de administração e as configurações (catálogos, comissão, preço por fase, referências).",
 };
@@ -323,6 +329,7 @@ router.post("/reset", asyncHandler(async (req, res) => {
     await run("transacoes", "DELETE FROM transactions");
     await run("investimentos", "DELETE FROM investments");
     await run("solicitacoes_colheita", "DELETE FROM harvest_requests");
+    await run("custos_lancados", "DELETE FROM plot_costs");
     if (escopo === "financeiro") {
       // talhões voltam a ter todas as cotas disponíveis
       await client.query("UPDATE plots SET cotas_disponiveis = cotas_totais");

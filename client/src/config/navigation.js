@@ -7,7 +7,7 @@ import { Landmark, BarChart3, LayoutGrid, Wallet, Tractor, ShieldCheck, MessageC
 // "match" define quais rotas deixam o item ativo.
 const ITEMS = {
   talhoes:   { to: "/", label: "Talhões", icon: LayoutGrid, match: (p) => p === "/" || p.startsWith("/talhao/") },
-  carteira:  { to: "/carteira", label: "Minhas sacas", short: "Minhas sacas", icon: Wallet, match: (p) => p === "/carteira" },
+  carteira:  { to: "/carteira", label: "Meu armazém", short: "Meu armazém", icon: Wallet, match: (p) => p === "/carteira" },
   fazenda:   { to: "/fazenda", label: "Minha fazenda", short: "Fazenda", icon: Tractor, match: (p) => p === "/fazenda" },
   carteiraFazenda: { to: "/fazenda/carteira", label: "Carteira", icon: Coins, match: (p) => p === "/fazenda/carteira" },
   armazem:   { to: "/armazem", label: "Meu armazém", short: "Armazém", icon: Warehouse, match: (p) => p === "/armazem" },

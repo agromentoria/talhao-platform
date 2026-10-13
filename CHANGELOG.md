@@ -1,5 +1,14 @@
 # Registro de mudanças
 
+## 2.1.0 — "Meu armazém" do investidor e ícones da marca
+
+- **Nomenclatura:** a área do investidor passou a ser **"Meu armazém"** — onde ficam as commodities que ele comprou (grãos, fibras, animais). "Na roça" virou **"No armazém"**, "Colhidas e pagas" virou **"Vendidas e pagas"**, "Diário da roça" virou **"Diário do talhão"** e "A roça está em" virou **"O talhão está em"**.
+- O resumo do armazém soma por unidade (ex.: "60.000 sacas · 1.200 arrobas"), sem misturar soja com boi.
+- **Sacas com os desenhos da marca:** a pilha usa a saca de cada cultura, o boi ou a vaca na pecuária, e a **saca do logo** quando a cultura não tem desenho próprio. O certificado também.
+- **Conquistas com ilustrações:** Primeira saca (saca do logo com grão), 10 sacas (big bag com o símbolo), 100 sacas (armazém), Acompanhou o plantio (talhão germinando), Primeira colheita (colheitadeira), 3 culturas (produtor) e Amigo do campo (produtor na fazenda).
+- Boas-vindas com ilustrações em vez de emojis e a explicação do "seu armazém no app".
+- Novos arquivos em `client/public/icons/` e guia `docs/ICONES.md` para o designer substituir os provisórios mantendo o nome.
+
 ## 2.0.0 — operação pelo fundo e experiência lúdica para o investidor
 
 ### Perfil "Fundo"

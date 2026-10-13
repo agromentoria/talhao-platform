@@ -67,6 +67,14 @@ export function etapasDe(plot) {
   return ["plantio", "colheita", "armazenagem"].map((id) => ({ id, label: e[id], descricao: ETAPA_DESCRICAO[id](e[id]) }));
 }
 
+// Imagem de "uma unidade" da commodity no armazém do investidor: a saca da
+// cultura (soja, milho…), o animal na pecuária, ou a saca do logo quando a
+// cultura não tem desenho próprio.
+export function iconeUnidade(nome) {
+  const extras = { "Bovinos de corte": ICONS.touro, "Bovinos de leite": ICONS.vaca };
+  return GRAIN_ICONS[nome] || extras[nome] || "/icons/saca_meu_talhao.svg";
+}
+
 export function culturaIcone(nome) {
   // resolvido na chamada (não no carregamento do módulo) para evitar ordem de import
   const extras = { "Bovinos de corte": ICONS.touro, "Bovinos de leite": ICONS.vaca };

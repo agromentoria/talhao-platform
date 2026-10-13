@@ -1,5 +1,5 @@
 import { fmtNumber, fmtBRL } from "./format";
-import { unidadeNome } from "../config/culturas";
+import { unidadeNome, iconeUnidade } from "../config/culturas";
 
 function carregar(src) {
   return new Promise((resolve) => {
@@ -34,7 +34,7 @@ export async function gerarCertificado({ nome, inv }) {
   ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x0, y0, w, h, r) : ctx.rect(x0, y0, w, h); ctx.fill();
   const logo = await carregar("/logo-header.svg");
   if (logo) ctx.drawImage(logo, W / 2 - 150, 50, 300, 300 * (logo.height / logo.width || 0.45));
-  const icone = await carregar(`/icons/icon_${({ Soja: "soja", Milho: "milho", Algodão: "algodao", Arroz: "arroz", Trigo: "trigo", Feijão: "feijao" })[inv.grao] || "talhao"}_meu_talhao.svg`);
+  const icone = await carregar(iconeUnidade(inv.grao));
   if (icone) ctx.drawImage(icone, W / 2 - 90, y0 + 50, 180, 180);
   ctx.textAlign = "center";
   ctx.fillStyle = "#B26000"; ctx.font = "700 40px 'Baloo 2', sans-serif";
@@ -47,7 +47,7 @@ export async function gerarCertificado({ nome, inv }) {
   ctx.font = "600 30px Inter, sans-serif"; ctx.fillStyle = "#4E6E20";
   ctx.fillText(`Investido: ${fmtBRL(inv.valor_investido)} · ${new Date(inv.created_at).toLocaleDateString("pt-BR")}`, W / 2, y + 80);
   ctx.font = "500 26px Inter, sans-serif"; ctx.fillStyle = "#7A6A58";
-  ctx.fillText("Produção acompanhada por armazém garantidor · meutalhao.com.br", W / 2, y0 + h - 60);
+  ctx.fillText("Guardado no meu armazém Meu Talhão · meutalhao.com.br", W / 2, y0 + h - 60);
   return new Promise((res) => c.toBlob((b) => res(b), "image/png"));
 }
 

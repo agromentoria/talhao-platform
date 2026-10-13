@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Dialog, Button } from "../ui";
-import { SacaIcon } from "./Sacas";
 import { useAuth } from "../../context/AuthContext";
 
 const CHAVE = "talhao_boas_vindas_v1";
 const PASSOS = [
-  { emoji: "🌾", titulo: "Uma saca de verdade", texto: "Cada saca que você compra aqui é parte da produção de uma fazenda de verdade. Dá para começar com 1 saca, pelo preço de um almoço de família." },
-  { emoji: "👀", titulo: "Você acompanha a roça", texto: "A fazenda conta como está a lavoura e um armazém de confiança confirma o plantio, a colheita e quanto foi guardado. Tudo aparece no Diário da roça." },
-  { emoji: "💰", titulo: "Na colheita, você recebe", texto: "A fazenda vende a produção e a sua parte cai na sua conta. O preço do grão e o clima podem mudar o resultado, para mais ou para menos." },
+  { img: "/icons/saca_meu_talhao.svg", titulo: "Uma saca de verdade", texto: "Cada saca que você compra aqui é parte da produção de uma fazenda de verdade: grãos, fibras ou animais. Dá para começar com 1 saca, pelo preço de um almoço de família." },
+  { img: "/icons/armazem_meu_talhao.svg", titulo: "Seu armazém no app", texto: "Tudo o que você compra fica no seu armazém aqui no app. Você acompanha o talhão pelo Diário, e um armazém de confiança confirma o plantio, a colheita e quanto foi guardado." },
+  { img: "/icons/icon_talhoes_colhendo_meu_talhao.svg", titulo: "Na colheita, você recebe", texto: "A fazenda vende a produção e a sua parte cai na sua conta. O preço e o clima podem mudar o resultado, para mais ou para menos." },
 ];
 
 // Boas-vindas em 3 telas para quem está chegando (aparece uma vez)
@@ -34,8 +33,7 @@ export default function BoasVindas() {
         <Button onClick={() => (ultimo ? fechar() : setPasso(passo + 1))}>{ultimo ? "Começar" : "Próximo"}</Button>
       </>}>
       <div style={{ textAlign: "center", padding: "6px 4px" }}>
-        <div style={{ fontSize: 56, lineHeight: 1 }} aria-hidden>{p.emoji}</div>
-        {passo === 0 && <div style={{ display: "flex", justifyContent: "center", gap: 2, margin: "10px 0 0" }} aria-hidden><SacaIcon size={30} /><SacaIcon size={30} /><SacaIcon size={30} /></div>}
+        <img src={p.img} alt="" style={{ width: 150, height: 120, objectFit: "contain", margin: "0 auto" }} />
         <p style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--fs-xl)", color: "var(--text)", margin: "12px 0 6px" }}>{p.titulo}</p>
         <p>{p.texto}</p>
         <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 16 }} aria-label={`Passo ${passo + 1} de ${PASSOS.length}`}>

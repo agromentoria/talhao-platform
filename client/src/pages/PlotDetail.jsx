@@ -320,7 +320,7 @@ export default function PlotDetail() {
                   ))}
                 </div>
                 <p className="text-sm text-2" style={{ marginBottom: 10 }}>1 {unidade} = <strong style={{ color: "var(--text)" }}>{fmtBRL(plot.cota_valor)}</strong></p>
-                <div style={{ marginBottom: 14, minHeight: 30 }}><PilhaDeSacas quantidade={qtd} unidade={plot.unidade} size={24} /></div>
+                <div style={{ marginBottom: 14, minHeight: 30 }}><PilhaDeSacas quantidade={qtd} unidade={plot.unidade} grao={plot.grao} size={28} /></div>
 
                 <dl className="kv" style={{ margin: "0 0 16px" }}>
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
@@ -457,7 +457,7 @@ function MobileInvestBar({ price, unidade }) {
 }
 
 
-// Diário da roça: tudo o que aconteceu no talhão, em linguagem simples e em
+// Diário do talhão: tudo o que aconteceu no talhão, em linguagem simples e em
 // ordem de data — avanços da fazenda (com recado) e confirmações do armazém
 function DiarioDaRoca({ plot, historico = [], validacoes = [] }) {
   const fases = fasesDe(plot);
@@ -473,7 +473,7 @@ function DiarioDaRoca({ plot, historico = [], validacoes = [] }) {
   if (itens.length === 0) return null;
   return (
     <section className="card" id="diario" aria-labelledby="diario-t" style={{ scrollMarginTop: 80 }}>
-      <h2 id="diario-t" className="card-title" style={{ marginBottom: 4 }}>Diário da roça</h2>
+      <h2 id="diario-t" className="card-title" style={{ marginBottom: 4 }}>Diário do talhão</h2>
       <p className="card-desc" style={{ marginBottom: 14 }}>O que aconteceu na lavoura, contado pela fazenda e confirmado pelo armazém.</p>
       <ul className="diario">
         {itens.slice(0, 12).map((it, i) => (

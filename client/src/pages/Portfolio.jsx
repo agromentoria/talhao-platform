@@ -14,8 +14,8 @@ import { GrainThumb, InvestorLevelCard, PilhaDeSacas } from "../components/domai
 
 const STATUS_FILTERS = [
   { id: "todos", label: "Todas", match: () => true },
-  { id: "ativos", label: "Na roça", match: (s) => s === "ativo" },
-  { id: "pagos", label: "Colhidas e pagas", match: (s) => s === "pago" },
+  { id: "ativos", label: "No armazém", match: (s) => s === "ativo" },
+  { id: "pagos", label: "Vendidas e pagas", match: (s) => s === "pago" },
 ];
 
 export function Stat({ label, value, icon: Icon, tone }) {
@@ -27,8 +27,8 @@ export function Stat({ label, value, icon: Icon, tone }) {
   );
 }
 
-// junta as compras do mesmo talhão: o investidor pensa em "minhas sacas de
-// soja da Fazenda X", não em cada compra separada
+// junta as compras do mesmo talhão: o investidor pensa em "as sacas de soja
+// da Fazenda X no meu armazém", não em cada compra separada
 function agrupar(investments) {
   const porTalhao = new Map();
   for (const i of investments) {
@@ -64,7 +64,8 @@ export default function Portfolio() {
   const grupos = useMemo(() => agrupar(investments), [investments]);
   const conquistas = useMemo(() => conquistasDo(investments), [investments]);
   const naRoca = grupos.filter((g) => g.status === "ativo");
-  const sacasNaRoca = naRoca.reduce((s, g) => s + g.cotas, 0);
+  // totais por unidade (sacas, arrobas, litros…) — não dá para somar boi com soja
+  const porUnidade = Object.entries(naRoca.reduce((acc, g) => { acc[g.unidade] = (acc[g.unidade] || 0) + g.cotas; return acc; }, {}));
   const pagoNaRoca = naRoca.reduce((s, g) => s + g.valor_investido, 0);
   const valeHoje = naRoca.reduce((s, g) => s + g.valorHoje, 0);
   const variacao = pagoNaRoca ? ((valeHoje - pagoNaRoca) / pagoNaRoca) * 100 : 0;
@@ -80,20 +81,20 @@ export default function Portfolio() {
   }
 
   return (
-    <Page title="Minhas sacas" width="medium">
-      <PageHeader title="Minhas sacas" subtitle="Sua parte da produção das fazendas, acompanhada até a colheita." />
+    <Page title="Meu armazém" width="medium">
+      <PageHeader title="Meu armazém" subtitle="As commodities que você comprou das fazendas — grãos, fibras e animais — guardadas aqui até a venda na colheita." />
       <ErrorBanner message={error} />
 
       {loading ? <Loading /> : grupos.length === 0 ? (
-        <EmptyState image="/icons/icon_plantando_meu_talhao.svg" title="Você ainda não tem sacas"
+        <EmptyState image="/icons/icon_plantando_meu_talhao.svg" title="Seu armazém ainda está vazio"
           action={<Button to="/" icon={ShoppingBasket}>Comprar minha primeira saca</Button>}>
-          Dá para começar com 1 saca. Você escolhe a fazenda, compra a sua parte e acompanha a lavoura por aqui até a colheita.
+          Seu armazém está vazio. Dá para começar com 1 saca: você escolhe a fazenda, compra a sua parte e ela fica guardada aqui até a venda na colheita.
         </EmptyState>
       ) : (
         <>
           <section className="saldo-sacas" aria-label="Resumo das suas sacas" style={{ marginBottom: 16 }}>
-            <span className="label-xs">Na roça agora</span>
-            <strong>{fmtNumber(sacasNaRoca)} {sacasNaRoca === 1 ? "saca" : "sacas"}</strong>
+            <span className="label-xs">Guardado no seu armazém</span>
+            <strong>{porUnidade.map(([u, n]) => `${fmtNumber(n)} ${unidadeNome(u, n)}`).join(" · ") || "0 sacas"}</strong>
             <span>Valem hoje cerca de <b>{fmtBRL(valeHoje)}</b> · você pagou {fmtBRL(pagoNaRoca)}</span>
             {pagoNaRoca > 0 && (
               <span className="saldo-variacao">
@@ -109,7 +110,7 @@ export default function Portfolio() {
             <div className="conquistas">
               {conquistas.map((c) => (
                 <div key={c.id} className={`conquista ${c.conquistada ? "" : "is-off"}`} title={c.desc}>
-                  <span className="conquista-emoji" aria-hidden>{c.emoji}</span>
+                  <img className="conquista-img" src={c.img} alt="" />
                   <span className="conquista-titulo">{c.titulo}</span>
                   <span className="sr-only">{c.conquistada ? "conquistada" : "ainda não"}</span>
                 </div>
@@ -139,11 +140,11 @@ export default function Portfolio() {
                       <p className="text-sm text-2">{g.farm_name} · {g.plot_nome}</p>
                     </div>
                   </div>
-                  <div style={{ margin: "12px 0" }}><PilhaDeSacas quantidade={g.cotas} unidade={g.unidade} /></div>
+                  <div style={{ margin: "12px 0" }}><PilhaDeSacas quantidade={g.cotas} unidade={g.unidade} grao={g.grao} /></div>
                   {g.status !== "pago" ? (
                     <>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--fs-sm)", marginBottom: 6 }} className="text-2">
-                        <span>A roça está em: <strong style={{ color: "var(--text)" }}>{faseNome(g, g.fase_atual)}</strong></span>
+                        <span>O talhão está em: <strong style={{ color: "var(--text)" }}>{faseNome(g, g.fase_atual)}</strong></span>
                         <span>{g.progresso}%</span>
                       </div>
                       <ProgressBar value={g.progresso} color={GRAIN_COLORS[g.grao]} label="Andamento da safra" />
@@ -157,7 +158,7 @@ export default function Portfolio() {
                     <p className="text-sm">Colhido e pago: você recebeu <strong className="text-success">{fmtBRL(g.valor_liquido)}</strong> (pagou {fmtBRL(g.valor_investido)}).</p>
                   )}
                   <div className="row" style={{ marginTop: 12 }}>
-                    <Button size="sm" variant="secondary" icon={BookOpen} to={`/talhao/${g.plot_id}#diario`}>Diário da roça</Button>
+                    <Button size="sm" variant="secondary" icon={BookOpen} to={`/talhao/${g.plot_id}#diario`}>Diário do talhão</Button>
                     <Button size="sm" variant="secondary" icon={Award} onClick={() => certificado(g)} loading={gerando === g.plot_id}>Certificado</Button>
                     {g.status !== "pago" && <Button size="sm" variant="ghost" to={`/talhao/${g.plot_id}`}>Comprar mais <ChevronRight size={14} aria-hidden /></Button>}
                   </div>

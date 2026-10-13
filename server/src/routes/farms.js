@@ -258,7 +258,7 @@ router.patch("/:id/legal-info", requireAuth, requireRole("fazenda", "admin"), as
   res.json({ legalInfo: rows[0] });
 }));
 
-router.get("/status/pendentes", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
+router.get("/status/pendentes", requireAuth, requireRole("admin", "fundo"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query("SELECT * FROM farms WHERE status = 'pendente' ORDER BY created_at");
   res.json({ farms: rows });
 }));

@@ -13,8 +13,9 @@ function pairKey(a, b) {
 async function canMessage(requester, targetUser) {
   if (requester.id === targetUser.id) return false;
 
-  if (requester.role === "admin") {
-    return ["fazenda", "investidor", "armazem"].includes(targetUser.role);
+  // administração e fundo falam com todos os participantes e entre si
+  if (requester.role === "admin" || requester.role === "fundo") {
+    return ["fazenda", "investidor", "armazem", "admin", "fundo"].includes(targetUser.role);
   }
 
   // armazém conversa com a administração e com fazendas que o indicaram
@@ -161,7 +162,7 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
       ...farmRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: r.farm_name, role: "fazenda", farm_location: r.farm_location })),
       ...adminRows.filter((r) => !existingContactIds.has(r.user_id)).map((r) => ({ user_id: r.user_id, name: "Administração Meu Talhão", role: "admin" })),
     ];
-  } else if (req.user.role === "admin") {
+  } else if (req.user.role === "admin" || req.user.role === "fundo") {
     const { rows: farmRows } = await pool.query(
       "SELECT owner_user_id as user_id, name as farm_name, location as farm_location FROM farms WHERE owner_user_id IS NOT NULL"
     );

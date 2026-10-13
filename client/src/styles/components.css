@@ -182,14 +182,14 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 /* ---------- números de resumo ---------- */
 .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-4); }
 .stat-label { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text-2); }
-.stat-value { margin-top: var(--sp-2); font-family: var(--font-display); font-size: clamp(1.05rem, 4.4vw, var(--fs-xl)); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; line-height: 1.2; }
+.stat-value { margin-top: var(--sp-2); font-family: var(--font-display); font-size: clamp(1.05rem, 4.4vw, var(--fs-xl)); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: break-word; line-height: 1.2; }
 .money { font-variant-numeric: tabular-nums; }
 
 /* linhas chave/valor */
 .kv { display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); }
 .kv > div { display: flex; justify-content: space-between; gap: var(--sp-3); }
 .kv dt, .kv .k { color: var(--text-2); }
-.kv dd, .kv .v { margin: 0; font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.kv dd, .kv .v { margin: 0; font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: break-word; flex-shrink: 0; max-width: 60%; }
 .kv dt { min-width: 0; }
 .kv .total { border-top: 1px solid var(--border); padding-top: var(--sp-2); }
 .text-success { color: var(--success-text) !important; }
@@ -468,3 +468,30 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
   .regras-tabela { font-size: 13px; }
   .regras-tabela td:first-child { max-width: 110px; }
 }
+
+/* ---------- lado lúdico: sacas ---------- */
+.pilha { display: flex; flex-wrap: wrap; gap: 2px; align-items: flex-end; }
+.pilha-saca { display: inline-flex; animation: saca-cai 360ms var(--ease) both; }
+@keyframes saca-cai { from { transform: translateY(-10px); opacity: 0; } }
+.pilha--montes { gap: 8px; align-items: center; }
+.pilha-monte { display: inline-grid; grid-template-columns: repeat(2, auto); }
+.pilha-monte svg:first-child { grid-column: 1 / -1; justify-self: center; margin-bottom: -10px; }
+.pilha-total { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--text); margin-left: 4px; }
+.conquistas { position: relative; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.conquistas::-webkit-scrollbar { display: none; }
+.conquista { position: relative; flex: 0 0 auto; width: 104px; padding: 10px 8px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); text-align: center; }
+.conquista-emoji { font-size: 28px; line-height: 1; display: block; margin-bottom: 4px; }
+.conquista-titulo { font-size: var(--fs-xs); font-weight: 700; color: var(--text); display: block; line-height: 1.25; }
+.conquista.is-off { opacity: .45; filter: grayscale(1); }
+.saldo-sacas { display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: var(--r-xl); color: #fff;
+  background: var(--brand-header) url("/bg-farm-green.svg") center / cover no-repeat; box-shadow: var(--shadow-2); }
+.saldo-sacas .label-xs { color: rgba(255,255,255,.85); }
+.saldo-sacas strong { font-family: var(--font-display); font-size: clamp(1.6rem, 7vw, 2.4rem); line-height: 1.05; }
+.saldo-variacao { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--r-full); background: rgba(255,255,255,.18); font-weight: 700; font-size: var(--fs-sm); width: fit-content; }
+.compra-rapida { display: flex; gap: 6px; flex-wrap: wrap; }
+.compra-rapida .btn { flex: 1 1 60px; }
+.diario { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.diario li { position: relative; display: flex; gap: 12px; padding-bottom: 16px; }
+.diario li:not(:last-child)::before { content: ""; position: absolute; left: 17px; top: 36px; bottom: 0; width: 2px; background: var(--border-strong); }
+.diario-icone { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface-well); font-size: 18px; }
+.diario-texto { padding-top: 4px; min-width: 0; }

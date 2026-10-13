@@ -93,7 +93,7 @@ async function parseCultivo(body, area) {
 }
 
 async function notifyAdminsNewPlot(plot, farmName, reinicio = false, extra = "") {
-  const { rows } = await pool.query("SELECT id FROM users WHERE role = 'admin' AND deleted_at IS NULL");
+  const { rows } = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'fundo') AND deleted_at IS NULL");
   await safeNotify(rows.map((r) => r.id), {
     senderRole: "sistema", farmId: plot.farm_id, plotId: plot.id, type: "talhao_para_aprovar",
     title: extra ? `Regra alterada, revisar: ${plot.nome}` : reinicio ? `Novo ciclo para aprovar: ${plot.nome}` : `Talhão para aprovar: ${plot.nome}`,
@@ -446,7 +446,7 @@ router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), async
 
   // avisa a administração que há uma solicitação para revisar
   try {
-    const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+    const { rows: admins } = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'fundo') AND deleted_at IS NULL");
     await notifyUsers(pool, admins.map((a) => a.id), {
       senderRole: "sistema",
       farmId: plot.farm_id,

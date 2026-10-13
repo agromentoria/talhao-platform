@@ -88,7 +88,7 @@ export const BACKGROUNDS = {
 // nome no singular de cada unidade de venda (ver config/culturas.js)
 export const UNIT_LABEL = { saca: "saca", fardo: "fardo", arroba: "arroba", kg: "kg", tonelada: "tonelada", litro: "litro", duzia: "dúzia", caixa: "caixa", cabeca: "cabeça" };
 
-export const ROLE_LABEL = { admin: "Administração", fazenda: "Fazenda", investidor: "Investidor", armazem: "Armazém" };
+export const ROLE_LABEL = { admin: "Administração", fazenda: "Fazenda", investidor: "Investidor", armazem: "Armazém", fundo: "Fundo" };
 
 // fase mínima para cada validação do armazém (ver etapasDe em config/culturas.js)
 export const FASE_MINIMA_CUSTODIA = { plantio: 1, colheita: 5, armazenagem: 5 };

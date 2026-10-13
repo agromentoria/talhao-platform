@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, UNIT_LABEL, FASES, ICONS } from "../config/theme";
 import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS, fasesDe } from "../config/culturas";
@@ -8,7 +9,7 @@ import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Stars, RegrasTalhao } from "../components/domain";
-import { FilterChips, Button, Banner, ErrorBanner, Tabs, EmptyState, Badge, useDialog, useToast } from "../components/ui";
+import { TextField, FilterChips, Button, Banner, ErrorBanner, Tabs, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
 
 const TABS = [
@@ -19,13 +20,19 @@ const TABS = [
   { id: "armazens", label: "Armazéns", icon: WarehouseIcon },
   { id: "fases", label: "Preço por fase", icon: TrendingUp },
   { id: "mercado", label: "Referência de mercado", icon: Wheat },
-  { id: "destaques", label: "Pontuação", icon: Star },
+  { id: "destaques", label: "Pontuação", icon: Star, soAdmin: true },
+  { id: "equipe", label: "Equipe do fundo", icon: Users, soAdmin: true },
 ];
 
 export default function AdminDashboard() {
   // a aba fica no endereço (/admin?aba=talhoes): links de avisos abrem direto nela
+  const { user: me } = useAuth();
+  // a administração vê e faz tudo; o fundo opera talhões, colheitas e
+  // financeiro e consulta fazendas e armazéns
+  const isAdmin = me?.role === "admin";
+  const abas = TABS.filter((t) => isAdmin || !t.soAdmin);
   const [params, setParams] = useSearchParams();
-  const tab = TABS.some((t) => t.id === params.get("aba")) ? params.get("aba") : "geral";
+  const tab = abas.some((t) => t.id === params.get("aba")) ? params.get("aba") : "geral";
   const setTab = (id) => setParams(id === "geral" ? {} : { aba: id }, { replace: true });
   const [overview, setOverview] = useState(null);
   const [farms, setFarms] = useState([]);
@@ -209,13 +216,17 @@ export default function AdminDashboard() {
 
   return (
     <Page title="Administração" width="medium">
-      <PageHeader title="Administração" subtitle="Visão geral da plataforma, fazendas, colheitas e transações." />
+      <PageHeader
+        title={isAdmin ? "Administração" : "Painel do fundo"}
+        subtitle={isAdmin ? "Acesso completo: fazendas, armazéns, talhões, colheitas, financeiro e equipe do fundo." : "Aprovação de talhões, pagamento das colheitas e financeiro. Fazendas e armazéns são cadastrados pela administração."}
+        actions={<Button variant="secondary" icon={Receipt} to="/admin/financeiro">Financeiro</Button>}
+      />
 
       <Tabs
         label="Seções da administração"
         value={tab}
         onChange={setTab}
-        tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: t.id === "colheitas" ? harvestRequests.length : t.id === "armazens" ? warehouses.filter((w) => w.status === "pendente").length : t.id === "talhoes" ? plotApprovals.filter((p) => p.aprovacao_status === "pendente").length : 0 }))}
+        tabs={abas.map((t) => ({ id: t.id, label: t.label, count: t.id === "colheitas" ? harvestRequests.length : t.id === "armazens" ? warehouses.filter((w) => w.status === "pendente").length : t.id === "talhoes" ? plotApprovals.filter((p) => p.aprovacao_status === "pendente").length : 0 }))}
       />
 
       <ErrorBanner message={error} />
@@ -319,6 +330,8 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {tab === "equipe" && isAdmin && <EquipeFundo />}
+
       {tab === "talhoes" && (
         <div className="stack">
           <p className="text-sm text-2">Todo talhão novo (ou novo ciclo) passa por aqui. Ele só aparece para investidores quando estiver aprovado e com a custódia aceita pelo armazém garantidor.</p>
@@ -391,7 +404,7 @@ export default function AdminDashboard() {
                 { label: "pedidos pendentes", value: w.custodias_pendentes ?? 0 },
               ]}
               status={{ aprovado: ["success", "Credenciado"], pendente: ["warning", "Aguardando credenciamento"], suspenso: ["danger", "Suspenso"] }[w.status]}
-              actions={
+              actions={!isAdmin ? null :
                 <>
                   {w.status !== "aprovado" && <Button size="sm" variant="success" onClick={() => setWarehouseStatus(w, "aprovado")}>{w.status === "suspenso" ? "Reativar" : "Credenciar"}</Button>}
                   {w.status === "aprovado" && <Button size="sm" variant="secondary" onClick={() => setWarehouseStatus(w, "suspenso")}>Suspender</Button>}
@@ -424,7 +437,7 @@ export default function AdminDashboard() {
                 { label: "comissão", value: `${f.commission_pct}%` },
               ]}
               status={{ aprovada: ["success", "Aprovada"], pendente: ["warning", "Aguardando aprovação"], suspensa: ["danger", "Suspensa"] }[f.status]}
-              actions={
+              actions={!isAdmin ? null :
                 <>
                   {f.status !== "aprovada" && <Button size="sm" variant="success" onClick={() => setStatus(f.id, "aprovada")}>{f.status === "suspensa" ? "Reativar" : "Aprovar"}</Button>}
                   {f.status === "aprovada" && <Button size="sm" variant="secondary" onClick={() => setStatus(f.id, "suspensa")}>Suspender</Button>}
@@ -614,6 +627,71 @@ function CommodityReferenceRow({ reference, onSave }) {
 }
 
 const miniInputStyle = { width: "100%", marginTop: 3, padding: "7px 8px", borderRadius: 7, border: `1px solid ${COLORS.line}`, fontSize: 12.5, background: "#fff", fontFamily: "inherit" };
+
+// ---------- equipe do fundo ----------
+function EquipeFundo() {
+  const dialog = useDialog();
+  const toast = useToast();
+  const [membros, setMembros] = useState(null);
+  const [f, setF] = useState({ name: "", email: "", password: "" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const load = useCallback(() => api.equipeFundo().then((d) => setMembros(d.membros)).catch((e) => setError(e.message)), []);
+  useEffect(() => { load(); }, [load]);
+
+  async function criar(e) {
+    e.preventDefault();
+    setSaving(true); setError("");
+    try {
+      await api.criarMembroFundo(f);
+      toast(`Acesso criado para ${f.name}`);
+      setF({ name: "", email: "", password: "" });
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function remover(m) {
+    const ok = await dialog.confirm({ title: `Remover o acesso de ${m.name}?`, message: "A pessoa deixa de entrar no painel do fundo.", confirmLabel: "Remover", destructive: true });
+    if (!ok) return;
+    try { await api.removerMembroFundo(m.id); toast("Acesso removido"); load(); } catch (err) { setError(err.message); }
+  }
+
+  return (
+    <div className="stack">
+      <p className="text-sm text-2">
+        O fundo opera a parte financeira: aprova talhões, aprova o pagamento das colheitas, acompanha o financeiro e define preço por fase e referências.
+        Ele consulta fazendas e armazéns, mas só a administração cadastra, aprova e suspende. A administração mantém acesso a tudo.
+      </p>
+      <ErrorBanner message={error} />
+      <form onSubmit={criar} className="card form-grid">
+        <p className="span-all card-title">Novo acesso para o fundo</p>
+        <TextField label="Nome" value={f.name} onChange={(v) => setF((s) => ({ ...s, name: v }))} required />
+        <TextField label="E-mail" type="email" value={f.email} onChange={(v) => setF((s) => ({ ...s, email: v }))} required autoComplete="off" />
+        <TextField label="Senha provisória" hint="A pessoa troca no primeiro acesso, em Perfil." type="text" value={f.password} onChange={(v) => setF((s) => ({ ...s, password: v }))} required minLength={8} autoComplete="new-password" />
+        <div style={{ display: "flex", alignItems: "flex-end" }}><Button type="submit" loading={saving} icon={Users}>Criar acesso</Button></div>
+      </form>
+      {!membros ? null : membros.length === 0 ? (
+        <EmptyState title="Nenhum acesso do fundo ainda">Crie o primeiro acesso acima.</EmptyState>
+      ) : (
+        <div className="list">
+          {membros.map((m) => (
+            <div key={m.id} className="list-item">
+              <span className="thumb" style={{ background: "var(--primary-soft)", color: "var(--primary-pressed)" }}><ShieldCheck size={22} aria-hidden /></span>
+              <div className="list-item-body">
+                <p className="list-item-title">{m.name}</p>
+                <p className="list-item-sub">{m.email}</p>
+              </div>
+              <Button size="sm" variant="danger-ghost" onClick={() => remover(m)}>Remover</Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------- listas de fazendas e armazéns (mesmo padrão visual) ----------
 const STATUS_FILTROS = [

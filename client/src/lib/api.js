@@ -164,6 +164,10 @@ export const api = {
   editCusto: (plotId, id, payload) => request(`/plots/${plotId}/custos/${id}`, { method: "PATCH", body: payload }),
   deleteCusto: (plotId, id) => request(`/plots/${plotId}/custos/${id}`, { method: "DELETE" }),
 
+  equipeFundo: () => request("/admin/equipe"),
+  criarMembroFundo: (payload) => request("/admin/equipe", { method: "POST", body: payload }),
+  removerMembroFundo: (id) => request(`/admin/equipe/${id}`, { method: "DELETE" }),
+
   // gestão financeira da administração
   financeTransactions: (qs) => request(`/admin/finance/transactions?${qs}`),
   financeTransaction: (id) => request(`/admin/finance/transactions/${id}`),

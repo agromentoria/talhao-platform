@@ -77,7 +77,7 @@ router.post("/farm-broadcast", requireAuth, requireRole("fazenda", "admin"), asy
 }));
 
 // admin manda aviso para fazendas, investidores, ou todos
-router.post("/admin-broadcast", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
+router.post("/admin-broadcast", requireAuth, requireRole("admin", "fundo"), asyncHandler(async (req, res) => {
   const { target, title, body } = req.body || {};
 
   if (!["fazendas", "investidores", "todos"].includes(target)) {

@@ -8,6 +8,8 @@ export default function Terms() {
       <p>O Meu Talhão conecta fazendas aprovadas pela administração a investidores que compram participação na produção de talhões específicos. A fazenda é responsável pela condução da lavoura e pelas informações publicadas.</p>
       <h2>Armazém garantidor</h2>
       <p>Talhões com o selo “Garantido por” têm um armazém credenciado que verifica, de forma independente da fazenda, o plantio, a colheita e a quantidade armazenada. O pagamento aos investidores só é liberado depois da armazenagem confirmada. O armazém responde pela veracidade das validações que registra; a garantia não cobre variação de preço de mercado.</p>
+      <h2>Quem opera</h2>
+      <p>A administração do Meu Talhão cadastra e aprova fazendas e armazéns e acompanha toda a plataforma. A operação financeira — aprovação de talhões, pagamentos das colheitas e controle das transações — é conduzida pelo fundo ou pela instituição parceira indicada na plataforma.</p>
       <h2>Riscos</h2>
       <p>Investimentos no agro estão sujeitos a clima, pragas, produtividade e preço de mercado. Os retornos exibidos são estimativas e não garantem resultado. Invista apenas valores compatíveis com seu perfil.</p>
       <h2>Comissões</h2>

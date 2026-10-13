@@ -1,4 +1,4 @@
-import { BarChart3, LayoutGrid, Wallet, Tractor, ShieldCheck, MessageCircle, Bell, UserRound, Coins, Warehouse } from "lucide-react";
+import { Landmark, BarChart3, LayoutGrid, Wallet, Tractor, ShieldCheck, MessageCircle, Bell, UserRound, Coins, Warehouse } from "lucide-react";
 
 // Fonte única da navegação. Antes os menus de cima e de baixo tinham listas
 // próprias (e divergiam). Cada item diz em quais superfícies aparece:
@@ -7,11 +7,12 @@ import { BarChart3, LayoutGrid, Wallet, Tractor, ShieldCheck, MessageCircle, Bel
 // "match" define quais rotas deixam o item ativo.
 const ITEMS = {
   talhoes:   { to: "/", label: "Talhões", icon: LayoutGrid, match: (p) => p === "/" || p.startsWith("/talhao/") },
-  carteira:  { to: "/carteira", label: "Meus investimentos", short: "Investimentos", icon: Wallet, match: (p) => p === "/carteira" },
+  carteira:  { to: "/carteira", label: "Minhas sacas", short: "Minhas sacas", icon: Wallet, match: (p) => p === "/carteira" },
   fazenda:   { to: "/fazenda", label: "Minha fazenda", short: "Fazenda", icon: Tractor, match: (p) => p === "/fazenda" },
   carteiraFazenda: { to: "/fazenda/carteira", label: "Carteira", icon: Coins, match: (p) => p === "/fazenda/carteira" },
   armazem:   { to: "/armazem", label: "Meu armazém", short: "Armazém", icon: Warehouse, match: (p) => p === "/armazem" },
   admin:     { to: "/admin", label: "Administração", short: "Admin", icon: ShieldCheck, match: (p) => p === "/admin" },
+  painelFundo: { to: "/admin", label: "Painel do fundo", short: "Fundo", icon: Landmark, match: (p) => p === "/admin" },
   financeiro: { to: "/admin/financeiro", label: "Financeiro", icon: BarChart3, match: (p) => p === "/admin/financeiro" },
   conversas: { to: "/conversas", label: "Conversas", icon: MessageCircle, badge: "messages", match: (p) => p.startsWith("/conversas") },
   avisos:    { to: "/avisos", label: "Avisos", icon: Bell, badge: "notifications", match: (p) => p === "/avisos" },
@@ -23,6 +24,7 @@ const BY_ROLE = {
   investidor: { tab: ["talhoes", "carteira", "conversas", "perfil"], side: ["talhoes", "carteira", "conversas", "avisos", "perfil"] },
   fazenda:    { tab: ["talhoes", "fazenda", "carteiraFazenda", "conversas", "perfil"], side: ["talhoes", "fazenda", "carteiraFazenda", "conversas", "avisos", "perfil"] },
   admin:      { tab: ["talhoes", "admin", "financeiro", "conversas", "perfil"], side: ["talhoes", "admin", "financeiro", "conversas", "avisos", "perfil"] },
+  fundo:      { tab: ["talhoes", "painelFundo", "financeiro", "conversas", "perfil"], side: ["talhoes", "painelFundo", "financeiro", "conversas", "avisos", "perfil"] },
   armazem:    { tab: ["armazem", "talhoes", "conversas", "perfil"], side: ["armazem", "talhoes", "conversas", "avisos", "perfil"] },
 };
 
@@ -36,5 +38,5 @@ export function getNavigation(user) {
 
 // rota inicial de cada perfil depois do login
 export function homeFor(user) {
-  return { admin: "/admin", fazenda: "/fazenda", investidor: "/carteira", armazem: "/armazem" }[user?.role] || "/";
+  return { admin: "/admin", fundo: "/admin", fazenda: "/fazenda", investidor: "/carteira", armazem: "/armazem" }[user?.role] || "/";
 }

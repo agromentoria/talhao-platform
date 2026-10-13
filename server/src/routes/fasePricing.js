@@ -10,7 +10,7 @@ router.get("/", asyncHandler(async (req, res) => {
   res.json({ multiplicadores: map });
 }));
 
-router.put("/:fase", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
+router.put("/:fase", requireAuth, requireRole("admin", "fundo"), asyncHandler(async (req, res) => {
   const fase = Number(req.params.fase);
   const multiplicador = Number(req.body?.multiplicador);
 

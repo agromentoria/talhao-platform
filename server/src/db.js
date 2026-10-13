@@ -401,9 +401,9 @@ CREATE TABLE IF NOT EXISTS warehouses (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS warehouse_id INTEGER REFERENCES warehouses(id);
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','fazenda','investidor','armazem'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','fazenda','investidor','armazem','fundo'));
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_sender_role_check;
-ALTER TABLE notifications ADD CONSTRAINT notifications_sender_role_check CHECK (sender_role IN ('sistema','fazenda','admin','armazem'));
+ALTER TABLE notifications ADD CONSTRAINT notifications_sender_role_check CHECK (sender_role IN ('sistema','fazenda','admin','armazem','fundo'));
 
 -- custódia: a fazenda indica o armazém ao publicar o talhão; o armazém
 -- aceita (passa a validar e garantir) ou recusa (com motivo)

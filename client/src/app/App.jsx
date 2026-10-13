@@ -77,8 +77,8 @@ export default function App() {
             <Route path="/fazenda" element={<RequireAuth role="fazenda"><FarmDashboard /></RequireAuth>} />
             <Route path="/fazenda/carteira" element={<RequireAuth role="fazenda"><FarmWallet /></RequireAuth>} />
             <Route path="/armazem" element={<RequireAuth role="armazem"><WarehouseDashboard /></RequireAuth>} />
-            <Route path="/admin/financeiro" element={<RequireAuth role="admin"><AdminFinance /></RequireAuth>} />
-            <Route path="/admin" element={<RequireAuth role="admin"><AdminDashboard /></RequireAuth>} />
+            <Route path="/admin/financeiro" element={<RequireAuth role={["admin", "fundo"]}><AdminFinance /></RequireAuth>} />
+            <Route path="/admin" element={<RequireAuth role={["admin", "fundo"]}><AdminDashboard /></RequireAuth>} />
             <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
             <Route path="/avisos" element={<RequireAuth><Notifications /></RequireAuth>} />
             <Route path="/conversas" element={<RequireAuth><Conversations /></RequireAuth>} />

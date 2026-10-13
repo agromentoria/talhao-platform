@@ -4,7 +4,7 @@ import { culturaIcone } from "../config/culturas";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
 import { FilterChips, ErrorBanner, EmptyState, Button } from "../components/ui";
-import { PlotCard } from "../components/domain";
+import { PlotCard, BoasVindas } from "../components/domain";
 
 export default function Marketplace() {
   const [plots, setPlots] = useState([]);
@@ -35,8 +35,9 @@ export default function Marketplace() {
 
   return (
     <Page title="Talhões">
+      <BoasVindas />
       <PageHeader
-        title="Invista direto no talhão"
+        title="Compre sacas direto da fazenda"
         subtitle={<>Escolha uma produção de fazenda verificada e garantida por armazém credenciado, compre sua parte na fase que preferir e acompanhe até o fim do ciclo. <Link to="/como-funciona" style={{ fontWeight: 700 }}>Como funcionam os ganhos</Link></>}
       />
 

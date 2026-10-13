@@ -253,7 +253,7 @@ router.post("/plots/:plotId/validations", requireAuth, requireRole("armazem"), a
     body += ` Atenção: abaixo das ${fmtNumber(vendidas)} ${unidade(plot.unidade, vendidas)} vendidas aos investidores.`;
   }
   const investors = await getPlotInvestorIds(pool, plot.id);
-  const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin' AND deleted_at IS NULL");
+  const { rows: admins } = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'fundo') AND deleted_at IS NULL");
   await safeNotify([plot.owner_user_id, ...investors, ...(ok ? [] : admins.map((a) => a.id))], {
     senderRole: "armazem", farmId: plot.farm_id, plotId: plot.id, type: "validacao_armazem", title, body,
   });
@@ -262,7 +262,7 @@ router.post("/plots/:plotId/validations", requireAuth, requireRole("armazem"), a
 }));
 
 // ---------- administração ----------
-router.get("/", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
+router.get("/", requireAuth, requireRole("admin", "fundo"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
     `SELECT w.*, u.name AS responsavel, u.email AS responsavel_email, ${WAREHOUSE_STARS_SQL} AS estrelas,
             (SELECT COUNT(*)::int FROM plots p WHERE p.warehouse_id = w.id AND p.custodia_status = 'aceita'

@@ -68,7 +68,7 @@ export default function Notifications() {
   async function handleOpen(n) {
     if (!n.read_at) await markRead(n.id);
     // aviso de talhão para aprovar leva a administração direto para a aba de aprovação
-    if (n.type === "talhao_para_aprovar" && user?.role === "admin") navigate("/admin?aba=talhoes");
+    if (n.type === "talhao_para_aprovar" && ["admin", "fundo"].includes(user?.role)) navigate("/admin?aba=talhoes");
     else if (n.plot_id) navigate(`/talhao/${n.plot_id}`);
   }
 
@@ -85,7 +85,7 @@ export default function Notifications() {
   const unread = notifications.filter((n) => !n.read_at).length;
   const active = CATEGORY_FILTERS.find((f) => f.id === filter) || CATEGORY_FILTERS[0];
   const filtered = notifications.filter(active.match);
-  const canBroadcast = user?.role === "fazenda" || user?.role === "admin";
+  const canBroadcast = ["fazenda", "admin", "fundo"].includes(user?.role);
 
   return (
     <Page title="Avisos" width="narrow">
@@ -133,7 +133,7 @@ export default function Notifications() {
                     <span className="list-item-sub" style={{ display: "block", lineHeight: 1.45 }}>{n.body}</span>
                     <span className="text-xs text-3" style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
                       <time dateTime={n.created_at}>{timeAgo(n.created_at)}</time>
-                      {n.plot_id && <span style={{ color: "var(--link)", fontWeight: 700, display: "inline-flex", alignItems: "center" }}>{n.type === "talhao_para_aprovar" && user?.role === "admin" ? "Revisar e aprovar" : "Ver talhão"} <ChevronRight size={14} aria-hidden /></span>}
+                      {n.plot_id && <span style={{ color: "var(--link)", fontWeight: 700, display: "inline-flex", alignItems: "center" }}>{n.type === "talhao_para_aprovar" && ["admin", "fundo"].includes(user?.role) ? "Revisar e aprovar" : "Ver talhão"} <ChevronRight size={14} aria-hidden /></span>}
                     </span>
                   </span>
                 </button>
@@ -162,7 +162,7 @@ function BroadcastDialog({ open, onClose, onSent }) {
     setError("");
     setSending(true);
     try {
-      const data = user.role === "admin"
+      const data = user.role === "admin" || user.role === "fundo"
         ? await api.adminBroadcast({ target, title, body })
         : await api.farmBroadcast({ farm_id: user.farm_id, title, body });
       toast(`Aviso enviado para ${data.enviados} pessoa(s)`);
@@ -177,10 +177,10 @@ function BroadcastDialog({ open, onClose, onSent }) {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={user.role === "admin" ? "Aviso da administração" : "Aviso aos seus investidores"}>
+    <Dialog open={open} onClose={onClose} title={user.role === "admin" ? "Aviso da administração" : user.role === "fundo" ? "Aviso do fundo" : "Aviso aos seus investidores"}>
       <form onSubmit={handleSend} className="stack">
         <ErrorBanner message={error} />
-        {user.role === "admin" && (
+        {(user.role === "admin" || user.role === "fundo") && (
           <SelectField label="Enviar para" value={target} onChange={setTarget}
             options={[{ value: "investidores", label: "Investidores" }, { value: "fazendas", label: "Fazendas" }, { value: "todos", label: "Todos" }]} />
         )}

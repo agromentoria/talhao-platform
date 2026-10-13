@@ -9,7 +9,10 @@ const { WAREHOUSE_STARS_SQL } = require("../custody");
 
 const router = express.Router();
 
-router.use(requireAuth, requireRole("admin"));
+// administração e fundo usam este painel; ações exclusivas da administração
+// usam onlyAdmin abaixo
+router.use(requireAuth, requireRole("admin", "fundo"));
+const onlyAdmin = (req, res, next) => (req.user.role === "admin" ? next() : res.status(403).json({ error: "Somente a administração pode fazer isso." }));
 
 router.get("/settings", asyncHandler(async (req, res) => {
   const app_commission_pct = await getAppCommissionPct();
@@ -161,6 +164,40 @@ router.post("/plot-approvals/:id/reject", asyncHandler(async (req, res) => {
     title: `${plot.nome} precisa de ajustes`,
     body: `A administração não aprovou o talhão: ${motivo}. Exclua e cadastre de novo com os dados corrigidos, ou responda pelas Conversas.`,
   });
+  res.json({ ok: true });
+}));
+
+// ---------- equipe do fundo (contas criadas pela administração) ----------
+router.get("/equipe", onlyAdmin, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT id, name, email, phone, created_at FROM users WHERE role = 'fundo' AND deleted_at IS NULL ORDER BY name"
+  );
+  res.json({ membros: rows });
+}));
+
+router.post("/equipe", onlyAdmin, asyncHandler(async (req, res) => {
+  const bcrypt = require("bcryptjs");
+  const name = String(req.body?.name || "").trim();
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const password = String(req.body?.password || "");
+  if (name.length < 3 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Informe nome e e-mail válidos." });
+  if (password.length < 8) return res.status(400).json({ error: "A senha provisória precisa ter ao menos 8 caracteres." });
+  const { rows: ex } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+  if (ex.length) return res.status(409).json({ error: "Este e-mail já está cadastrado." });
+  const { rows } = await pool.query(
+    "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'fundo') RETURNING id, name, email, created_at",
+    [name, email, await bcrypt.hash(password, 10)]
+  );
+  res.status(201).json({ membro: rows[0] });
+}));
+
+router.delete("/equipe/:id", onlyAdmin, asyncHandler(async (req, res) => {
+  const { rowCount } = await pool.query(
+    `UPDATE users SET deleted_at = now(), email = 'removido-' || id || '-' || extract(epoch from now())::bigint || '@removido.invalid'
+     WHERE id = $1 AND role = 'fundo' AND deleted_at IS NULL`,
+    [req.params.id]
+  );
+  if (!rowCount) return res.status(404).json({ error: "Membro não encontrado." });
   res.json({ ok: true });
 }));
 

@@ -1,5 +1,27 @@
 # Registro de mudanças
 
+## 2.0.0 — operação pelo fundo e experiência lúdica para o investidor
+
+### Perfil "Fundo"
+- Novo tipo de acesso **Fundo**, criado pela administração em **Administração › Equipe do fundo** (nome, e-mail e senha provisória; remoção a qualquer momento).
+- O fundo opera: **aprovar talhões**, **aprovar e pagar colheitas**, **Financeiro** completo (transações, relatórios, exportação), **preço por fase** e **referências de mercado**, avisos e conversas com todos.
+- O fundo **consulta** fazendas e armazéns, mas não aprova nem suspende; não vê "Zerar dados", Pontuação nem Equipe.
+- A **administração mantém acesso a tudo**, inclusive às telas do fundo. Avisos de talhão para aprovar, colheitas e divergências do armazém chegam para administração e fundo.
+
+### Investidor: comprar saca ficou simples e divertido
+- Linguagem do dia a dia: **"Minhas sacas"**, **"Comprar sacas"**, "Na roça", "Colhidas e pagas".
+- **Sacas desenhadas na tela**: uma a uma até 10, montes com o número acima disso — na compra e em Minhas sacas.
+- **Compra rápida** com botões +1, +5 e +10 e o valor de 1 saca à vista; botão "Comprar 6 sacas · R$ 727,20".
+- **Minhas sacas**: total na roça, quanto valem hoje e a variação desde a compra, já recebido nas colheitas; compras do mesmo talhão agrupadas.
+- **Conquistas**: Primeira saca, 10 sacas, 100 sacas, Viu plantar, Primeira colheita, 3 culturas, Amigo do campo.
+- **Diário da roça** na página do talhão: avanços da fazenda com recados e confirmações do armazém, em linguagem simples.
+- **Certificado de participação** em imagem (1080×1350) para guardar ou mandar no WhatsApp.
+- **Boas-vindas em 3 telas** para quem está chegando (aparece uma vez).
+
+### Correções
+- Números grandes nos cartões e valores nas listas não quebram mais no meio.
+- Textos invisíveis das conquistas causavam rolagem lateral no celular.
+
 ## 1.9.2 — performance pelo preço de venda
 
 - **Regra da performance mudou:** o excedente passa a ser medido pelo **preço de venda acima da meta × quantidade**. Antes ele era medido sobre o lucro já descontada a armazenagem, e uma venda acima da meta podia não gerar performance (ex.: meta R$ 144, venda R$ 145, 60.000 sacas, armazenagem dividida → performance R$ 0). Agora o mesmo caso gera excedente de R$ 60.000 e R$ 24.000 para a fazenda (40%).

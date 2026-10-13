@@ -11,7 +11,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
-import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao } from "../components/domain";
+import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, PilhaDeSacas } from "../components/domain";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -30,6 +30,7 @@ export default function PlotDetail() {
   const [regras, setRegras] = useState(null);
   const [pendencias, setPendencias] = useState([]);
   const [historico, setHistorico] = useState([]);
+  const [historicoBruto, setHistoricoBruto] = useState([]);
   const [appCommission, setAppCommission] = useState(5);
   const [loadError, setLoadError] = useState("");
   const [cotas, setCotas] = useState(1);
@@ -48,6 +49,7 @@ export default function PlotDetail() {
       setArmazem(data.armazem || null);
       setArmazenagem(data.armazenagem || null);
       setValidacoes(data.validacoes || []);
+      setHistoricoBruto(data.historico);
       setHistorico(data.historico.map((h) => ({ fase: fasesDe(data.plot)[h.fase_atual], v: h.progresso })));
       setPublico(data.publico !== false);
       setPendencias(data.pendencias || []);
@@ -57,6 +59,12 @@ export default function PlotDetail() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.regras().then(setRegras).catch(() => {}); }, []);
+  // links como /talhao/12#diario rolam até a seção
+  useEffect(() => {
+    if (!plot || !window.location.hash) return;
+    const el = document.getElementById(window.location.hash.slice(1));
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
+  }, [plot]);
 
   useEffect(() => {
     if (user?.role !== "investidor") return;
@@ -116,7 +124,7 @@ export default function PlotDetail() {
 
     const card = cards.find((c) => c.id === selectedCardId);
     const ok = await dialog.confirm({
-      title: "Confirmar investimento",
+      title: "Confirmar compra das sacas",
       message: `${qtd} ${unitPlural(plot.unidade, qtd)} de ${plot.grao} em ${plot.nome} por ${fmtBRL(custoTotal)}, pagos ${paymentType === "pix" ? "via Pix" : `no cartão ${card?.brand} final ${card?.last4}`}. Os valores de retorno são estimativas.${Number(plot.perf_excedente_pct) > 0 ? ` Acima da meta de ${fmtPct(plot.previsao_retorno)}, a fazenda fica com ${plot.perf_excedente_pct}% do lucro excedente.` : ""}`,
       confirmLabel: `Pagar ${fmtBRL(custoTotal)}`,
     });
@@ -249,6 +257,8 @@ export default function PlotDetail() {
 
           <DemonstrativoCard plotId={plot.id} />
 
+          <DiarioDaRoca plot={plot} historico={historicoBruto} validacoes={validacoes} fotos={fotos} />
+
           <FarmProfileCard farmId={plot.farm_id} estrelas={plot.farm_estrelas} />
           <FarmTrackRecord farmId={plot.farm_id} farmName={plot.farm_name} />
         </div>
@@ -262,7 +272,7 @@ export default function PlotDetail() {
                   Este talhão ainda não está aberto para investimento. Falta: {pendencias.join(" e ") || "liberação da administração"}.
                 </p>
                 <p className="text-xs text-3">Talhões novos só vão ao ar depois de aprovados pela administração e com um armazém garantidor.</p>
-                {user?.role === "admin" && plot.aprovacao_status !== "aprovado" && (
+                {["admin", "fundo"].includes(user?.role) && plot.aprovacao_status !== "aprovado" && (
                   <Button block style={{ marginTop: 14 }} to="/admin?aba=talhoes">Revisar e aprovar</Button>
                 )}
               </>
@@ -278,7 +288,7 @@ export default function PlotDetail() {
               </>
             ) : (
               <>
-                <h2 id="investir-t" className="card-title">Investir neste talhão</h2>
+                <h2 id="investir-t" className="card-title">Comprar sacas deste talhão</h2>
                 <p className="card-desc" style={{ marginBottom: 16 }}>
                   {fmtNumber(plot.cotas_disponiveis)} de {fmtNumber(plot.cotas_totais)} {unitPlural(plot.unidade, plot.cotas_totais)} disponíveis nesta fase
                 </p>
@@ -303,6 +313,14 @@ export default function PlotDetail() {
                   />
                   <IconButton label="Aumentar" icon={Plus} variant="surface" onClick={() => setCotas(Math.min(maxCotas, qtd + 1))} disabled={qtd >= maxCotas || esgotado} />
                 </div>
+
+                <div className="compra-rapida" role="group" aria-label="Compra rápida" style={{ marginBottom: 12 }}>
+                  {[1, 5, 10].map((n) => (
+                    <Button key={n} size="sm" variant="secondary" disabled={esgotado || qtd + n > maxCotas} onClick={() => setCotas(Math.min(maxCotas, (Number(cotas) || 0) + n))}>+{n}</Button>
+                  ))}
+                </div>
+                <p className="text-sm text-2" style={{ marginBottom: 10 }}>1 {unidade} = <strong style={{ color: "var(--text)" }}>{fmtBRL(plot.cota_valor)}</strong></p>
+                <div style={{ marginBottom: 14, minHeight: 30 }}><PilhaDeSacas quantidade={qtd} unidade={plot.unidade} size={24} /></div>
 
                 <dl className="kv" style={{ margin: "0 0 16px" }}>
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
@@ -338,7 +356,7 @@ export default function PlotDetail() {
                   <Banner tone="info">Somente contas de investidor podem comprar talhões.</Banner>
                 ) : (
                   <Button size="lg" block onClick={handleBuy} loading={buying} disabled={esgotado}>
-                    {esgotado ? "Esgotado nesta fase" : !user ? "Entrar para investir" : `Investir ${fmtBRL(custoTotal)}`}
+                    {esgotado ? "Esgotado nesta fase" : !user ? "Entrar para comprar" : `Comprar ${fmtNumber(qtd)} ${unitPlural(plot.unidade, qtd)} · ${fmtBRL(custoTotal)}`}
                   </Button>
                 )}
                 <p className="text-xs text-3" style={{ marginTop: 10, lineHeight: 1.5 }}>
@@ -433,11 +451,45 @@ function MobileInvestBar({ price, unidade }) {
         <p className="label-xs">{unidade} por</p>
         <p style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--fs-lg)", lineHeight: 1.1 }}>{price}</p>
       </div>
-      <Button onClick={() => document.getElementById("investir")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Investir</Button>
+      <Button onClick={() => document.getElementById("investir")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Comprar</Button>
     </div>
   );
 }
 
+
+// Diário da roça: tudo o que aconteceu no talhão, em linguagem simples e em
+// ordem de data — avanços da fazenda (com recado) e confirmações do armazém
+function DiarioDaRoca({ plot, historico = [], validacoes = [] }) {
+  const fases = fasesDe(plot);
+  const ICONE = ["🧑‍🌾", "🌱", "🌿", "🐛", "🌾", "🚜"];
+  const itens = [
+    ...historico.map((h) => ({ data: h.created_at, icone: ICONE[h.fase_atual] || "🌱",
+      titulo: `${fases[h.fase_atual]} · ${h.progresso}%`, texto: h.nota || "A fazenda atualizou o andamento.", quem: plot.farm_name })),
+    ...validacoes.map((v) => ({ data: v.created_at, icone: v.resultado === "confirmado" ? "✅" : "⚠️",
+      titulo: `Armazém ${v.resultado === "confirmado" ? "confirmou" : "apontou divergência"}: ${v.etapa}`,
+      texto: [v.quantidade ? `${fmtNumber(v.quantidade)} ${unitPlural(plot.unidade, v.quantidade)}` : "", v.observacao].filter(Boolean).join(" · ") || "Validação registrada.",
+      quem: v.validado_por || "Armazém garantidor" })),
+  ].sort((a, b) => new Date(b.data) - new Date(a.data));
+  if (itens.length === 0) return null;
+  return (
+    <section className="card" id="diario" aria-labelledby="diario-t" style={{ scrollMarginTop: 80 }}>
+      <h2 id="diario-t" className="card-title" style={{ marginBottom: 4 }}>Diário da roça</h2>
+      <p className="card-desc" style={{ marginBottom: 14 }}>O que aconteceu na lavoura, contado pela fazenda e confirmado pelo armazém.</p>
+      <ul className="diario">
+        {itens.slice(0, 12).map((it, i) => (
+          <li key={i}>
+            <span className="diario-icone" aria-hidden>{it.icone}</span>
+            <div className="diario-texto">
+              <p style={{ fontWeight: 700 }}>{it.titulo}</p>
+              <p className="text-sm text-2" style={{ whiteSpace: "pre-wrap" }}>{it.texto}</p>
+              <p className="text-xs text-3">{new Date(it.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })} · {it.quem}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 // resumo do demonstrativo financeiro (custos lançados pela fazenda)
 function DemonstrativoCard({ plotId }) {

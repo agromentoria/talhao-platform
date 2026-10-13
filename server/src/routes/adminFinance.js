@@ -7,7 +7,7 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 
 const router = express.Router();
-router.use(requireAuth, requireRole("admin"));
+router.use(requireAuth, requireRole("admin", "fundo"));
 
 const TIPOS = {
   compra_cota: { label: "Compra de cotas", sentido: "entrada" },
@@ -288,7 +288,7 @@ const ESCOPOS = {
   tudo: "Tudo, exceto as contas de administração e as configurações (catálogos, comissão, preço por fase, referências).",
 };
 
-router.get("/reset/info", asyncHandler(async (req, res) => {
+router.get("/reset/info", (req, res, next) => (req.user.role === "admin" ? next() : res.status(403).json({ error: "Somente a administração pode zerar dados." })), asyncHandler(async (req, res) => {
   const count = async (t) => (await pool.query(`SELECT COUNT(*)::int AS n FROM ${t}`)).rows[0].n;
   res.json({
     habilitado: process.env.DISABLE_DATA_RESET !== "true",
@@ -304,7 +304,7 @@ router.get("/reset/info", asyncHandler(async (req, res) => {
   });
 }));
 
-router.post("/reset", asyncHandler(async (req, res) => {
+router.post("/reset", (req, res, next) => (req.user.role === "admin" ? next() : res.status(403).json({ error: "Somente a administração pode zerar dados." })), asyncHandler(async (req, res) => {
   if (process.env.DISABLE_DATA_RESET === "true") {
     return res.status(403).json({ error: "O zerar dados está desligado neste servidor (DISABLE_DATA_RESET=true)." });
   }

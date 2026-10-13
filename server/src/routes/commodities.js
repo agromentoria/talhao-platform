@@ -12,7 +12,7 @@ router.get("/", asyncHandler(async (req, res) => {
   res.json({ references: rows });
 }));
 
-router.put("/:grao", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
+router.put("/:grao", requireAuth, requireRole("admin", "fundo"), asyncHandler(async (req, res) => {
   const { unidade, preco_unidade, produtividade_ha } = req.body || {};
 
   if (!["saca", "fardo", "arroba"].includes(unidade)) {

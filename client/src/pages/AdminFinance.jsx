@@ -34,6 +34,8 @@ const PERIODOS = [
 
 export default function AdminFinance() {
   const toast = useToast();
+  const { user: me } = useAuth();
+  const isAdmin = me?.role === "admin";
   const [params, setParams] = useSearchParams();
   const view = params.get("ver") === "relatorios" ? "relatorios" : "transacoes";
   const filtros = useMemo(() => Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) || ""])), [params]);
@@ -131,14 +133,14 @@ export default function AdminFinance() {
       </div>
       <PageHeader
         back="/admin"
-        backLabel="Administração"
+        backLabel={isAdmin ? "Administração" : "Painel do fundo"}
         title="Financeiro"
         subtitle="Todas as movimentações da plataforma, com filtros, relatórios e exportação."
         actions={
           <>
             <Button variant="secondary" icon={Download} onClick={exportar} loading={exporting}>Exportar CSV</Button>
             <Button variant="secondary" icon={Printer} onClick={() => window.print()}>Imprimir</Button>
-            <Button variant="danger-ghost" icon={Trash2} onClick={() => setResetOpen(true)}>Zerar dados</Button>
+            {isAdmin && <Button variant="danger-ghost" icon={Trash2} onClick={() => setResetOpen(true)}>Zerar dados</Button>}
           </>
         }
       />

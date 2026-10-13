@@ -6,8 +6,13 @@ próprio ao lado do site institucional.
 
 ## O que já está pronto
 
-- **Cadastro e login** com 4 tipos de conta: **administrador** (mediador da
-  plataforma), **fazenda**, **investidor** e **armazém** (garantidor).
+- **Cadastro e login** com 5 tipos de conta: **administrador** (acesso a tudo;
+  cadastra fazendas e armazéns), **fundo** (opera aprovação de talhões,
+  pagamentos e financeiro; acesso criado pela administração), **fazenda**,
+  **investidor** e **armazém** (garantidor).
+- **Experiência do investidor comum**: "Minhas sacas" com sacas desenhadas,
+  compra rápida (+1, +5, +10), conquistas, Diário da roça, certificado de
+  participação e boas-vindas em 3 telas.
 - **Culturas e ciclo**: a fazenda escolhe cultura e variedade (grãos, café,
   algodão, pecuária, aves, ou digita outra), unidade de venda, prazo do
   plantio e data prevista da colheita. Catálogo em `server/src/culturas.js`.

@@ -124,7 +124,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
         });
       }
 
-      const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin' AND deleted_at IS NULL");
+      const { rows: admins } = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'fundo') AND deleted_at IS NULL");
       await notifyUsers(pool, admins.map((a) => a.id), {
         senderRole: "sistema",
         farmId: plot.farm_id,
@@ -149,7 +149,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
 
 router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT i.*, p.nome as plot_nome, p.grao, p.variedade, p.tipo_producao, p.colheita_prevista, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado,
+    `SELECT i.*, p.nome as plot_nome, p.grao, p.variedade, p.tipo_producao, p.colheita_prevista, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado, p.cota_valor, p.retorno_final, p.previsao_retorno,
             f.name as farm_name,
             po.valor_bruto, po.comissao_fazenda, po.comissao_app, po.valor_liquido
      FROM investments i

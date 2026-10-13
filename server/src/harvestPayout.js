@@ -158,7 +158,7 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
       });
     }
 
-    const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+    const { rows: admins } = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'fundo') AND deleted_at IS NULL");
     await notifyUsers(pool, admins.map((a) => a.id), {
       senderRole: "sistema",
       farmId: plot.farm_id,

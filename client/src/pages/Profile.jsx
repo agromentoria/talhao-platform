@@ -177,6 +177,8 @@ function MoreTab({ onLogout }) {
     user.role === "fazenda" && { to: "/fazenda/carteira", icon: Coins, label: "Carteira (vendas e recebimentos)" },
     user.role === "investidor" && { to: "/pagamentos", icon: CreditCard, label: "Formas de pagamento" },
     user.role === "armazem" && { to: "/armazem", icon: Warehouse, label: "Painel do armazém" },
+    user.role === "fundo" && { to: "/admin", icon: Warehouse, label: "Painel do fundo" },
+    user.role === "fundo" && { to: "/admin/financeiro", icon: CreditCard, label: "Financeiro" },
     { to: "/conversas", icon: MessageCircle, label: "Conversas" },
     { to: "/avisos", icon: Bell, label: "Avisos" },
     { to: "/como-funciona", icon: HelpCircle, label: "Como funciona: ganhos, percentuais e comissões" },

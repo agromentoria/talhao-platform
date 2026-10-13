@@ -13,7 +13,7 @@ export function ContactAvatar({ role, avatar, size = 44 }) {
     <span className="avatar" style={{ width: size, height: size, background: "#fff", color: "var(--success-text)", boxShadow: "var(--shadow-1)" }}>
       {role === "fazenda" ? <img src={ICONS.fazendas} alt="" style={{ width: "70%", height: "70%", objectFit: "contain" }} />
         : role === "armazem" ? <Warehouse size={Math.round(size * 0.5)} aria-hidden />
-        : role === "admin" ? <ShieldCheck size={Math.round(size * 0.5)} aria-hidden />
+        : role === "admin" || role === "fundo" ? <ShieldCheck size={Math.round(size * 0.5)} aria-hidden />
         : avatar ? <img src={avatar} alt="" /> : <UserRound size={Math.round(size * 0.45)} aria-hidden />}
     </span>
   );
@@ -52,6 +52,7 @@ export default function Conversations() {
     investidor: "Fale direto com as fazendas onde você investiu.",
     admin: "Fale com fazendas, investidores e armazéns da plataforma.",
     armazem: "Fale com as fazendas que indicaram seu armazém e com a administração.",
+    fundo: "Fale com fazendas, investidores, armazéns e a administração.",
   }[user?.role];
 
   const emptyText = {
@@ -116,6 +117,7 @@ function ContactPicker({ contacts, onSelect }) {
     { label: "Investidores", items: contacts.filter((c) => c.role === "investidor") },
     { label: "Armazéns", items: contacts.filter((c) => c.role === "armazem") },
     { label: "Administração", items: contacts.filter((c) => c.role === "admin") },
+    { label: "Fundo", items: contacts.filter((c) => c.role === "fundo") },
   ].filter((g) => g.items.length);
 
   if (!groups.length) return <p>Nenhum contato disponível no momento.</p>;

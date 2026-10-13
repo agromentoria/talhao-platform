@@ -11,7 +11,7 @@ const { harvestBlockReason } = require("../custody");
 
 const router = express.Router();
 
-router.use(requireAuth, requireRole("admin"));
+router.use(requireAuth, requireRole("admin", "fundo"));
 
 router.get("/", asyncHandler(async (req, res) => {
   const { status } = req.query;

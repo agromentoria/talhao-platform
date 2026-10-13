@@ -1,4 +1,4 @@
-import { Landmark, BarChart3, LayoutGrid, Wallet, Tractor, ShieldCheck, MessageCircle, Bell, UserRound, Coins, Warehouse } from "lucide-react";
+import { Users, Landmark, BarChart3, LayoutGrid, Wallet, Tractor, ShieldCheck, MessageCircle, Bell, UserRound, Coins, Warehouse } from "lucide-react";
 
 // Fonte única da navegação. Antes os menus de cima e de baixo tinham listas
 // próprias (e divergiam). Cada item diz em quais superfícies aparece:
@@ -13,6 +13,7 @@ const ITEMS = {
   armazem:   { to: "/armazem", label: "Meu armazém", short: "Armazém", icon: Warehouse, match: (p) => p === "/armazem" },
   admin:     { to: "/admin", label: "Administração", short: "Admin", icon: ShieldCheck, match: (p) => p === "/admin" },
   painelFundo: { to: "/admin", label: "Painel do fundo", short: "Fundo", icon: Landmark, match: (p) => p === "/admin" },
+  usuarios: { to: "/admin/usuarios", label: "Usuários", short: "Usuários", icon: Users, match: (p) => p === "/admin/usuarios" },
   financeiro: { to: "/admin/financeiro", label: "Financeiro", icon: BarChart3, match: (p) => p === "/admin/financeiro" },
   conversas: { to: "/conversas", label: "Conversas", icon: MessageCircle, badge: "messages", match: (p) => p.startsWith("/conversas") },
   avisos:    { to: "/avisos", label: "Avisos", icon: Bell, badge: "notifications", match: (p) => p === "/avisos" },
@@ -23,7 +24,7 @@ const BY_ROLE = {
   visitante:  { tab: ["talhoes"], side: ["talhoes"] },
   investidor: { tab: ["talhoes", "carteira", "conversas", "perfil"], side: ["talhoes", "carteira", "conversas", "avisos", "perfil"] },
   fazenda:    { tab: ["talhoes", "fazenda", "carteiraFazenda", "conversas", "perfil"], side: ["talhoes", "fazenda", "carteiraFazenda", "conversas", "avisos", "perfil"] },
-  admin:      { tab: ["talhoes", "admin", "financeiro", "conversas", "perfil"], side: ["talhoes", "admin", "financeiro", "conversas", "avisos", "perfil"] },
+  admin:      { tab: ["admin", "usuarios", "financeiro", "conversas", "perfil"], side: ["talhoes", "admin", "usuarios", "financeiro", "conversas", "avisos", "perfil"] },
   fundo:      { tab: ["talhoes", "painelFundo", "financeiro", "conversas", "perfil"], side: ["talhoes", "painelFundo", "financeiro", "conversas", "avisos", "perfil"] },
   armazem:    { tab: ["armazem", "talhoes", "conversas", "perfil"], side: ["armazem", "talhoes", "conversas", "avisos", "perfil"] },
 };

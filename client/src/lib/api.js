@@ -164,6 +164,10 @@ export const api = {
   editCusto: (plotId, id, payload) => request(`/plots/${plotId}/custos/${id}`, { method: "PATCH", body: payload }),
   deleteCusto: (plotId, id) => request(`/plots/${plotId}/custos/${id}`, { method: "DELETE" }),
 
+  usuariosContagem: () => request("/admin/users/contagem"),
+  usuarios: (tipo, qs) => request(`/admin/users/${tipo}?${qs}`),
+  usuarioDetalhe: (tipo, id) => request(`/admin/users/${tipo}/${id}/detalhe`),
+  suspenderConta: (userId, suspender, motivo) => request(`/admin/users/conta/${userId}/suspensao`, { method: "PATCH", body: { suspender, motivo } }),
   equipeFundo: () => request("/admin/equipe"),
   criarMembroFundo: (payload) => request("/admin/equipe", { method: "POST", body: payload }),
   removerMembroFundo: (id) => request(`/admin/equipe/${id}`, { method: "DELETE" }),

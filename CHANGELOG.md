@@ -1,5 +1,19 @@
 # Registro de mudanças
 
+## 2.2.0 — gestão de usuários na administração
+
+- **Novo menu "Usuários"** (só administração), com abas **Investidores**, **Fazendas**, **Armazéns** e **Fundo**:
+  - busca por nome, e-mail, cidade, responsável ou CNPJ; filtros por situação, estado (UF), período de cadastro e faixa de valor; tudo guardado no endereço da página;
+  - **ordenação = ranking**: quem mais investiu/recebeu, fazenda com mais talhões, maior área, mais captação, mais investidores; armazém que mais armazena, mais valor garantido, mais tarifas; membro do fundo com mais pagamentos aprovados;
+  - **resumo** do recorte e **gráfico do top 10** com valores;
+  - **ficha** de cada um: métricas (investido, lucro realizado, ticket médio; talhões, área, captado, custos; armazenado em unidades e toneladas, ocupação da capacidade, custódias; aprovações do fundo), lista de compras/talhões/custódias/pagamentos e atalho para as transações no Financeiro;
+  - ações na ficha: aprovar/suspender fazendas e armazéns; **suspender e reativar o acesso** de investidores e membros do fundo;
+  - **exportar CSV** e **imprimir** o relatório da aba, com os filtros aplicados.
+- **Suspensão de acesso**: conta suspensa não entra e perde o acesso na hora, mesmo já logada (verificação com cache de 30 s). Motivo fica registrado.
+- **Último acesso** de cada usuário passa a ser registrado.
+- Aprovação de talhões registra quem aprovou (base para o ranking do fundo).
+- No celular, a barra da administração passa a ser: Admin, Usuários, Financeiro, Conversas, Perfil.
+
 ## 2.1.1 — ícones definitivos da marca
 
 - Ícones finais do designer no lugar dos provisórios: saca genérica, saca com grãos (Primeira saca), sacas com trigo (10 sacas), armazém (100 sacas), cuidando da terra (Acompanhou o plantio), colhendo (Primeira colheita), produtor (3 culturas) e produtor na fazenda (Amigo do campo).

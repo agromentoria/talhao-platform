@@ -512,6 +512,12 @@ CREATE TABLE IF NOT EXISTS plot_costs (
 );
 CREATE INDEX IF NOT EXISTS idx_plot_costs_plot ON plot_costs(plot_id);
 
+-- gestão de usuários: último acesso, suspensão e quem aprovou cada talhão
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_reason TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS aprovacao_por INTEGER;
+
 -- registro das ações sensíveis da administração (ex.: zerar dados)
 CREATE TABLE IF NOT EXISTS admin_audit_log (
   id SERIAL PRIMARY KEY,

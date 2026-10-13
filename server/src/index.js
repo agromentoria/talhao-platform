@@ -112,6 +112,8 @@ async function start() {
   app.use("/api/admin/harvest-requests", harvestRequestRoutes);
   // gestão financeira (transações, relatórios, exportação, zerar dados)
   app.use("/api/admin/finance", require("./routes/adminFinance"));
+  // gestão de usuários (investidores, fazendas, armazéns, fundo)
+  app.use("/api/admin/users", require("./routes/adminUsers"));
   app.use("/api/admin", adminRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/conversations", conversationRoutes);

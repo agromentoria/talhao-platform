@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, UNIT_LABEL, FASES, ICONS } from "../config/theme";
@@ -219,7 +219,10 @@ export default function AdminDashboard() {
       <PageHeader
         title={isAdmin ? "Administração" : "Painel do fundo"}
         subtitle={isAdmin ? "Acesso completo: fazendas, armazéns, talhões, colheitas, financeiro e equipe do fundo." : "Aprovação de talhões, pagamento das colheitas e financeiro. Fazendas e armazéns são cadastrados pela administração."}
-        actions={<Button variant="secondary" icon={Receipt} to="/admin/financeiro">Financeiro</Button>}
+        actions={<>
+          {isAdmin && <Button variant="secondary" icon={Users} to="/admin/usuarios">Usuários</Button>}
+          <Button variant="secondary" icon={Receipt} to="/admin/financeiro">Financeiro</Button>
+        </>}
       />
 
       <Tabs
@@ -384,7 +387,7 @@ export default function AdminDashboard() {
 
       {tab === "armazens" && (
         <EntityList
-          intro="Armazéns são os garantidores: validam cada etapa dos talhões. Confira o CNPJ e a estrutura antes de credenciar."
+          intro={<>Armazéns são os garantidores: validam cada etapa dos talhões. Confira o CNPJ e a estrutura antes de credenciar.{isAdmin && <> Rankings, filtros e relatórios em <Link to="/admin/usuarios?tipo=armazens">Usuários › Armazéns</Link>.</>}</>}
           items={warehouses}
           statusOf={(w) => ({ aprovado: "ativo", pendente: "pendente", suspenso: "suspenso" }[w.status])}
           empty={{ title: "Nenhum armazém cadastrado", text: "Armazéns se cadastram pela tela de criar conta, escolhendo “Armazém”." }}
@@ -417,7 +420,7 @@ export default function AdminDashboard() {
 
       {tab === "fazendas" && (
         <EntityList
-          intro="Fazendas publicam talhões. Confira os dados legais e a localização antes de aprovar; só fazendas aprovadas podem cadastrar talhões."
+          intro={<>Fazendas publicam talhões. Confira os dados legais e a localização antes de aprovar; só fazendas aprovadas podem cadastrar talhões.{isAdmin && <> Rankings, filtros e relatórios em <Link to="/admin/usuarios?tipo=fazendas">Usuários › Fazendas</Link>.</>}</>}
           items={farms}
           statusOf={(f) => ({ aprovada: "ativo", pendente: "pendente", suspensa: "suspenso" }[f.status])}
           empty={{ title: "Nenhuma fazenda cadastrada", text: "Fazendas se cadastram pela tela de criar conta, escolhendo “Fazenda”." }}

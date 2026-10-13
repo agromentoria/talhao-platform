@@ -130,10 +130,10 @@ router.get("/plot-approvals", asyncHandler(async (req, res) => {
 
 router.post("/plot-approvals/:id/approve", asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `UPDATE plots p SET aprovacao_status = 'aprovado', aprovacao_motivo = NULL, aprovacao_em = now()
+    `UPDATE plots p SET aprovacao_status = 'aprovado', aprovacao_motivo = NULL, aprovacao_em = now(), aprovacao_por = $2
      FROM farms f WHERE p.id = $1 AND f.id = p.farm_id AND p.aprovacao_status IN ('pendente','rejeitado')
      RETURNING p.*, f.owner_user_id, f.name AS farm_name`,
-    [req.params.id]
+    [req.params.id, req.user.id]
   );
   const plot = rows[0];
   if (!plot) return res.status(404).json({ error: "Talhão não encontrado ou já aprovado." });
@@ -152,10 +152,10 @@ router.post("/plot-approvals/:id/reject", asyncHandler(async (req, res) => {
   const motivo = String(req.body?.motivo || "").trim();
   if (motivo.length < 5) return res.status(400).json({ error: "Explique o que a fazenda precisa corrigir." });
   const { rows } = await pool.query(
-    `UPDATE plots p SET aprovacao_status = 'rejeitado', aprovacao_motivo = $2, aprovacao_em = now()
+    `UPDATE plots p SET aprovacao_status = 'rejeitado', aprovacao_motivo = $2, aprovacao_em = now(), aprovacao_por = $3
      FROM farms f WHERE p.id = $1 AND f.id = p.farm_id AND p.publicado_em IS NULL
      RETURNING p.*, f.owner_user_id`,
-    [req.params.id, motivo]
+    [req.params.id, motivo, req.user.id]
   );
   const plot = rows[0];
   if (!plot) return res.status(404).json({ error: "Talhão não encontrado ou já publicado." });

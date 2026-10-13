@@ -134,6 +134,10 @@ router.post("/login", loginLimiter, asyncHandler(async (req, res) => {
   if (!user || !(await bcrypt.compare(String(password), user.password_hash))) {
     return res.status(401).json({ error: "E-mail ou senha incorretos." });
   }
+  if (user.suspended_at) {
+    return res.status(403).json({ error: "Sua conta está suspensa. Fale com a administração do Meu Talhão." });
+  }
+  await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
 
   const token = signToken(user);
   if (user.role === "investidor") user.nivel = await getInvestorLevel(pool, user.id);

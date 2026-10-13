@@ -5,9 +5,9 @@ import { useAuth } from "../../context/AuthContext";
 
 const CHAVE = "talhao_boas_vindas_v1";
 const PASSOS = [
-  { img: "/icons/saca_meu_talhao.svg", titulo: "Uma saca de verdade", texto: "Cada saca que você compra aqui é parte da produção de uma fazenda de verdade: grãos, fibras ou animais. Dá para começar com 1 saca, pelo preço de um almoço de família." },
-  { img: "/icons/armazem_meu_talhao.svg", titulo: "Seu armazém no app", texto: "Tudo o que você compra fica no seu armazém aqui no app. Você acompanha o talhão pelo Diário, e um armazém de confiança confirma o plantio, a colheita e quanto foi guardado." },
-  { img: "/icons/icon_talhoes_colhendo_meu_talhao.svg", titulo: "Na colheita, você recebe", texto: "A fazenda vende a produção e a sua parte cai na sua conta. O preço e o clima podem mudar o resultado, para mais ou para menos." },
+  { img: "/icons/icon_saca_meu_talhao.png", titulo: "Uma saca de verdade", texto: "Cada saca que você compra aqui é parte da produção de uma fazenda de verdade: grãos, fibras ou animais. Dá para começar com 1 saca, pelo preço de um almoço de família." },
+  { img: "/icons/icon_armazem_meu_talhao.png", titulo: "Seu armazém no app", texto: "Tudo o que você compra fica no seu armazém aqui no app. Você acompanha o talhão pelo Diário, e um armazém de confiança confirma o plantio, a colheita e quanto foi guardado." },
+  { img: "/icons/icon_colhendo_meu_talhao.png", titulo: "Na colheita, você recebe", texto: "A fazenda vende a produção e a sua parte cai na sua conta. O preço e o clima podem mudar o resultado, para mais ou para menos." },
 ];
 
 // Boas-vindas em 3 telas para quem está chegando (aparece uma vez)

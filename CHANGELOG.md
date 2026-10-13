@@ -1,5 +1,12 @@
 # Registro de mudanças
 
+## 2.1.1 — ícones definitivos da marca
+
+- Ícones finais do designer no lugar dos provisórios: saca genérica, saca com grãos (Primeira saca), sacas com trigo (10 sacas), armazém (100 sacas), cuidando da terra (Acompanhou o plantio), colhendo (Primeira colheita), produtor (3 culturas) e produtor na fazenda (Amigo do campo).
+- Boas-vindas usam a saca, o armazém e a cena da colheita novos.
+- Ilustração das fazendas trocada por PNG: de ~475 KB para ~49 KB, abrindo mais rápido nas listas e conversas.
+- Ilustrações PNG entram no cache do app (abrem mesmo com internet fraca).
+
 ## 2.1.0 — "Meu armazém" do investidor e ícones da marca
 
 - **Nomenclatura:** a área do investidor passou a ser **"Meu armazém"** — onde ficam as commodities que ele comprou (grãos, fibras, animais). "Na roça" virou **"No armazém"**, "Colhidas e pagas" virou **"Vendidas e pagas"**, "Diário da roça" virou **"Diário do talhão"** e "A roça está em" virou **"O talhão está em"**.

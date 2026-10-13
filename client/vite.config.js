@@ -44,7 +44,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
-            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.endsWith(".svg"),
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && /\.(svg|png)$/.test(url.pathname) && !url.pathname.startsWith("/app-icons/"),
             handler: "StaleWhileRevalidate",
             options: { cacheName: "ilustracoes", expiration: { maxEntries: 60 } },
           },

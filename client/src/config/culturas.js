@@ -72,7 +72,7 @@ export function etapasDe(plot) {
 // cultura não tem desenho próprio.
 export function iconeUnidade(nome) {
   const extras = { "Bovinos de corte": ICONS.touro, "Bovinos de leite": ICONS.vaca };
-  return GRAIN_ICONS[nome] || extras[nome] || "/icons/saca_meu_talhao.svg";
+  return GRAIN_ICONS[nome] || extras[nome] || "/icons/icon_saca_meu_talhao.png";
 }
 
 export function culturaIcone(nome) {

@@ -8,16 +8,20 @@ isométricos) — não precisa mexer no código.
 |---|---|
 | `icon_soja_meu_talhao.svg`, `icon_milho_…`, `icon_feijao_…`, `icon_arroz_…`, `icon_trigo_…`, `icon_algodao_…` | Saca de cada cultura (vitrine, armazém do investidor, pilha de sacas, certificado) |
 | `icon_touro_meu_talhao.svg`, `icon_vaca_meu_talhao.svg` | Pecuária de corte e de leite |
-| `saca_meu_talhao.svg` | **Saca genérica** (a do logo, sem o fundo verde) — culturas sem desenho próprio e boas-vindas |
-| `saca_graos_meu_talhao.svg` | Conquista **Primeira saca** (saca do logo com grão genérico) |
-| `bag_meu_talhao.svg` | Conquista **10 sacas** (big bag com o símbolo do Meu Talhão) — *criado como provisório* |
-| `armazem_meu_talhao.svg` | Conquista **100 sacas** e boas-vindas — *criado como provisório* |
-| `icon_germinando_meu_talhao.svg` | Conquista **Acompanhou o plantio** |
-| `icon_talhoes_colhendo_meu_talhao.svg` | Conquista **Primeira colheita** e boas-vindas |
-| `produtor_meu_talhao.svg` | Conquista **3 culturas** — *criado como provisório* |
-| `produtor_fazenda_meu_talhao.svg` | Conquista **Amigo do campo** (fazenda + produtor) — *criado como provisório* |
-| `icon_talhao_…`, `icon_plantando_…`, `icon_ponto_colheita_…`, `icon_talhoes_combate_…` | Fases da lavoura |
-| `icon_fazendas.svg` | Fazendas (listas, conversas, avisos) |
+| `icon_saca_meu_talhao.png` | Saca genérica (a do logo) — culturas sem desenho próprio e boas-vindas |
+| `icon_saca_graos_meu_talhao.png` | Conquista **Primeira saca** |
+| `icon_bag_meu_talhao.png` | Conquista **10 sacas** |
+| `icon_armazem_meu_talhao.png` | Conquista **100 sacas** e boas-vindas ("Seu armazém no app") |
+| `icon_cuidando_terra_meu_talhao.png` | Conquista **Acompanhou o plantio** |
+| `icon_colhendo_meu_talhao.png` | Conquista **Primeira colheita** e boas-vindas ("Na colheita, você recebe") |
+| `icon_produtor_meu_talhao.png` | Conquista **3 culturas** |
+| `icon_produtor_fazenda_meu_talhao.png` | Conquista **Amigo do campo** |
+| `icon_fazendas.png` | Fazendas (listas, conversas, avisos, perfil do talhão) |
+| `icon_talhao_…`, `icon_plantando_…`, `icon_germinando_…`, `icon_talhoes_combate_…`, `icon_ponto_colheita_…`, `icon_talhoes_colhendo_…` | Fases da lavoura |
 
-Os marcados como *provisório* foram desenhados no app por não existirem nos
-arquivos da marca. Vale pedir ao designer versões finais no mesmo estilo.
+PNG com fundo transparente funciona bem: 326×260 para as cenas isométricas e
+200×200 para as sacas. Para ficar nítido em telas de alta resolução, o ideal
+é exportar no dobro (652×520 e 400×400) com o mesmo nome.
+
+Os SVGs das sacas de cultura são pesados (soja ~390 KB, arroz ~680 KB); se o
+designer exportar também em PNG, dá para trocar e deixar o app mais leve.

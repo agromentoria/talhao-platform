@@ -88,7 +88,7 @@ export default function FarmWallet() {
           options={[{ id: "todos", label: "Tudo" }, { id: "vendas", label: "Vendas" }, { id: "recebimentos", label: "Comissão e performance" }, { id: "armazenagem", label: "Armazenagem" }]} />
       </div>
       {transactions.length === 0 ? (
-        <EmptyState image="/icons/icon_fazendas.svg" title="Nenhuma movimentação ainda">As vendas aparecem aqui assim que um investidor comprar parte de um talhão seu.</EmptyState>
+        <EmptyState image="/icons/icon_fazendas.png" title="Nenhuma movimentação ainda">As vendas aparecem aqui assim que um investidor comprar parte de um talhão seu.</EmptyState>
       ) : (
         <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {transactions.map((t) => {

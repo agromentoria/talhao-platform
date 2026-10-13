@@ -75,7 +75,7 @@ export const FASE_ICONS = [
 ];
 
 export const ICONS = {
-  fazendas: "/icons/icon_fazendas.svg",
+  fazendas: "/icons/icon_fazendas.png",
   touro: "/icons/icon_touro_meu_talhao.svg",
   vaca: "/icons/icon_vaca_meu_talhao.svg",
 };

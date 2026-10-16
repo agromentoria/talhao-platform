@@ -1,5 +1,14 @@
 # Registro de mudanças
 
+## 2.4.1 — carga de talhões da Fazenda Boa Vista
+
+- Novo script `npm run seed:boa-vista` (pasta `server`): cria 5 talhões diversificados da Fazenda Boa Vista (Rio Verde, GO) com preços, produtividades, custos e ciclos de mercado de out/2026, via API (funciona no local e no servidor publicado; pode ser rodado de novo sem duplicar).
+  - Soja precoce (250 ha, 11.000 sc a R$ 120, meta 9%, plantada, com custos e diário);
+  - Feijão carioca irrigado (120 ha, 3.600 sc a R$ 280, meta 7%, ciclo de 90 dias);
+  - Confinamento de 1.000 Nelore (6.000 @ a R$ 350, meta 8%, animais entrados);
+  - Milho safrinha (20.000 sc a R$ 58) e algodão (14.000 @ a R$ 130) aguardando o fundo: em ciclos longos a captação deve abrir perto do plantio.
+  - `COM_COMPRAS=1` simula compras dos investidores de demonstração.
+
 ## 2.4.0 — ganhos por safra
 
 - **Tudo passa a ser contado por safra, não ao ano.** O quadro de regras mostra o ganho na safra por fase de compra e o **prazo em dias** até o pagamento (ciclo da cultura + armazenagem e venda), no lugar da taxa equivalente ao ano.

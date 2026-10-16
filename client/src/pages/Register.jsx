@@ -6,7 +6,7 @@ import { homeFor } from "../config/navigation";
 import { readImageFile } from "../lib/files";
 import { maskCNPJ, isValidCNPJ } from "../lib/validators";
 import { Page } from "../components/layout/Page";
-import { Button, ErrorBanner, TextField, Segmented } from "../components/ui";
+import { Button, Banner, ErrorBanner, TextField, Segmented } from "../components/ui";
 import { CityStateSelect } from "../components/domain";
 
 export default function Register() {
@@ -14,6 +14,8 @@ export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
   const [role, setRole] = useState("investidor");
+  // código de indicação vindo do link de convite (/cadastro?indicacao=MT12ABC)
+  const indicacao = new URLSearchParams(window.location.search).get("indicacao") || "";
   const [form, setForm] = useState({ name: "", email: "", password: "", farmName: "", farmLocation: "", warehouseName: "", warehouseLocation: "", warehouseCnpj: "" });
   const [avatar, setAvatar] = useState(null);
   const [avatarError, setAvatarError] = useState("");
@@ -49,7 +51,7 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      const user = await register({ ...form, email: form.email.trim(), role, avatar });
+      const user = await register({ ...form, email: form.email.trim(), role, avatar, indicacao: role === "investidor" ? indicacao || undefined : undefined });
       navigate(location.state?.from || homeFor(user), { replace: true });
     } catch (err) {
       setError(err.message);
@@ -99,6 +101,9 @@ export default function Register() {
         <div style={{ height: 18 }} />
         <ErrorBanner message={error} />
 
+        {indicacao && role === "investidor" && (
+          <Banner tone="success" title="Você foi convidado">Cadastre-se com o código {indicacao} e ganhe crédito na primeira compra de sacas.</Banner>
+        )}
         <form onSubmit={handleSubmit} className="stack">
           <p className="text-sm" style={{ opacity: 0.95, lineHeight: 1.5, marginTop: -6 }}>
             {{

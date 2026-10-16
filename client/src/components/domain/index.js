@@ -11,3 +11,4 @@ export { default as PerformanceField } from "./PerformanceField";
 export { default as RegrasTalhao } from "./RegrasTalhao";
 export { SacaIcon, PilhaDeSacas } from "./Sacas";
 export { default as BoasVindas } from "./BoasVindas";
+export { ListaDeEspera, IndiqueEGanhe } from "./Crescimento";

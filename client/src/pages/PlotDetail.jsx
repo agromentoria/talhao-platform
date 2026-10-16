@@ -11,7 +11,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
-import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, PilhaDeSacas } from "../components/domain";
+import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, PilhaDeSacas, ListaDeEspera } from "../components/domain";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -359,6 +359,7 @@ export default function PlotDetail() {
                     {esgotado ? "Esgotado nesta fase" : !user ? "Entrar para comprar" : `Comprar ${fmtNumber(qtd)} ${unitPlural(plot.unidade, qtd)} · ${fmtBRL(custoTotal)}`}
                   </Button>
                 )}
+                {esgotado && <ListaDeEspera plot={plot} user={user} />}
                 <p className="text-xs text-3" style={{ marginTop: 10, lineHeight: 1.5 }}>
                   Retornos são estimativas e dependem da produção e do preço do grão na colheita. Investimentos no agro têm risco.
                 </p>
@@ -371,7 +372,7 @@ export default function PlotDetail() {
 
       {/* atalho fixo no celular: o painel de compra fica no fim da página */}
       {!colhido && publico && (
-        <MobileInvestBar price={fmtBRL(plot.cota_valor)} unidade={unidade} />
+        <MobileInvestBar price={fmtBRL(plot.cota_valor)} unidade={unidade} esgotado={plot.cotas_disponiveis === 0} />
       )}
     </Page>
   );
@@ -435,7 +436,7 @@ function GuaranteeCard({ plot, armazem, validacoes, armazenagem }) {
   );
 }
 
-function MobileInvestBar({ price, unidade }) {
+function MobileInvestBar({ price, unidade, esgotado }) {
   const [panelVisible, setPanelVisible] = useState(false);
   useEffect(() => {
     const el = document.getElementById("investir");
@@ -451,7 +452,7 @@ function MobileInvestBar({ price, unidade }) {
         <p className="label-xs">{unidade} por</p>
         <p style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--fs-lg)", lineHeight: 1.1 }}>{price}</p>
       </div>
-      <Button onClick={() => document.getElementById("investir")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Comprar</Button>
+      <Button onClick={() => document.getElementById("investir")?.scrollIntoView({ behavior: "smooth", block: "start" })}>{esgotado ? "Avise-me" : "Comprar"}</Button>
     </div>
   );
 }

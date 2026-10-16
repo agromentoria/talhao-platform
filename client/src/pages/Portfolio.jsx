@@ -10,7 +10,7 @@ import { compartilharCertificado } from "../lib/certificado";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { ProgressBar, ErrorBanner, EmptyState, FilterChips, Loading, Button, useToast } from "../components/ui";
-import { GrainThumb, InvestorLevelCard, PilhaDeSacas } from "../components/domain";
+import { GrainThumb, InvestorLevelCard, PilhaDeSacas, IndiqueEGanhe } from "../components/domain";
 
 const STATUS_FILTERS = [
   { id: "todos", label: "Todas", match: () => true },
@@ -117,6 +117,8 @@ export default function Portfolio() {
               ))}
             </div>
           </section>
+
+          <div style={{ marginBottom: 16 }}><IndiqueEGanhe /></div>
 
           {nivel && <div style={{ marginBottom: 16 }}><InvestorLevelCard nivel={nivel} /></div>}
 

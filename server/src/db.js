@@ -540,6 +540,32 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role) WHERE deleted_at IS NUL
 CREATE INDEX IF NOT EXISTS idx_plots_status ON plots(status);
 CREATE INDEX IF NOT EXISTS idx_farm_characteristics_farm ON farm_characteristics(farm_id);
 
+-- ===================== Crescimento: lista de espera e indicação =====================
+CREATE TABLE IF NOT EXISTS plot_waitlist (
+  id SERIAL PRIMARY KEY,
+  plot_id INTEGER NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  cotas INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  notified_at TIMESTAMPTZ,
+  UNIQUE (plot_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_waitlist_user ON plot_waitlist(user_id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS codigo_indicacao TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS indicado_por INTEGER;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_codigo_indicacao ON users(codigo_indicacao);
+UPDATE users SET codigo_indicacao = 'MT' || id || upper(substr(md5(email), 1, 3)) WHERE codigo_indicacao IS NULL;
+CREATE TABLE IF NOT EXISTS referral_rewards (
+  id SERIAL PRIMARY KEY,
+  referrer_id INTEGER NOT NULL REFERENCES users(id),
+  referred_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+  investment_id INTEGER,
+  valor_indicador DOUBLE PRECISION NOT NULL,
+  valor_indicado DOUBLE PRECISION NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pendente',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- registro das ações sensíveis da administração (ex.: zerar dados)
 CREATE TABLE IF NOT EXISTS admin_audit_log (
   id SERIAL PRIMARY KEY,

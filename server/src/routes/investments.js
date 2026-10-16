@@ -107,6 +107,16 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     // com muitas compras simultâneas, segurar esta travava o servidor inteiro
     liberar();
 
+    // indicação: a 1ª compra de quem foi indicado gera bônus para os dois
+    try {
+      const { registrarIndicacao, BONUS_INDICADOR } = require("./growth");
+      const indicador = await registrarIndicacao(req.user.id, investment.id);
+      if (indicador) {
+        await notifyUsers(pool, [indicador], { senderRole: "sistema", type: "indicacao", title: "Sua indicação comprou a primeira saca",
+          body: `Você ganhou R$ ${BONUS_INDICADOR} em crédito para a próxima compra. Obrigado por espalhar o Meu Talhão!` });
+      }
+    } catch (e) { console.error("[indicacao]", e.message); }
+
     // notificações (fora da transação — não devem derrubar a compra se falharem)
     try {
       await notifyUsers(pool, [req.user.id], {

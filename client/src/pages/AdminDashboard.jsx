@@ -236,6 +236,7 @@ export default function AdminDashboard() {
 
       {tab === "geral" && (
         <>
+          <DemandaReprimida />
           {plotApprovals.some((p) => p.aprovacao_status === "pendente") && (
             <Banner tone="warning" title="Talhões aguardando aprovação" style={{ marginBottom: 16 }}>
               {plotApprovals.filter((p) => p.aprovacao_status === "pendente").length} talhão(ões) só aparecem na vitrine depois da sua aprovação.{" "}
@@ -630,6 +631,20 @@ function CommodityReferenceRow({ reference, onSave }) {
 }
 
 const miniInputStyle = { width: "100%", marginTop: 3, padding: "7px 8px", borderRadius: 7, border: `1px solid ${COLORS.line}`, fontSize: 12.5, background: "#fff", fontFamily: "inherit" };
+
+// ---------- demanda reprimida: talhões esgotados com lista de espera ----------
+function DemandaReprimida() {
+  const [d, setD] = useState(null);
+  useEffect(() => { api.demandaReprimida().then(setD).catch(() => {}); }, []);
+  if (!d || !d.talhoes.length) return null;
+  const top = d.talhoes.slice(0, 3);
+  return (
+    <Banner tone="info" title={`Demanda reprimida: ${d.pessoas} pessoa(s) na lista de espera`} style={{ marginBottom: 16 }}>
+      Faltam talhões para atender quem quer comprar. Maior procura: {top.map((t) => `${t.grao} (${t.farm_name}, ${t.cotas} ${t.unidade}s)`).join(" · ")}.
+      {" "}Vale priorizar a aprovação de novos talhões dessas culturas.
+    </Banner>
+  );
+}
 
 // ---------- equipe do fundo ----------
 function EquipeFundo() {

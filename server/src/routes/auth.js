@@ -40,7 +40,7 @@ function publicUser(user) {
 }
 
 router.post("/register", asyncHandler(async (req, res) => {
-  const { name, email, password, role, farmName, farmLocation, avatar, warehouseName, warehouseLocation, warehouseCnpj } = req.body || {};
+  const { name, email, password, role, farmName, farmLocation, avatar, warehouseName, warehouseLocation, warehouseCnpj, indicacao } = req.body || {};
 
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "Preencha nome, e-mail, senha e tipo de conta." });
@@ -90,6 +90,17 @@ router.post("/register", asyncHandler(async (req, res) => {
       [name, emailLower, hash, role, avatar || null]
     );
     let user = userResult.rows[0];
+    // código próprio de indicação e quem indicou (se o código for válido)
+    const { rows: cod } = await client.query(
+      "UPDATE users SET codigo_indicacao = 'MT' || id || upper(substr(md5(email), 1, 3)) WHERE id = $1 RETURNING codigo_indicacao", [user.id]
+    );
+    user.codigo_indicacao = cod[0].codigo_indicacao;
+    if (indicacao && role === "investidor") {
+      const { rows: ref } = await client.query(
+        "SELECT id FROM users WHERE upper(codigo_indicacao) = upper($1) AND deleted_at IS NULL AND id <> $2", [String(indicacao).trim(), user.id]
+      );
+      if (ref[0]) await client.query("UPDATE users SET indicado_por = $1 WHERE id = $2", [ref[0].id, user.id]);
+    }
 
     if (role === "fazenda") {
       const farmResult = await client.query(

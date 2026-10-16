@@ -1,5 +1,12 @@
 # Registro de mudanças
 
+## 2.5.0 — lista de espera e indicação (preparação para crescimento viral)
+
+- **Lista de espera** nos talhões esgotados: o investidor escolhe quantas sacas quer e vê a posição na fila; quando a mesma fazenda ou outra fazenda abre um talhão da mesma cultura, todos da lista recebem o aviso primeiro. A barra de compra do celular vira "Avise-me".
+- **Demanda reprimida** no painel do fundo e da administração: quantas pessoas e sacas esperam, por cultura e fazenda — para priorizar a aprovação de novos talhões.
+- **Programa de indicação:** cada usuário tem um código (ex.: MT4CAE) e um link de convite; "Indique e ganhe" no Meu armazém com convite pelo WhatsApp. Na 1ª compra de quem foi indicado, os dois ganham crédito (R$ 20 cada, ajustável por `BONUS_INDICADOR` e `BONUS_INDICADO`); o indicador recebe um aviso. O crédito fica registrado e passa a abater compras quando o meio de pagamento real entrar.
+- Cadastro mostra "Você foi convidado" quando a pessoa chega pelo link.
+
 ## 2.4.1 — carga de talhões da Fazenda Boa Vista
 
 - Novo script `npm run seed:boa-vista` (pasta `server`): cria 5 talhões diversificados da Fazenda Boa Vista (Rio Verde, GO) com preços, produtividades, custos e ciclos de mercado de out/2026, via API (funciona no local e no servidor publicado; pode ser rodado de novo sem duplicar).

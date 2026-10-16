@@ -51,6 +51,24 @@ async function maybePublish(plotId) {
     title: `Novo talhão em ${plot.farm_name}`,
     body: `${plot.farm_name} publicou ${plot.nome} (${plot.grao}${plot.variedade ? ` · ${plot.variedade}` : ""}), disponível para investimento.`,
   });
+  // lista de espera: quem esperava sacas desta fazenda ou desta cultura
+  const { rows: espera } = await pool.query(
+    `SELECT DISTINCT w.user_id FROM plot_waitlist w JOIN plots p ON p.id = w.plot_id
+     WHERE (p.farm_id = $1 OR p.grao = $2) AND w.plot_id <> $3`,
+    [plot.farm_id, plot.grao, plot.id]
+  );
+  if (espera.length) {
+    await safeNotify(espera.map((r) => r.user_id), {
+      senderRole: "sistema", farmId: plot.farm_id, plotId: plot.id, type: "lista_espera",
+      title: `Abriu um talhão de ${plot.grao.toLowerCase()}: ${plot.nome}`,
+      body: `Você estava na lista de espera. ${plot.farm_name} abriu novas sacas — garanta a sua antes que esgote.`,
+    });
+    await pool.query(
+      `UPDATE plot_waitlist w SET notified_at = now() FROM plots p
+       WHERE p.id = w.plot_id AND (p.farm_id = $1 OR p.grao = $2) AND w.plot_id <> $3`,
+      [plot.farm_id, plot.grao, plot.id]
+    );
+  }
   return true;
 }
 

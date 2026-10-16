@@ -164,6 +164,11 @@ export const api = {
   editCusto: (plotId, id, payload) => request(`/plots/${plotId}/custos/${id}`, { method: "PATCH", body: payload }),
   deleteCusto: (plotId, id) => request(`/plots/${plotId}/custos/${id}`, { method: "DELETE" }),
 
+  listaEspera: (plotId) => request(`/waitlist/${plotId}`),
+  entrarListaEspera: (plotId, cotas) => request(`/waitlist/${plotId}`, { method: "POST", body: { cotas } }),
+  sairListaEspera: (plotId) => request(`/waitlist/${plotId}`, { method: "DELETE" }),
+  demandaReprimida: () => request("/waitlist"),
+  indicacaoMe: () => request("/indicacao/me"),
   usuariosContagem: () => request("/admin/users/contagem"),
   usuarios: (tipo, qs) => request(`/admin/users/${tipo}?${qs}`),
   usuarioDetalhe: (tipo, id) => request(`/admin/users/${tipo}/${id}/detalhe`),

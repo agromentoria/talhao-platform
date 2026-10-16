@@ -112,7 +112,27 @@ async function getFarmOwned(farmId, user) {
   return { farm };
 }
 
-router.get("/", asyncHandler(async (req, res) => {
+// A vitrine é a página mais acessada e muda pouco: guarda a resposta por 10 s.
+// A disponibilidade de sacas é sempre conferida de novo na hora da compra.
+const cacheVitrine = new Map();
+const VITRINE_MS = 10_000;
+
+router.get("/", asyncHandler(async (req, res, next) => {
+  const chave = String(req.query.grao || "");
+  const c = cacheVitrine.get(chave);
+  // guarda o JSON já serializado: a vitrine pode ter centenas de talhões
+  if (c && Date.now() - c.t < VITRINE_MS) return res.type("application/json").send(c.texto);
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    if (res.statusCode >= 400) return json(body);
+    const texto = JSON.stringify(body);
+    cacheVitrine.set(chave, { t: Date.now(), texto });
+    return res.type("application/json").send(texto);
+  };
+  return listarVitrine(req, res, next);
+}));
+
+const listarVitrine = asyncHandler(async (req, res) => {
   const { grao } = req.query;
   const appCommissionPct = await getAppCommissionPct();
   let sql = `
@@ -136,7 +156,7 @@ router.get("/", asyncHandler(async (req, res) => {
   sql += " ORDER BY p.created_at DESC";
   const { rows } = await pool.query(sql, params);
   res.json({ plots: rows, app_commission_pct: appCommissionPct });
-}));
+});
 
 // fazenda: todos os seus talhões, em qualquer status (inclusive já colhidos,
 // pagos e arquivados), para gestão — diferente da vitrine pública, que

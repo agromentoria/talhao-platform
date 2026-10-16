@@ -7,12 +7,13 @@ import { TIPOS } from "../config/culturas";
 import { Page, PageHeader } from "../components/layout/Page";
 import { TextField, SelectField, Banner } from "../components/ui";
 import { RegrasTalhao } from "../components/domain";
+import { rendimentoNoPrazo, REFERENCIAS_PADRAO } from "../lib/referencias";
 
 // Explica as regras da plataforma para todos (investidor, fazenda, armazém)
 // e deixa simular a divisão do resultado com qualquer número.
 export default function ComoFunciona() {
   const [regras, setRegras] = useState(null);
-  const [s, setS] = useState({ preco: "120", meta: "7.5", comissao: "15", perf: "50", venda: "145.61", qtd: "1000", armazem: "2.19", pagaArmazem: "investidores" });
+  const [s, setS] = useState({ preco: "120", meta: "7.5", comissao: "15", perf: "50", venda: "145.61", qtd: "1000", armazem: "2.19", pagaArmazem: "investidores", dias: "150" });
   useEffect(() => { api.regras().then(setRegras).catch(() => {}); }, []);
   const set = (k) => (v) => setS((x) => ({ ...x, [k]: v }));
 
@@ -78,6 +79,8 @@ export default function ComoFunciona() {
           <TextField label="Quantidade comprada (unidades)" type="number" inputMode="numeric" value={s.qtd} onChange={set("qtd")} />
           <TextField label="Preço real de venda (R$ por unidade)" type="number" inputMode="decimal" value={s.venda} onChange={set("venda")} />
           <TextField label="Armazenagem por unidade (R$)" type="number" inputMode="decimal" value={s.armazem} onChange={set("armazem")} />
+          <TextField label="Duração da safra até o pagamento (dias)" type="number" inputMode="numeric" min={1} value={s.dias} onChange={set("dias")}
+            hint="Ex.: soja ~120 dias de lavoura + colheita e venda; frango ~45 dias" />
           <SelectField label="Quem paga a armazenagem" value={s.pagaArmazem} onChange={set("pagaArmazem")}
             options={[{ value: "investidores", label: "Investidores" }, { value: "dividido", label: "Dividido (50%)" }, { value: "fazenda", label: "Fazenda" }]} />
         </div>
@@ -92,15 +95,32 @@ export default function ComoFunciona() {
               <div><dt>Plataforma</dt><dd>{fmtBRL(r.comissaoApp)}</dd></div>
               <div className="total"><dt>Investidor recebe</dt><dd className="text-success">{fmtBRL(r.valorLiquido)} (lucro de {fmtPct(qtd * preco ? ((r.valorLiquido - qtd * preco) / (qtd * preco)) * 100 : 0, 2)})</dd></div>
             </dl>
+            {(() => {
+              const alt = rendimentoNoPrazo(n("dias"), regras?.referencias || REFERENCIAS_PADRAO);
+              const inv = qtd * preco;
+              return (
+                <div className="regras-comparacao" style={{ marginTop: 12 }}>
+                  <p className="label-xs">O mesmo valor, nos mesmos {alt.dias} dias, renderia</p>
+                  <div className="regras-comparacao-linhas">
+                    <span><b className={r.valorLiquido >= inv ? "text-success" : "text-danger"}>{fmtBRL(r.valorLiquido - inv)}</b> no Meu Talhão</span>
+                    <span><b>{fmtBRL(inv * alt.lca / 100)}</b> na LCA</span>
+                    <span><b>{fmtBRL(inv * alt.cdb / 100)}</b> no CDB, após IR</span>
+                    <span><b>{fmtBRL(inv * alt.poupanca / 100)}</b> na poupança</span>
+                  </div>
+                </div>
+              );
+            })()}
             {r.valorLiquido < qtd * preco && <Banner tone="warning" style={{ marginTop: 10 }}>Neste cenário o investidor tem prejuízo: a venda não cobriu o valor pago.</Banner>}
           </div>
         )}
       </section>
 
       <section className="card" style={{ marginBottom: 16 }}>
-        <h2 className="card-title" style={{ marginBottom: 10 }}>Ganho do investidor por fase, com a venda na meta</h2>
+        <h2 className="card-title" style={{ marginBottom: 10 }}>Ganho do investidor na safra, por fase de compra (venda na meta)</h2>
         <RegrasTalhao precoRef={preco} metaPct={n("meta")} perfPct={n("perf")} comissaoFazendaPct={n("comissao")} appPct={app} multiplicadores={mult}
-          despesaInvestidorUnidade={n("armazem") * parteInv} compact={false} />
+          despesaInvestidorUnidade={n("armazem") * parteInv} compact={false}
+          inicioCiclo={new Date().toISOString().slice(0, 10)}
+          fimCiclo={new Date(Date.now() + Math.max(1, n("dias") - 15) * 86400000).toISOString().slice(0, 10)} />
       </section>
 
       <Banner tone="warning" title="Riscos">

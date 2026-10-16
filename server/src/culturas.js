@@ -43,36 +43,38 @@ const TIPOS = {
   },
 };
 
+// ciclo_dias: duração típica da safra ou do lote (plantio à colheita; entrada
+// dos animais ao abate/venda). Só referência: o ciclo real vem das datas do talhão.
 const CULTURAS = [
   // ---- grãos ----
-  { nome: "Soja", grupo: "Grãos", tipo: "lavoura", unidade: "saca",
+  { nome: "Soja", grupo: "Grãos", tipo: "lavoura", unidade: "saca", ciclo_dias: 120,
     variedades: ["Convencional", "Transgênica (RR)", "Intacta RR2 PRO", "Não transgênica certificada", "Orgânica"] },
-  { nome: "Milho", grupo: "Grãos", tipo: "lavoura", unidade: "saca",
+  { nome: "Milho", grupo: "Grãos", tipo: "lavoura", unidade: "saca", ciclo_dias: 150,
     variedades: ["Grão amarelo (comum)", "Milho branco", "Milho pipoca", "Milho doce / verde", "Milho para silagem"] },
-  { nome: "Feijão", grupo: "Grãos", tipo: "lavoura", unidade: "saca",
+  { nome: "Feijão", grupo: "Grãos", tipo: "lavoura", unidade: "saca", ciclo_dias: 90,
     variedades: ["Carioca", "Preto", "Fradinho / caupi", "Rajado", "Branco", "Vermelho", "Jalo", "Bolinha"] },
-  { nome: "Arroz", grupo: "Grãos", tipo: "lavoura", unidade: "saca",
+  { nome: "Arroz", grupo: "Grãos", tipo: "lavoura", unidade: "saca", ciclo_dias: 130,
     variedades: ["Agulhinha (longo fino)", "Cateto", "Arbóreo", "Japonês (oriental)", "Arroz preto", "Arroz vermelho"] },
-  { nome: "Trigo", grupo: "Grãos", tipo: "lavoura", unidade: "saca",
+  { nome: "Trigo", grupo: "Grãos", tipo: "lavoura", unidade: "saca", ciclo_dias: 120,
     variedades: ["Pão", "Melhorador", "Doméstico", "Básico", "Durum"] },
-  { nome: "Sorgo", grupo: "Grãos", tipo: "lavoura", unidade: "saca",
+  { nome: "Sorgo", grupo: "Grãos", tipo: "lavoura", unidade: "saca", ciclo_dias: 120,
     variedades: ["Granífero", "Forrageiro / silagem", "Sacarino"] },
-  { nome: "Café", grupo: "Café", tipo: "lavoura", unidade: "saca",
+  { nome: "Café", grupo: "Café", tipo: "lavoura", unidade: "saca", ciclo_dias: 365,
     variedades: ["Arábica", "Conilon / robusta", "Arábica especial (cafés finos)"] },
   // ---- fibras ----
-  { nome: "Algodão", grupo: "Fibras", tipo: "lavoura", unidade: "arroba",
+  { nome: "Algodão", grupo: "Fibras", tipo: "lavoura", unidade: "arroba", ciclo_dias: 170,
     variedades: ["Pluma convencional", "Transgênico", "Colorido", "Orgânico"] },
   // ---- pecuária ----
-  { nome: "Bovinos de corte", grupo: "Pecuária", tipo: "pecuaria", unidade: "arroba", icone: "touro",
+  { nome: "Bovinos de corte", grupo: "Pecuária", tipo: "pecuaria", unidade: "arroba", ciclo_dias: 120, icone: "touro",
     variedades: ["Nelore", "Angus", "Brangus", "Senepol", "Cruzamento industrial", "Novilha precoce", "Bezerros (cria)"] },
-  { nome: "Bovinos de leite", grupo: "Pecuária", tipo: "producao_animal", unidade: "litro", icone: "vaca",
+  { nome: "Bovinos de leite", grupo: "Pecuária", tipo: "producao_animal", unidade: "litro", ciclo_dias: 300, icone: "vaca",
     variedades: ["Holandesa", "Girolando", "Gir leiteiro", "Jersey", "Pardo-suíço"] },
-  { nome: "Suínos", grupo: "Pecuária", tipo: "pecuaria", unidade: "kg",
+  { nome: "Suínos", grupo: "Pecuária", tipo: "pecuaria", unidade: "kg", ciclo_dias: 110,
     variedades: ["Terminação industrial", "Leitões (creche)", "Suíno caipira"] },
   // ---- aves ----
-  { nome: "Galinhas poedeiras", grupo: "Aves", tipo: "producao_animal", unidade: "duzia",
+  { nome: "Galinhas poedeiras", grupo: "Aves", tipo: "producao_animal", unidade: "duzia", ciclo_dias: 365,
     variedades: ["Ovos brancos", "Ovos vermelhos", "Caipira", "Orgânico"] },
-  { nome: "Frango de corte", grupo: "Aves", tipo: "pecuaria", unidade: "kg",
+  { nome: "Frango de corte", grupo: "Aves", tipo: "pecuaria", unidade: "kg", ciclo_dias: 45,
     variedades: ["Linhagem industrial", "Frango caipira", "Orgânico"] },
 ];
 

@@ -12,6 +12,13 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // A maioria dos provedores gratuitos de Postgres (Neon, Supabase) exige SSL.
   ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false },
+  // Conexões simultâneas com o banco (padrão do pg = 10). Ajustável por
+  // PG_POOL_MAX conforme o plano do banco.
+  max: Number(process.env.PG_POOL_MAX) || 20,
+  // se o pool esgotar, a requisição falha em 10 s com erro claro em vez de
+  // ficar esperando para sempre
+  connectionTimeoutMillis: 10_000,
+  idleTimeoutMillis: 30_000,
 });
 
 const SCHEMA = `
@@ -517,6 +524,21 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_reason TEXT;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS aprovacao_por INTEGER;
+
+-- ===================== Índices para volume =====================
+-- Medidos com 20 mil investidores, 1.200 talhões e 200 mil transações:
+-- sem eles, financeiro, demonstrativo e rankings varriam a tabela inteira.
+CREATE INDEX IF NOT EXISTS idx_transactions_plot ON transactions(plot_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_farm ON transactions(farm_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_type_user ON transactions(type, user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_investment ON transactions(investment_id);
+CREATE INDEX IF NOT EXISTS idx_payouts_investment ON payouts(investment_id);
+CREATE INDEX IF NOT EXISTS idx_validations_warehouse ON plot_validations(warehouse_id, etapa, resultado);
+CREATE INDEX IF NOT EXISTS idx_investments_plot_status ON investments(plot_id, status);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_plots_status ON plots(status);
+CREATE INDEX IF NOT EXISTS idx_farm_characteristics_farm ON farm_characteristics(farm_id);
 
 -- registro das ações sensíveis da administração (ex.: zerar dados)
 CREATE TABLE IF NOT EXISTS admin_audit_log (

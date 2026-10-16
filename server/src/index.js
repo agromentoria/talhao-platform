@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const compression = require("compression");
 
 const { initDb } = require("./db");
 
@@ -84,6 +85,8 @@ async function start() {
   app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 1));
   app.disable("x-powered-by");
 
+  // respostas comprimidas (gzip): a vitrine cai para ~1/10 do tamanho
+  app.use(compression());
   app.use(helmet());
   app.use(cors(buildCorsOptions()));
   app.use(express.json({ limit: "2mb" })); // acomoda foto de perfil em base64
@@ -137,6 +140,14 @@ async function start() {
         multiplicadores: Object.fromEntries(rows.map((r) => [r.fase, Math.round(Number(r.multiplicador) * 10000) / 10000])),
         performance_max: PERFORMANCE_MAX,
         niveis: NIVEIS.map(({ id, label, minimo }) => ({ id, label, minimo })),
+        // taxas de referência para comparar o ganho da safra com o que o mesmo
+        // dinheiro renderia no mesmo prazo (ajustáveis por variáveis de ambiente)
+        referencias: {
+          cdi_aa: Number(process.env.REF_CDI_AA) || 13.65,
+          lca_pct_cdi: Number(process.env.REF_LCA_PCT_CDI) || 90,
+          poupanca_am: Number(process.env.REF_POUPANCA_AM) || 0.67,
+          atualizado_em: process.env.REF_DATA || "2026-10",
+        },
       });
     } catch (err) { next(err); }
   });

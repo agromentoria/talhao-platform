@@ -43,6 +43,8 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
   }
 
   const client = await pool.connect();
+  let liberado = false;
+  const liberar = () => { if (!liberado) { liberado = true; client.release(); } };
   try {
     await client.query("BEGIN");
 
@@ -68,7 +70,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
       throw new AppError(409, "Este talhão já encerrou o ciclo de captação.");
     }
     if (plot.cotas_disponiveis < qtd) {
-      throw new AppError(409, `Só restam ${plot.cotas_disponiveis} cotas disponíveis.`);
+      throw new AppError(409, Number(plot.cotas_disponiveis) <= 0 ? "As sacas deste talhão esgotaram nesta fase." : `Só restam ${plot.cotas_disponiveis} unidades disponíveis neste talhão.`);
     }
 
     const valorInvestido = qtd * plot.cota_valor;
@@ -101,6 +103,9 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     });
 
     await client.query("COMMIT");
+    // devolve a conexão ANTES dos avisos: eles usam outras conexões do pool e,
+    // com muitas compras simultâneas, segurar esta travava o servidor inteiro
+    liberar();
 
     // notificações (fora da transação — não devem derrubar a compra se falharem)
     try {
@@ -139,11 +144,11 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
 
     res.status(201).json({ investment });
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (!liberado) await client.query("ROLLBACK").catch(() => {});
     if (err instanceof AppError) return res.status(err.status).json({ error: err.message });
     throw err;
   } finally {
-    client.release();
+    liberar();
   }
 }));
 

@@ -1,5 +1,32 @@
 # Registro de mudanças
 
+## 2.4.0 — ganhos por safra
+
+- **Tudo passa a ser contado por safra, não ao ano.** O quadro de regras mostra o ganho na safra por fase de compra e o **prazo em dias** até o pagamento (ciclo da cultura + armazenagem e venda), no lugar da taxa equivalente ao ano.
+- **Comparação no mesmo prazo:** "No mesmo prazo de N dias, o mesmo dinheiro renderia: Meu Talhão X%, LCA Y%, CDB Z% (após IR), poupança W%" — na página do talhão, no cadastro (fazenda) e na aprovação (fundo).
+- **Ciclo típico por cultura** no catálogo (soja ~120 dias, milho ~150, feijão ~90, arroz ~130, trigo ~120, algodão ~170, café ~365, bovinos de corte ~120, leite ~300, suínos ~110, frango ~45, poedeiras ~365). O cadastro mostra o ciclo típico e o ciclo do talhão pelas datas.
+- **Simulador do "Como funciona"** com a duração da safra em dias e a comparação em reais com LCA, CDB e poupança no mesmo prazo.
+- Taxas de referência (CDI, % da LCA, poupança) em `/api/regras`, ajustáveis por `REF_CDI_AA`, `REF_LCA_PCT_CDI` e `REF_POUPANCA_AM`.
+
+## 2.3.0 — teste de carga e escalabilidade
+
+Testado com volume sintético de anos de operação (20 mil investidores, 1.200 talhões, 200 mil compras e 200 mil transações) e carga de 20 conexões simultâneas.
+
+- **Corrigido (crítico):** com muitas compras simultâneas, cada compra segurava a conexão com o banco enquanto enviava avisos, que precisavam de outras conexões; o pool esgotava e o servidor inteiro parava (até o login). A conexão agora é devolvida logo após a confirmação. Teste: 60 compras simultâneas por 100 sacas → exatamente 20 aceitas (100 sacas), 40 recusadas, nenhuma venda duplicada.
+- Pool de conexões com limite configurável (`PG_POOL_MAX`, padrão 20) e tempo máximo de espera de 10 s, para falhar com erro claro em vez de travar.
+- 11 índices novos (transações por talhão, fazenda, data, tipo e investimento; pagamentos; validações; investimentos por situação; usuários por perfil; talhões por situação).
+- Rankings de usuários reescritos com agregação única (antes: uma subconsulta por usuário).
+- Resumo do financeiro sem juntar tabelas quando os filtros não exigem.
+- Vitrine com cache de 10 s já serializado e **respostas comprimidas (gzip)**: a vitrine de 900 talhões caiu de ~1 MB para ~29 KB.
+- Mensagem clara quando as sacas esgotam.
+
+| Tela | Antes | Depois (20 conexões, 1 vCPU) |
+| --- | --- | --- |
+| Demonstrativo | 49 req/s · 393 ms | 486 req/s · 37 ms |
+| Financeiro (transações) | 3 req/s · 4,2 s | 26 req/s · 0,76 s (40 ms com 1 usuário) |
+| Vitrine | 31 req/s · 631 ms | 113 req/s · 152 ms |
+| Rankings de usuários | sem resposta | 0,14–0,43 s com 1 usuário |
+
 ## 2.2.0 — gestão de usuários na administração
 
 - **Novo menu "Usuários"** (só administração), com abas **Investidores**, **Fazendas**, **Armazéns** e **Fundo**:

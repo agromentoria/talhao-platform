@@ -495,3 +495,5 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .diario li:not(:last-child)::before { content: ""; position: absolute; left: 17px; top: 36px; bottom: 0; width: 2px; background: var(--border-strong); }
 .diario-icone { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface-well); font-size: 18px; }
 .diario-texto { padding-top: 4px; min-width: 0; }
+.regras-comparacao { padding: 12px 14px; border-radius: var(--r-md); background: var(--surface-well); }
+.regras-comparacao-linhas { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 6px; font-size: var(--fs-sm); }

@@ -17,24 +17,32 @@ const FARM_STARS_SQL = `ROUND((COALESCE((SELECT SUM(c.pontos) FROM farm_characte
 // colunas de busca, filtro de situação e chaves de ordenação.
 const TIPOS = {
   investidores: {
+    // agregações feitas uma vez por tabela (antes: uma subconsulta por usuário)
     base: `
+      WITH inv AS (
+        SELECT i.user_id,
+               SUM(i.valor_investido) FILTER (WHERE i.status IN ('ativo','pago')) AS investido,
+               SUM(i.valor_investido) FILTER (WHERE i.status = 'ativo') AS em_andamento,
+               SUM(i.valor_investido) FILTER (WHERE i.status = 'pago') AS investido_pago,
+               SUM(i.cotas) FILTER (WHERE i.status IN ('ativo','pago')) AS unidades,
+               COUNT(*) FILTER (WHERE i.status IN ('ativo','pago')) AS compras,
+               COUNT(DISTINCT i.plot_id) FILTER (WHERE i.status IN ('ativo','pago')) AS talhoes,
+               COUNT(DISTINCT p.farm_id) FILTER (WHERE i.status IN ('ativo','pago')) AS fazendas,
+               MAX(i.created_at) AS ultima_compra
+        FROM investments i JOIN plots p ON p.id = i.plot_id GROUP BY i.user_id
+      ), rec AS (
+        SELECT user_id, SUM(amount) AS recebido FROM transactions WHERE type = 'pagamento_investidor' GROUP BY user_id
+      )
       SELECT u.id, u.name AS nome, u.email, u.phone, u.created_at, u.last_login_at, u.suspended_at,
              u.endereco_cidade AS cidade, u.endereco_uf AS uf,
              CASE WHEN u.suspended_at IS NOT NULL THEN 'suspenso' ELSE 'ativo' END AS situacao,
-             COALESCE(SUM(i.valor_investido) FILTER (WHERE i.status IN ('ativo','pago')), 0)::float8 AS investido,
-             COALESCE(SUM(i.valor_investido) FILTER (WHERE i.status = 'ativo'), 0)::float8 AS em_andamento,
-             COALESCE(SUM(i.cotas) FILTER (WHERE i.status IN ('ativo','pago')), 0)::float8 AS unidades,
-             COUNT(i.id) FILTER (WHERE i.status IN ('ativo','pago'))::int AS compras,
-             COUNT(DISTINCT i.plot_id) FILTER (WHERE i.status IN ('ativo','pago'))::int AS talhoes,
-             COUNT(DISTINCT p.farm_id) FILTER (WHERE i.status IN ('ativo','pago'))::int AS fazendas,
-             COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.user_id = u.id AND t.type = 'pagamento_investidor'), 0)::float8 AS recebido,
-             COALESCE(SUM(i.valor_investido) FILTER (WHERE i.status = 'pago'), 0)::float8 AS investido_pago,
-             MAX(i.created_at) AS ultima_compra
-      FROM users u
-      LEFT JOIN investments i ON i.user_id = u.id
-      LEFT JOIN plots p ON p.id = i.plot_id
-      WHERE u.role = 'investidor' AND u.deleted_at IS NULL
-      GROUP BY u.id`,
+             COALESCE(inv.investido, 0)::float8 AS investido, COALESCE(inv.em_andamento, 0)::float8 AS em_andamento,
+             COALESCE(inv.unidades, 0)::float8 AS unidades, COALESCE(inv.compras, 0)::int AS compras,
+             COALESCE(inv.talhoes, 0)::int AS talhoes, COALESCE(inv.fazendas, 0)::int AS fazendas,
+             COALESCE(rec.recebido, 0)::float8 AS recebido, COALESCE(inv.investido_pago, 0)::float8 AS investido_pago,
+             inv.ultima_compra
+      FROM users u LEFT JOIN inv ON inv.user_id = u.id LEFT JOIN rec ON rec.user_id = u.id
+      WHERE u.role = 'investidor' AND u.deleted_at IS NULL`,
     busca: ["nome", "email", "cidade"],
     ordens: { investido: "investido", recebido: "recebido", unidades: "unidades", compras: "compras", recentes: "created_at", acesso: "last_login_at", nome: "nome" },
     ordemPadrao: "investido",
@@ -43,19 +51,33 @@ const TIPOS = {
   },
   fazendas: {
     base: `
+      WITH pl AS (
+        SELECT farm_id, COUNT(*) AS talhoes,
+               COUNT(*) FILTER (WHERE status IN ('captacao','em_andamento')) AS talhoes_ativos,
+               COUNT(*) FILTER (WHERE status = 'pago') AS talhoes_pagos,
+               SUM(area_ha) FILTER (WHERE status IN ('captacao','em_andamento')) AS area_ativa
+        FROM plots GROUP BY farm_id
+      ), inv AS (
+        SELECT p.farm_id, SUM(i.valor_investido) AS captado, COUNT(DISTINCT i.user_id) AS investidores, SUM(i.cotas) AS unidades_vendidas
+        FROM investments i JOIN plots p ON p.id = i.plot_id WHERE i.status IN ('ativo','pago') GROUP BY p.farm_id
+      ), tx AS (
+        SELECT farm_id, SUM(amount) AS recebido FROM transactions WHERE type IN ('repasse_fazenda','performance_fazenda') GROUP BY farm_id
+      ), ct AS (
+        SELECT p.farm_id, SUM(c.valor) AS custos FROM plot_costs c JOIN plots p ON p.id = c.plot_id GROUP BY p.farm_id
+      ), est AS (
+        SELECT fc.farm_id, SUM(c.pontos) AS pontos FROM farm_characteristics fc JOIN farm_characteristics_catalog c ON c.key = fc.characteristic_key GROUP BY fc.farm_id
+      )
       SELECT f.id, f.name AS nome, f.location, split_part(f.location, ', ', 1) AS cidade, right(f.location, 2) AS uf,
-             f.status AS situacao, f.created_at, f.commission_pct, ${FARM_STARS_SQL} AS estrelas,
+             f.status AS situacao, f.created_at, f.commission_pct,
+             ROUND((COALESCE(est.pontos, 0)::numeric / NULLIF((SELECT SUM(pontos) FROM farm_characteristics_catalog), 0) * 5), 1)::float8 AS estrelas,
              u.id AS user_id, u.name AS responsavel, u.email, u.phone, u.last_login_at,
-             (SELECT COUNT(*)::int FROM plots p WHERE p.farm_id = f.id) AS talhoes,
-             (SELECT COUNT(*)::int FROM plots p WHERE p.farm_id = f.id AND p.status IN ('captacao','em_andamento')) AS talhoes_ativos,
-             (SELECT COUNT(*)::int FROM plots p WHERE p.farm_id = f.id AND p.status = 'pago') AS talhoes_pagos,
-             (SELECT COALESCE(SUM(p.area_ha), 0)::float8 FROM plots p WHERE p.farm_id = f.id AND p.status IN ('captacao','em_andamento')) AS area_ativa,
-             (SELECT COALESCE(SUM(i.valor_investido), 0)::float8 FROM investments i JOIN plots p ON p.id = i.plot_id WHERE p.farm_id = f.id AND i.status IN ('ativo','pago')) AS captado,
-             (SELECT COUNT(DISTINCT i.user_id)::int FROM investments i JOIN plots p ON p.id = i.plot_id WHERE p.farm_id = f.id AND i.status IN ('ativo','pago')) AS investidores,
-             (SELECT COALESCE(SUM(i.cotas), 0)::float8 FROM investments i JOIN plots p ON p.id = i.plot_id WHERE p.farm_id = f.id AND i.status IN ('ativo','pago')) AS unidades_vendidas,
-             (SELECT COALESCE(SUM(t.amount), 0)::float8 FROM transactions t WHERE t.farm_id = f.id AND t.type IN ('repasse_fazenda','performance_fazenda')) AS recebido,
-             (SELECT COALESCE(SUM(c.valor), 0)::float8 FROM plot_costs c JOIN plots p ON p.id = c.plot_id WHERE p.farm_id = f.id) AS custos
-      FROM farms f LEFT JOIN users u ON u.id = f.owner_user_id`,
+             COALESCE(pl.talhoes, 0)::int AS talhoes, COALESCE(pl.talhoes_ativos, 0)::int AS talhoes_ativos, COALESCE(pl.talhoes_pagos, 0)::int AS talhoes_pagos,
+             COALESCE(pl.area_ativa, 0)::float8 AS area_ativa, COALESCE(inv.captado, 0)::float8 AS captado,
+             COALESCE(inv.investidores, 0)::int AS investidores, COALESCE(inv.unidades_vendidas, 0)::float8 AS unidades_vendidas,
+             COALESCE(tx.recebido, 0)::float8 AS recebido, COALESCE(ct.custos, 0)::float8 AS custos
+      FROM farms f LEFT JOIN users u ON u.id = f.owner_user_id
+      LEFT JOIN pl ON pl.farm_id = f.id LEFT JOIN inv ON inv.farm_id = f.id LEFT JOIN tx ON tx.farm_id = f.id
+      LEFT JOIN ct ON ct.farm_id = f.id LEFT JOIN est ON est.farm_id = f.id`,
     busca: ["nome", "location", "responsavel", "email", "cnpj"],
     ordens: { captado: "captado", talhoes: "talhoes", area: "area_ativa", investidores: "investidores", recebido: "recebido", estrelas: "estrelas", recentes: "created_at", nome: "nome" },
     ordemPadrao: "captado",
@@ -113,6 +135,7 @@ function montar(tipo, q) {
   const metrica = t.metrica;
   if (q.min !== undefined && q.min !== "" && !Number.isNaN(Number(q.min))) add(`${metrica} >= ?`, Number(q.min));
   if (q.max !== undefined && q.max !== "" && !Number.isNaN(Number(q.max))) add(`${metrica} <= ?`, Number(q.max));
+  if (q._id) add("id = ?", Number(q._id));
   const col = t.ordens[q.ordem] || t.ordens[t.ordemPadrao];
   const dir = col === "nome" ? "ASC" : "DESC NULLS LAST";
   return {
@@ -166,7 +189,7 @@ router.get("/:tipo", asyncHandler(async (req, res) => {
 router.get("/:tipo/:id/detalhe", asyncHandler(async (req, res) => {
   const { tipo, id } = req.params;
   if (!TIPOS[tipo]) return res.status(404).json({ error: "Tipo inválido." });
-  const linha = (await consultar(tipo, {})).find((r) => String(r.id) === String(id));
+  const linha = (await consultar(tipo, { _id: id })).find((r) => String(r.id) === String(id));
   if (!linha) return res.status(404).json({ error: "Não encontrado." });
   let itens = [];
   if (tipo === "investidores") {

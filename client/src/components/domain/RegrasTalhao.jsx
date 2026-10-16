@@ -2,16 +2,14 @@ import { Link } from "react-router-dom";
 import { Info } from "lucide-react";
 import { fmtBRL, fmtPct } from "../../lib/format";
 import { dividirLucro } from "../../lib/divisaoLucro";
+import { useRegras, rendimentoNoPrazo, REFERENCIAS_PADRAO } from "../../lib/referencias";
 import { unidadeNome, fasesDe } from "../../config/culturas";
 
-// meses entre duas datas (mínimo de 1)
-function meses(de, ate) {
+const dias = (de, ate) => {
   if (!de || !ate) return null;
-  const a = new Date(String(de).slice(0, 10) + "T12:00:00"), b = new Date(String(ate).slice(0, 10) + "T12:00:00");
-  const m = (b - a) / (1000 * 60 * 60 * 24 * 30.44);
-  return m > 0 ? Math.max(1, m) : null;
-}
-const aoAno = (pct, m) => (m ? (Math.pow(1 + pct / 100, 12 / m) - 1) * 100 : null);
+  const n = Math.round((new Date(String(ate).slice(0, 10)) - new Date(String(de).slice(0, 10))) / 86400000);
+  return n > 0 ? n : null;
+};
 
 /**
  * Quadro único com as regras de um talhão, calculado com os números dele:
@@ -23,6 +21,7 @@ export default function RegrasTalhao({
   precoRef, metaPct, perfPct = 0, comissaoFazendaPct = 0, appPct = 5, multiplicadores = {}, despesaInvestidorUnidade = 0,
   unidade = "saca", tipoProducao, inicioCiclo, fimCiclo, quinzenasArmazem = 0, faseAtual = null, compact = false,
 }) {
+  const regras = useRegras();
   const p = Number(precoRef) || 0;
   const r = Number(metaPct) || 0;
   if (!(p > 0)) return null;
@@ -51,8 +50,8 @@ export default function RegrasTalhao({
       despesa: despesaInvestidorUnidade, comissaoFazendaPct, comissaoAppPct: appPct, performancePct: perfPct });
     const liquidoPct = ((x.valorLiquido - pago) / pago) * 100;
     // prazo: da data provável da compra em cada fase até o recebimento
-    const prazo = meses(dataCompra(f), fimRecebimento);
-    return { f, nome: fases[f], m, pago, recebe: x.valorLiquido, liquidoPct, prazo, anual: aoAno(liquidoPct, prazo) };
+    const prazo = dias(dataCompra(f), fimRecebimento);
+    return { f, nome: fases[f], m, pago, recebe: x.valorLiquido, liquidoPct, prazo };
   });
   const ex = dividirLucro({ cotas: 100, valorInvestido: 100 * p, precoReferencia: p, retornoPrometidoPct: r, precoVenda: p * (1 + (r + 10) / 100),
     despesa: 100 * despesaInvestidorUnidade, comissaoFazendaPct, comissaoAppPct: appPct, performancePct: perfPct });
@@ -61,6 +60,9 @@ export default function RegrasTalhao({
   const invAteMeta = 100 - comissaoFazendaPct - appPct;
   const invAcima = Math.max(0, 100 - (perfPct > 0 ? perfPct : comissaoFazendaPct) - appPct);
   const visiveis = compact ? linhas.filter((l) => l.f === (faseAtual ?? 0)) : linhas;
+  const ref = regras?.referencias || REFERENCIAS_PADRAO;
+  const base = linhas.find((l) => l.f === (faseAtual ?? 0)) || linhas[0];
+  const comparacao = base?.prazo ? rendimentoNoPrazo(base.prazo, ref) : null;
 
   return (
     <div className="regras">
@@ -77,8 +79,8 @@ export default function RegrasTalhao({
             <th><span className="hide-sm">Fase da compra</span><span className="show-sm">Fase</span></th>
             <th className="num"><span className="hide-sm">Paga por {u}</span><span className="show-sm">Paga</span></th>
             <th className="num hide-sm">Recebe</th>
-            <th className="num"><span className="hide-sm">Ganho líquido</span><span className="show-sm">Ganho</span></th>
-            <th className="num">Ao ano*</th>
+            <th className="num"><span className="hide-sm">Ganho na safra</span><span className="show-sm">Ganho</span></th>
+            <th className="num">Prazo*</th>
           </tr></thead>
           <tbody>
             {visiveis.map((l) => (
@@ -87,7 +89,7 @@ export default function RegrasTalhao({
                 <td className="num">{fmtBRL(l.pago)}</td>
                 <td className="num hide-sm">{fmtBRL(l.recebe)}</td>
                 <td className={`num ${l.liquidoPct >= 0 ? "text-success" : "text-danger"}`}><strong>{fmtPct(l.liquidoPct, 2)}</strong></td>
-                <td className="num">{l.anual != null ? `${fmtPct(l.anual, 1)}` : "—"}</td>
+                <td className="num">{l.prazo != null ? `${l.prazo} dias` : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -95,8 +97,19 @@ export default function RegrasTalhao({
       </div>
       <p className="text-xs text-3" style={{ marginTop: 6 }}>
         Já descontadas as comissões{despesaInvestidorUnidade > 0 ? ` e a armazenagem do investidor (${fmtBRL(despesaInvestidorUnidade)} por ${u})` : ""}.
-        {" "}* Taxa equivalente ao ano, considerando o recebimento cerca de {quinzenasArmazem ? `${quinzenasArmazem * 15 + 15} dias` : "15 dias"} após o fim do ciclo{fimCiclo ? "" : " (informe as datas do ciclo para calcular)"}.
-      </p>
+        {" "}* Da compra até o pagamento: o ciclo da cultura{fimCiclo ? "" : " (informe as datas para calcular)"} mais cerca de {quinzenasArmazem ? `${quinzenasArmazem * 15 + 15} dias` : "15 dias"} de armazenagem e venda.</p>
+
+      {comparacao && (
+        <div className="regras-comparacao">
+          <p className="label-xs">No mesmo prazo de {comparacao.dias} dias, o mesmo dinheiro renderia</p>
+          <div className="regras-comparacao-linhas">
+            <span><b className="text-success">{fmtPct(base.liquidoPct, 2)}</b> Meu Talhão{faseAtual != null ? " (fase atual)" : ""}</span>
+            <span><b>{fmtPct(comparacao.lca, 2)}</b> LCA ({ref.lca_pct_cdi}% do CDI, isenta)</span>
+            <span><b>{fmtPct(comparacao.cdb, 2)}</b> CDB 100% do CDI, após IR</span>
+            <span><b>{fmtPct(comparacao.poupanca, 2)}</b> poupança</span>
+          </div>
+        </div>
+      )}
 
       <p className="regras-sub">Quem fica com o lucro</p>
       <div className="regras-divisao">

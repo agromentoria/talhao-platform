@@ -70,14 +70,17 @@ function buildFilters(q) {
     where.push(`(t.description ILIKE $${i} OR u.name ILIKE $${i} OR u.email ILIKE $${i} OR f.name ILIKE $${i}
       OR p.nome ILIKE $${i} OR w.name ILIKE $${i} OR CAST(t.id AS TEXT) = $${j})`);
   }
-  return { sql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
+  return { sql: where.length ? `WHERE ${where.join(" AND ")}` : "", params, precisaJoin: !!(q.q && String(q.q).trim()) || !!q.warehouse_id };
 }
 
 const SORTS = { recentes: "t.created_at DESC, t.id DESC", antigas: "t.created_at ASC, t.id ASC", maior: "t.amount DESC", menor: "t.amount ASC" };
 
 async function summary(filters) {
+  // sem busca por texto nem filtro de armazém, o resumo só precisa da tabela
+  // de transações: evita juntar 4 tabelas a cada consulta
+  const from = filters.precisaJoin ? FROM : "FROM transactions t";
   const { rows } = await pool.query(
-    `SELECT t.type, COUNT(*)::int AS n, COALESCE(SUM(t.amount), 0)::float8 AS total ${FROM} ${filters.sql} GROUP BY t.type`,
+    `SELECT t.type, COUNT(*)::int AS n, COALESCE(SUM(t.amount), 0)::float8 AS total ${from} ${filters.sql} GROUP BY t.type`,
     filters.params
   );
   const porTipo = Object.fromEntries(Object.keys(TIPOS).map((k) => [k, { count: 0, total: 0, label: TIPOS[k].label }]));

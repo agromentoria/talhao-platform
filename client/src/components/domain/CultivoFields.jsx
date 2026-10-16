@@ -54,6 +54,8 @@ export default function CultivoFields({ value: v, onChange, area, references = [
   }, [catalog]);
 
   const tipo = cultura ? cultura.tipo : v.tipo_producao;
+  const duracaoCiclo = v.plantio_ate && v.colheita_prevista
+    ? Math.round((new Date(v.colheita_prevista) - new Date(v.plantio_ate)) / 86400000) : null;
   const ciclo = TIPOS[tipo]?.ciclo || TIPOS.lavoura.ciclo;
   const unidade = v.unidade || cultura?.unidade || "saca";
   const ref = references.find((r) => r.grao === v.cultura && r.unidade === unidade);
@@ -129,7 +131,9 @@ export default function CultivoFields({ value: v, onChange, area, references = [
 
       <TextField label={ciclo.inicio} type="date" value={v.plantio_ate} onChange={(x) => set({ plantio_ate: x })} required />
       <TextField label={ciclo.fim} type="date" value={v.colheita_prevista} onChange={(x) => set({ colheita_prevista: x })} required
-        min={v.plantio_ate || undefined} />
+        min={v.plantio_ate || undefined}
+        hint={[cultura?.ciclo_dias ? `Ciclo típico de ${cultura.nome.toLowerCase()}: ~${cultura.ciclo_dias} dias` : null,
+          duracaoCiclo ? `seu ciclo: ${duracaoCiclo} dias` : null].filter(Boolean).join(" · ") || undefined} />
 
       <div className="span-all card card--well" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

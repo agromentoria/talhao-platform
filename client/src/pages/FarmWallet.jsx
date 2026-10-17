@@ -29,7 +29,7 @@ export default function FarmWallet() {
   const resultado = talhoes.reduce((s, t) => s + t.resultado, 0);
   const transactions = data.transactions.filter((t) => {
     if (filter === "vendas") return t.type === "compra_cota";
-    if (filter === "recebimentos") return t.type === "repasse_fazenda" || t.type === "performance_fazenda";
+    if (filter === "recebimentos") return t.type === "repasse_fazenda" || t.type === "performance_fazenda" || t.type === "aporte_fazenda";
     if (filter === "armazenagem") return t.type === "tarifa_armazem";
     return true;
   });
@@ -42,8 +42,9 @@ export default function FarmWallet() {
       <div className="grid-stats" style={{ marginBottom: 12 }}>
         <Stat label="Recebido dos investidores" value={fmtBRL(captado)} icon={ArrowDownCircle} tone="success" />
         <Stat label="Custos lançados" value={fmtBRL(data.totalCustos || 0)} icon={Receipt} />
-        <Stat label="Comissão até a meta" value={fmtBRL(data.totalRecebido)} icon={Coins} tone="success" />
-        <Stat label="Performance acima da meta" value={fmtBRL(data.totalPerformance || 0)} icon={TrendingUp} tone="success" />
+        <Stat label="Recebido nas colheitas" value={fmtBRL(data.totalRecebido)} icon={Coins} tone="success" />
+        {data.totalPerformance > 0 && <Stat label="Performance acima da meta" value={fmtBRL(data.totalPerformance)} icon={TrendingUp} tone="success" />}
+        {data.totalAporte > 0 && <Stat label="Piso dos investidores e taxas pagos" value={`−${fmtBRL(data.totalAporte)}`} icon={TrendingUp} />}
       </div>
       <div className="grid-stats" style={{ marginBottom: 24 }}>
         {data.totalArmazenagem > 0 && <Stat label="Armazenagem paga pela fazenda" value={fmtBRL(data.totalArmazenagem)} icon={Warehouse} />}
@@ -108,7 +109,9 @@ export default function FarmWallet() {
                 </li>
               );
             }
-            const titulo = t.type === "compra_cota" ? "Venda antecipada" : t.type === "performance_fazenda" ? "Performance acima da meta" : "Comissão até a meta";
+            const titulo = t.type === "compra_cota" ? "Venda antecipada" : t.type === "performance_fazenda" ? "Performance acima da meta"
+              : t.type === "aporte_fazenda" ? "Piso dos investidores e taxas" : t.plot_modelo === "piso" || /alta/.test(t.description || "") ? "Sua parte da alta" : "Comissão até a meta";
+            const saida = t.type === "aporte_fazenda";
             return (
               <li key={t.id} className="list-item">
                 <GrainThumb grao={t.grao} />
@@ -116,7 +119,7 @@ export default function FarmWallet() {
                   <p className="list-item-title truncate">{titulo} · {t.plot_nome}</p>
                   <p className="list-item-sub">{t.type === "compra_cota" && t.investidor_nome ? `${t.investidor_nome} · ` : ""}{fmtDateTime(t.created_at)}</p>
                 </div>
-                <p className={`money ${t.type === "compra_cota" ? "text-success" : "text-primary"}`} style={{ fontWeight: 700, whiteSpace: "nowrap" }}>+{fmtBRL(t.amount)}</p>
+                <p className={`money ${saida ? "text-danger" : t.type === "compra_cota" ? "text-success" : "text-primary"}`} style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{saida ? "−" : "+"}{fmtBRL(t.amount)}</p>
               </li>
             );
           })}

@@ -212,11 +212,11 @@ router.get("/transactions/me", requireAuth, asyncHandler(async (req, res) => {
 // vendas de cotas dos talhões da fazenda + repasses de comissão recebidos por ela
 router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT t.*, p.nome as plot_nome, p.grao, p.unidade, p.arm_pagador, p.arm_investidor_pct, u.name as investidor_nome
+    `SELECT t.*, p.nome as plot_nome, p.grao, p.unidade, p.arm_pagador, p.arm_investidor_pct, p.modelo AS plot_modelo, u.name as investidor_nome
      FROM transactions t
      LEFT JOIN plots p ON p.id = t.plot_id
      LEFT JOIN users u ON u.id = t.user_id AND t.type = 'compra_cota'
-     WHERE t.farm_id = $1 AND t.type IN ('compra_cota', 'repasse_fazenda', 'performance_fazenda', 'tarifa_armazem')
+     WHERE t.farm_id = $1 AND t.type IN ('compra_cota', 'repasse_fazenda', 'performance_fazenda', 'tarifa_armazem', 'aporte_fazenda')
      ORDER BY t.created_at DESC
      LIMIT 300`,
     [req.user.farm_id]
@@ -225,6 +225,8 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
   const totalVendido = rows.filter((r) => r.type === "compra_cota").reduce((s, r) => s + Number(r.amount), 0);
   const totalRecebido = rows.filter((r) => r.type === "repasse_fazenda").reduce((s, r) => s + Number(r.amount), 0);
   const totalPerformance = rows.filter((r) => r.type === "performance_fazenda").reduce((s, r) => s + Number(r.amount), 0);
+  // produto com piso: o que a fazenda pagou para garantir o mínimo dos investidores (+ taxas e armazenagem)
+  const totalAporte = rows.filter((r) => r.type === "aporte_fazenda").reduce((s, r) => s + Number(r.amount), 0);
 
   // armazenagem que a própria fazenda assumiu (quando os investidores pagam, só aparece como informação)
   // parte da fazenda: tudo quando ela assume, o complemento quando é dividido
@@ -234,7 +236,8 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
 
   // resumo por talhão: de onde veio o dinheiro, quanto foi gasto e o resultado
   const { rows: talhoes } = await pool.query(
-    `SELECT p.id, p.nome, p.grao, p.variedade, p.safra, p.status, p.unidade, p.area_ha,
+    `SELECT p.id, p.nome, p.grao, p.variedade, p.safra, p.status, p.unidade, p.area_ha, p.modelo, p.piso_pct,
+            COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.plot_id = p.id AND t.type = 'aporte_fazenda'), 0)::float8 AS aporte,
             COALESCE((SELECT SUM(i.valor_investido) FROM investments i WHERE i.plot_id = p.id AND i.status IN ('ativo','pago')), 0)::float8 AS captado,
             COALESCE((SELECT SUM(c.valor) FROM plot_costs c WHERE c.plot_id = p.id), 0)::float8 AS custos,
             COALESCE((SELECT SUM(b.valor) FROM plot_budget b WHERE b.plot_id = p.id), 0)::float8 AS orcamento,
@@ -247,11 +250,14 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
   for (const r of rows) if (r.type === "tarifa_armazem") armPorTalhao[r.plot_id] = (armPorTalhao[r.plot_id] || 0) + r.parte_fazenda_valor;
   for (const t of talhoes) {
     t.armazenagem = armPorTalhao[t.id] || 0;
-    t.resultado = t.captado - t.custos + t.comissao + t.performance - t.armazenagem;
+    // no piso, o repasse e o aporte já vêm líquidos de taxas e armazenagem
+    t.resultado = t.modelo === "piso"
+      ? t.captado - t.custos + t.comissao - t.aporte
+      : t.captado - t.custos + t.comissao + t.performance - t.armazenagem;
   }
   const totalCustos = talhoes.reduce((s, t) => s + t.custos, 0);
 
-  res.json({ transactions: rows, totalVendido, totalRecebido, totalPerformance, totalArmazenagem, totalCustos, talhoes });
+  res.json({ transactions: rows, totalVendido, totalRecebido, totalPerformance, totalArmazenagem, totalAporte, totalCustos, talhoes });
 }));
 
 module.exports = router;

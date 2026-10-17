@@ -14,6 +14,10 @@
  *   SEM_COMPRAS=1               não registrar compras da Ana
  *   REMOVER=1                   apaga tudo o que esta carga criou
  *
+ * Também cria 12 talhões da SAFRINHA 2026 já colhidos e pagos (comprados pela
+ * Ana), com preços reais de venda acima e abaixo do piso, para mostrar o
+ * ganho do investidor e o resultado das fazendas. SEM_COLHIDOS=1 desliga.
+ *
  * Pode rodar de novo: fazendas e talhões que já existem são pulados.
  * Requisitos na base: investidora ana.cedo@demo.com e um armazém aprovado
  * com "SIAP" no nome.
@@ -21,6 +25,7 @@
 const bcrypt = require("bcryptjs");
 const { pool } = require("../src/db");
 const { prazoDias, pisoPct } = require("../src/piso");
+const { executeHarvestPayout } = require("../src/harvestPayout");
 
 const DOMINIO = "carga-safrinha.meutalhao.com.br"; // marca as contas desta carga
 const SENHA = process.env.SENHA_FAZENDAS || "senha12345";
@@ -75,12 +80,97 @@ const DESC = [
   "Fazenda com armazém próprio e histórico de produtividade acima da média regional.",
 ];
 
+// ---------- safrinha 2026: colhida, vendida e paga ----------
+// preço real de venda ÷ preço de referência (alguns acima, alguns abaixo do piso)
+const RESULTADOS = [1.15, 1.08, 0.94, 1.21, 1.03, 1.12, 0.98, 1.17, 1.06, 1.10, 0.92, 1.13];
+const COLHIDAS = [
+  ["milho", 55], ["feijao", 262], ["milho", 54], ["sorgo", 44], ["milho", 56], ["trigo", 72],
+  ["milho", 53], ["feijao", 255], ["milho", 57], ["sorgo", 45], ["milho", 55], ["milho", 54],
+];
+async function colhidos({ client, armazem, aprovador, anaId }) {
+  const { rows: faz } = await client.query(
+    `SELECT f.* FROM farms f JOIN users u ON u.id = f.owner_user_id WHERE u.email LIKE $1 ORDER BY f.id`, [`%@${DOMINIO}`]);
+  const publicado = new Date("2026-01-12T12:00:00Z");
+  let investido = 0, recebido = 0, fazendaLiq = 0, altaFazenda = 0, taxas = 0, pisoPago = 0, n = 0, diasMed = 0;
+  for (let k = 0; k < COLHIDAS.length && k < faz.length; k++) {
+    const farm = faz[(k * 7) % faz.length]; // 12 fazendas diferentes
+    const [chave, P] = COLHIDAS[k];
+    const c = CULTURAS[chave];
+    const nome = `Talhão ${String(40 + k).padStart(2, "0")} – ${c.grao} Safrinha 2026`;
+    const { rows: ex } = await client.query("SELECT 1 FROM plots WHERE farm_id = $1 AND nome = $2", [farm.id, nome]);
+    if (ex.length) continue;
+    const area = arred(entre(30, 120), 5);
+    const prod = Math.round(entre(c.prod[0], c.prod[1]));
+    const cotas = Math.min(arred(area * prod * 0.6, 50), Math.floor(380000 / P / 50) * 50);
+    const colheita = c.colheita.replace("2027", "2026"), plantio = c.plantio.replace("2027", "2026");
+    const dias = prazoDias(colheita, publicado);
+    const piso = pisoPct(dias);
+    const vendido = Math.round(P * RESULTADOS[k] * 100) / 100;
+    await client.query("BEGIN");
+    const { rows: np } = await client.query(
+      `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra,
+         cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado,
+         warehouse_id, custodia_status, custodia_em, aprovacao_status, aprovacao_em, aprovacao_por, exige_garantia, publicado_em,
+         arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_tarifa_recepcao, arm_tarifa_quinzena, arm_carencia, arm_quebra_pct,
+         modelo, piso_pct, piso_dias, status, fase_atual, progresso, arm_entrada_em, created_at)
+       VALUES ($1,$2,$3,$4,'lavoura',$5,$6,$7,'2026 safrinha', $8,$9,0,$10,$11,$8, $12,'aceita',$13,'aprovado',$13,$14,true,$13,
+         'fazenda',2,0,$15,$16,$17,$18, 'piso',$10,$19,'em_andamento',5,100, now() - interval '30 days', $13) RETURNING *`,
+      [farm.id, nome, c.grao, c.variedade, plantio, colheita, area, P, cotas, piso, c.unidade, armazem.id, publicado, aprovador,
+       armazem.tarifa_recepcao, armazem.tarifa_quinzena, armazem.carencia_quinzenas, armazem.quebra_quinzena_pct, dias]
+    );
+    const plot = np[0];
+    const valor = Math.round(cotas * P * 100) / 100;
+    const { rows: inv } = await client.query(
+      "INSERT INTO investments (user_id, plot_id, cotas, valor_investido, preco_unitario, status, created_at) VALUES ($1,$2,$3,$4,$5,'ativo','2026-01-20') RETURNING id",
+      [anaId, plot.id, cotas, valor, P]);
+    await client.query(
+      `INSERT INTO transactions (type, status, user_id, farm_id, plot_id, investment_id, amount, payment_method_type, description, created_at)
+       VALUES ('compra_cota','aprovado',$1,$2,$3,$4,$5,'pix',$6,'2026-01-20')`,
+      [anaId, farm.id, plot.id, inv[0].id, valor, `Compra de ${cotas} ${c.unidade}s de ${c.grao} em ${nome}`]);
+    const produzido = arred(area * prod, 10);
+    for (const [etapa, q, obs, quando] of [
+      ["plantio", null, `${area} ha plantados; estande uniforme.`, plantio],
+      ["colheita", produzido, `Colheita de ${produzido.toLocaleString("pt-BR")} ${c.unidade}s (${prod} por ha).`, colheita],
+      ["armazenagem", cotas, `${cotas.toLocaleString("pt-BR")} ${c.unidade}s dos investidores recebidas no armazém.`, colheita],
+    ]) {
+      await client.query("INSERT INTO plot_validations (plot_id, warehouse_id, etapa, resultado, quantidade, observacao, created_at) VALUES ($1,$2,$3,'confirmado',$4,$5,$6)",
+        [plot.id, armazem.id, etapa, q, obs, quando]);
+    }
+    for (const [f, pr, nota, quando] of [[1, 20, "Plantio concluído logo após a colheita da soja.", plantio], [3, 60, "Lavoura bem desenvolvida; manejo de pragas em dia.", "2026-04-15"], [5, 100, `Colheita encerrada: ${prod} ${c.unidade}s por ha.`, colheita]]) {
+      await client.query("INSERT INTO progress_updates (plot_id, fase_atual, progresso, nota, created_at) VALUES ($1,$2,$3,$4,$5)", [plot.id, f, pr, nota, quando]);
+    }
+    const retorno = Math.round(((vendido / P) - 1) * 100 * 1e6) / 1e6;
+    await client.query(
+      `INSERT INTO harvest_requests (plot_id, farm_id, retorno_final, comprovante_texto, status, requested_by, reviewed_by, created_at, reviewed_at)
+       VALUES ($1,$2,$3,$4,'aprovado',$5,$6,'2026-08-01','2026-08-05')`,
+      [plot.id, farm.id, retorno, `Venda de ${cotas.toLocaleString("pt-BR")} ${c.unidade}s a R$ ${vendido.toFixed(2).replace(".", ",")} (nota fiscal anexada).`, farm.owner_user_id, aprovador]);
+    await client.query("COMMIT");
+    // pagamento com a MESMA rotina do app (piso, alta, taxas, armazenagem)
+    const r = await executeHarvestPayout({ plot, farm, retorno });
+    await client.query("UPDATE transactions SET created_at = '2026-08-05' WHERE plot_id = $1 AND type <> 'compra_cota'", [plot.id]);
+    await client.query("UPDATE notifications SET created_at = '2026-08-05' WHERE plot_id = $1", [plot.id]).catch(() => {});
+    investido += valor; recebido += r.piso.investidores; fazendaLiq += r.piso.fazendaLiquido; n++; diasMed += dias;
+    altaFazenda += r.piso.fazendaExcedente; taxas += r.piso.estruturacao + r.piso.custodia + r.piso.fundo; pisoPago += r.piso.valorPiso - valor;
+    const custo = ((r.piso.valorPiso - valor) + r.piso.estruturacao + r.piso.custodia + r.piso.fundo) / valor * 100;
+    console.log(`  ✓ ${nome} (${farm.name}): vendido a R$ ${vendido.toFixed(2)} (ref. R$ ${P}) · Ana +${((r.piso.investidores / valor - 1) * 100).toFixed(2)}% · custo do dinheiro p/ a fazenda ${custo.toFixed(2)}%${r.piso.fazendaExcedente > 0 ? ` e ficou com R$ ${Math.round(r.piso.fazendaExcedente).toLocaleString("pt-BR")} da alta` : ""}`);
+  }
+  if (n) {
+    const d = Math.round(diasMed / n), f = (v) => Math.round(v).toLocaleString("pt-BR");
+    const custo = (pisoPago + taxas) / investido * 100;
+    const b17 = (Math.pow(1.17, d / 365) - 1) * 100, b20 = (Math.pow(1.20, d / 365) - 1) * 100;
+    console.log(`Safrinha 2026 paga: ${n} talhões em ~${d} dias`);
+    console.log(`  Investidora: aplicou R$ ${f(investido)} e recebeu R$ ${f(recebido)} (+${((recebido / investido - 1) * 100).toFixed(2)}%)`);
+    console.log(`  Fazendas: receberam R$ ${f(investido)} antes do plantio; custo do dinheiro ${custo.toFixed(2)}% no período (piso + taxas) contra ${b17.toFixed(1)}% a ${b20.toFixed(1)}% do crédito bancário livre; ficaram com R$ ${f(altaFazenda)} da alta (a armazenagem é custo delas em qualquer caso)`);
+  }
+}
+
 async function remover(client) {
   const { rows: farms } = await client.query(`SELECT f.id FROM farms f JOIN users u ON u.id = f.owner_user_id WHERE u.email LIKE $1`, [`%@${DOMINIO}`]);
   const ids = farms.map((f) => f.id);
   if (!ids.length) { console.log("Nada a remover."); return; }
   const { rows: plots } = await client.query("SELECT id FROM plots WHERE farm_id = ANY($1)", [ids]);
   const pids = plots.map((p) => p.id);
+  await client.query("DELETE FROM payouts WHERE investment_id IN (SELECT id FROM investments WHERE plot_id = ANY($1))", [pids]);
   for (const t of ["transactions", "investments", "plot_costs", "plot_budget", "progress_updates", "plot_validations", "plot_waitlist", "photos", "notifications", "harvest_requests"]) {
     await client.query(`DELETE FROM ${t} WHERE plot_id = ANY($1)`, [pids]).catch(() => {});
   }
@@ -195,6 +285,7 @@ async function remover(client) {
       }
     }
     await client.query("COMMIT");
+    if (!process.env.SEM_COLHIDOS && ana[0]) await colhidos({ client, armazem, aprovador, anaId: ana[0].id });
     console.log(`Pronto: ${nFaz} fazendas novas, ${nTal} talhões novos, R$ ${Math.round(captado).toLocaleString("pt-BR")} em captação aberta.`);
     if (nCompra) console.log(`Ana: ${nCompra} compras, ${comprasAna.toLocaleString("pt-BR")} unidades, R$ ${valorAna.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`);
     console.log(`Contas das fazendas: <nome>@${DOMINIO} · senha: ${SENHA}`);

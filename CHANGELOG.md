@@ -1,5 +1,11 @@
 # Registro de mudanças
 
+## 2.6.2 — safrinha 2026 colhida e paga na carga de demonstração
+
+- A carga `carga-safrinha-2027.js` agora também cria **12 talhões da safrinha 2026 já colhidos, vendidos e pagos** (milho, feijão, sorgo e trigo), comprados pela ana.cedo@demo.com e pagos pela mesma rotina do app. Preços reais de venda entre −8% e +21% sobre a referência: nos casos de queda, a Ana recebe o piso e a fazenda completa.
+- Resultado da carga: investidora +7,98% em ~200 dias; fazendas com custo do dinheiro de 8,13% no período (contra 9,0% a 10,5% do crédito bancário livre) e R$ 61 mil de parte da alta. `SEM_COLHIDOS=1` desliga.
+- **Carteira da fazenda** no produto com piso: "Recebido nas colheitas", "Piso dos investidores e taxas pagos" e o resultado por talhão sem contar a armazenagem duas vezes.
+
 ## 2.6.1 — carga de demonstração da safrinha 2027
 
 - Novo script `npm run carga:safrinha` (pasta `server`): 20 fazendas do cinturão da safrinha (MT, GO, MS, PR, MG) e 58 talhões de milho, sorgo, feijão, algodão e trigo, em preparo do solo ou plantio, no produto com renda mínima.

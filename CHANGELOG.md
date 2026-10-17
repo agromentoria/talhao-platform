@@ -1,5 +1,11 @@
 # Registro de mudanças
 
+## 2.6.1 — carga de demonstração da safrinha 2027
+
+- Novo script `npm run carga:safrinha` (pasta `server`): 20 fazendas do cinturão da safrinha (MT, GO, MS, PR, MG) e 58 talhões de milho, sorgo, feijão, algodão e trigo, em preparo do solo ou plantio, no produto com renda mínima.
+- Valores de mercado (referência out/2026 para jul/2027): milho ~R$ 58/sc e 100–125 sc/ha; sorgo ~R$ 47/sc; feijão carioca ~R$ 280/sc; algodão ~R$ 128/@; trigo ~R$ 76/sc; custos por hectare por cultura; 55% a 70% da produção vendida aos investidores, até R$ 2,4 mi por talhão.
+- Grava direto no banco com as regras do app (piso, custódia do armazém SIAP com as tarifas dele, aprovação e publicação); precisa só da `DATABASE_URL`. Compras da investidora ana.cedo@demo.com em ~30% dos talhões (desligue com `SEM_COMPRAS=1`); `REMOVER=1` desfaz a carga.
+
 ## 2.6.0 — produto com renda mínima (piso)
 
 O app passa a funcionar como o plano de negócios v2 e a apresentação.

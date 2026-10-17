@@ -73,7 +73,9 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
       throw new AppError(409, Number(plot.cotas_disponiveis) <= 0 ? "As sacas deste talhão esgotaram nesta fase." : `Só restam ${plot.cotas_disponiveis} unidades disponíveis neste talhão.`);
     }
 
-    const valorInvestido = qtd * plot.cota_valor;
+    // no produto com piso, o preço é o do dia (sobe com o tempo na taxa do piso)
+    const precoUnit = plot.modelo === "piso" ? require("../piso").precoAtualPiso(plot) : Number(plot.cota_valor);
+    const valorInvestido = qtd * precoUnit;
 
     await client.query(
       "UPDATE plots SET cotas_disponiveis = cotas_disponiveis - $1 WHERE id = $2",
@@ -82,7 +84,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
 
     const { rows: invRows } = await client.query(
       "INSERT INTO investments (user_id, plot_id, cotas, valor_investido, preco_unitario) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [req.user.id, plot.id, qtd, valorInvestido, plot.cota_valor]
+      [req.user.id, plot.id, qtd, valorInvestido, precoUnit]
     );
     const investment = invRows[0];
 
@@ -164,7 +166,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
 
 router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT i.*, p.nome as plot_nome, p.grao, p.variedade, p.tipo_producao, p.colheita_prevista, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado, p.cota_valor, p.retorno_final, p.previsao_retorno,
+    `SELECT i.*, p.nome as plot_nome, p.grao, p.variedade, p.tipo_producao, p.colheita_prevista, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado, p.cota_valor, p.retorno_final, p.previsao_retorno, p.modelo, p.piso_pct, p.piso_dias, p.publicado_em,
             f.name as farm_name,
             po.valor_bruto, po.comissao_fazenda, po.comissao_app, po.valor_liquido
      FROM investments i
@@ -175,7 +177,10 @@ router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (re
      ORDER BY i.created_at DESC`,
     [req.user.id]
   );
-  res.json({ investments: rows, nivel: await getInvestorLevel(pool, req.user.id) });
+  // no produto com piso, "valem hoje" usa o preço do dia
+  const { precoAtualPiso } = require("../piso");
+  const comPreco = rows.map((r) => (r.modelo === "piso" ? { ...r, cota_valor: precoAtualPiso(r) } : r));
+  res.json({ investments: comPreco, nivel: await getInvestorLevel(pool, req.user.id) });
 }));
 
 router.get("/plot/:plotId", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {

@@ -10,6 +10,7 @@ const { dividirLucro } = require("./profitSplit");
 // pago x preço real de venda, para que quem comprou mais cedo continue
 // lucrando mais do que quem comprou mais perto da colheita.
 async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
+  if (plot.modelo === "piso") return executePisoPayout({ plot, farm, retorno });
   const client = await pool.connect();
   let investidoresPagos = 0;
   let totalComissaoFazenda = 0;
@@ -172,6 +173,72 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
   }
 
   return { investidoresPagos, totalComissaoFazenda, totalComissaoApp, totalDespesaArmazem, totalPerformance };
+}
+
+// ---------- produto com piso (v2) ----------
+async function executePisoPayout({ plot, farm, retorno }) {
+  const { calcularPagamentoPiso, REGRAS } = require("./piso");
+  const client = await pool.connect();
+  let r;
+  try {
+    await client.query("BEGIN");
+    const { rows: investments } = await client.query("SELECT * FROM investments WHERE plot_id = $1 AND status = 'ativo' FOR UPDATE", [plot.id]);
+    const precoVenda = plot.preco_venda_estimado * (1 + retorno / 100);
+    const unidades = investments.reduce((s, i) => s + Number(i.cotas), 0);
+    const desp = plot.warehouse_id ? despesaReal(plot, { unidades, precoVenda }) : null;
+    r = calcularPagamentoPiso(plot, investments, precoVenda, { despesaArmazenagem: desp ? desp.total : 0 });
+    const tx = (o) => recordTransaction(client, { status: "aprovado", farmId: plot.farm_id, plotId: plot.id, ...o });
+
+    for (const l of r.linhas) {
+      await client.query(
+        `INSERT INTO payouts (investment_id, valor_bruto, comissao_fazenda, comissao_app, valor_liquido, despesa_armazem, perf_fazenda, valor_piso, aporte_fazenda)
+         VALUES ($1, $2, $3, $4, $5, 0, 0, $6, $7)`,
+        [l.inv.id, centavos(l.valorVenda), centavos(l.fazendaExcedente), centavos(l.plataforma), centavos(l.investidor), centavos(l.valorPiso), centavos(l.aporteFazenda)]
+      );
+      await client.query("UPDATE investments SET status = 'pago' WHERE id = $1", [l.inv.id]);
+      await tx({ type: "pagamento_investidor", userId: l.inv.user_id, investmentId: l.inv.id, amount: l.investidor,
+        description: `Pagamento da colheita de ${plot.nome}: mínimo garantido de ${fmtBRL(l.valorPiso)} (piso de ${plot.piso_pct}%)${l.excedente > 0 ? ` + ${REGRAS.excedente_investidor_pct}% da alta (${fmtBRL(l.investidor - l.valorPiso)})` : ""}` });
+    }
+    if (farm.owner_user_id && r.fazendaLiquido > 0.004) {
+      await tx({ type: "repasse_fazenda", userId: farm.owner_user_id, amount: r.fazendaLiquido,
+        description: `${plot.nome}: ${REGRAS.excedente_fazenda_pct}% da alta (${fmtBRL(r.fazendaExcedente)}) menos taxas e armazenagem` });
+    }
+    if (r.fazendaLiquido < -0.004) {
+      await tx({ type: "aporte_fazenda", userId: farm.owner_user_id, amount: -r.fazendaLiquido,
+        description: `${plot.nome}: aporte da fazenda para garantir o piso${r.aportePiso > 0 ? ` (${fmtBRL(r.aportePiso)} de complemento)` : ""}, taxas e armazenagem` });
+    }
+    if (r.plataforma > 0.004) {
+      await tx({ type: "comissao_plataforma", userId: null, amount: r.plataforma,
+        description: `${plot.nome}: estruturação de ${REGRAS.estruturacao_pct}% (${fmtBRL(r.estruturacao)})${r.plataformaExcedente > 0 ? ` + ${REGRAS.excedente_plataforma_pct}% da alta (${fmtBRL(r.plataformaExcedente)})` : ""}` });
+    }
+    if (plot.warehouse_id && r.armazem > 0.004) {
+      const { rows: wh } = await client.query("SELECT owner_user_id, name FROM warehouses WHERE id = $1", [plot.warehouse_id]);
+      await tx({ type: "tarifa_armazem", userId: wh[0]?.owner_user_id || null, amount: r.armazem,
+        description: `${plot.nome} em ${wh[0]?.name || "armazém"}: custódia de ${REGRAS.custodia_armazem_pct}% (${fmtBRL(r.custodia)}) + armazenagem (${fmtBRL(r.armazenagem)}), pagas pela fazenda` });
+    }
+    if (r.fundo > 0.004) {
+      await tx({ type: "gestao_fundo", userId: null, amount: r.fundo, description: `${plot.nome}: gestão do fundo de ${REGRAS.gestao_fundo_pct}% do captado` });
+    }
+    await client.query("UPDATE plots SET status = 'pago', retorno_final = $1, fase_atual = 5, progresso = 100 WHERE id = $2", [retorno, plot.id]);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+  try {
+    for (const l of r.linhas) {
+      await notifyUsers(pool, [l.inv.user_id], { senderRole: "sistema", farmId: plot.farm_id, plotId: plot.id, type: "pagamento_recebido",
+        title: "Você recebeu um pagamento", body: `A colheita de ${plot.nome} foi paga. Você recebeu ${fmtBRL(l.investidor)}${l.excedente > 0 ? ", com parte da alta do preço" : " (mínimo garantido)"}.` });
+    }
+    if (farm.owner_user_id) {
+      await notifyUsers(pool, [farm.owner_user_id], { senderRole: "sistema", farmId: plot.farm_id, plotId: plot.id, type: "repasse_recebido",
+        title: r.fazendaLiquido >= 0 ? "Resultado da colheita" : "Aporte para o piso",
+        body: r.fazendaLiquido >= 0 ? `Você ficou com ${fmtBRL(r.fazendaLiquido)} da alta de ${plot.nome}, já descontadas taxas e armazenagem.` : `Para garantir o piso dos investidores de ${plot.nome}, o aporte da fazenda foi de ${fmtBRL(-r.fazendaLiquido)}.` });
+    }
+  } catch (e) { console.error("[aviso] pagamento com piso:", e.message); }
+  return { investidoresPagos: r.linhas.length, totalComissaoFazenda: Math.max(0, r.fazendaLiquido), totalComissaoApp: r.plataforma, totalDespesaArmazem: r.armazem, totalPerformance: 0, piso: r };
 }
 
 module.exports = { executeHarvestPayout };

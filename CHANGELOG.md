@@ -1,5 +1,18 @@
 # Registro de mudanças
 
+## 2.6.0 — produto com renda mínima (piso)
+
+O app passa a funcionar como o plano de negócios v2 e a apresentação.
+
+- **Talhões novos e novos ciclos nascem no produto com piso** (`modelo = 'piso'`). Talhões antigos e safras já pagas continuam na regra anterior (meta, comissão e performance).
+- **Piso:** 95% do CDI no prazo da safra (da abertura da captação até a colheita prevista + 30 dias), pago pela fazenda mesmo se o preço cair. Calculado ao publicar o talhão.
+- **Alta acima do preço-piso:** 30% investidor · 60% fazenda · 10% plataforma.
+- **A fazenda paga** 1% de estruturação (plataforma), 0,15% de custódia (armazém), 0,15% de gestão (fundo) e a armazenagem; o investidor recebe sem descontos.
+- **Preço da saca sobe com o tempo, na taxa do piso** (não por fase): quem compra em qualquer dia tem o mesmo piso de 95% do CDI pelo prazo que falta e nunca fica abaixo da LCA no mesmo prazo.
+- **Pagamento da colheita e prévia do fundo** com a mesma conta; fecha ao centavo com o valor da venda. Novos lançamentos: `aporte_fazenda` (quando a venda não cobre o piso) e `gestao_fundo`.
+- **Telas:** quadro "Renda mínima garantida" (preço e mínimo hoje e daqui a 30/60/90 dias, esperado com a alta, comparação com LCA, CDB e poupança no mesmo prazo); painel de compra com recebimento mínimo garantido; vitrine com "renda mínima na safra"; cadastro sem meta e performance, com o custo da fazenda comparado ao banco; prévia de "Aprovar e pagar" e demonstrativo com a nova divisão; "Como funciona" e simulador reescritos.
+- Regras ajustáveis por variáveis de ambiente (`PISO_PCT_CDI`, `PISO_ESTRUTURACAO_PCT`, `PISO_CUSTODIA_ARMAZEM_PCT`, `PISO_GESTAO_FUNDO_PCT`, `PISO_EXC_INVESTIDOR_PCT`, `PISO_EXC_FAZENDA_PCT`, `PISO_EXC_PLATAFORMA_PCT`, `PISO_DIAS_POS_COLHEITA`, `REF_CDI_AA`).
+
 ## 2.5.0 — lista de espera e indicação (preparação para crescimento viral)
 
 - **Lista de espera** nos talhões esgotados: o investidor escolhe quantas sacas quer e vê a posição na fila; quando a mesma fazenda ou outra fazenda abre um talhão da mesma cultura, todos da lista recebem o aviso primeiro. A barra de compra do celular vira "Avise-me".

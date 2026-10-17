@@ -66,11 +66,22 @@ router.get("/:id/demonstrativo", asyncHandler(async (req, res) => {
       precoVenda: plot.preco_venda_estimado * (1 + Number(plot.retorno_final || 0) / 100),
       valorVenda: Number(po[0].bruto),
       investidores: t.pagamento_investidor || 0,
-      comissaoFazenda: t.repasse_fazenda || 0,
+      // no produto com piso, o resultado da fazenda já vem líquido (alta − taxas − armazenagem − aporte)
+      comissaoFazenda: (t.repasse_fazenda || 0) - (t.aporte_fazenda || 0),
       performanceFazenda: t.performance_fazenda || 0,
+      fundo: t.gestao_fundo || 0,
       armazem: t.tarifa_armazem || 0,
       plataforma: t.comissao_plataforma || 0,
     };
+  } else if (plot.modelo === "piso") {
+    // previsão conservadora: venda no preço de referência (sem alta); a fazenda paga o piso e as taxas
+    const { calcularPagamentoPiso } = require("../piso");
+    const tabela = plot.arm_tarifa_recepcao != null ? plot : { ...plot, arm_tarifa_recepcao: plot.tarifa_recepcao, arm_tarifa_quinzena: plot.tarifa_quinzena, arm_carencia: plot.carencia_quinzenas, arm_quebra_pct: plot.quebra_quinzena_pct };
+    const unidades = invs.reduce((s2, i) => s2 + Number(i.cotas), 0);
+    const desp = plot.warehouse_id ? despesaPrevista(tabela, { unidades, precoVenda: plot.preco_venda_estimado }).total : 0;
+    const x = calcularPagamentoPiso(plot, invs, Number(plot.preco_venda_estimado), { despesaArmazenagem: desp });
+    distribuicao = { tipo: "previsto", modelo: "piso", precoVenda: Number(plot.preco_venda_estimado), valorVenda: x.valorVenda, investidores: x.investidores,
+      comissaoFazenda: x.fazendaLiquido, performanceFazenda: 0, armazem: x.armazem, plataforma: x.plataforma, fundo: x.fundo };
   } else {
     const precoMeta = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
     const tabela = plot.arm_tarifa_recepcao != null ? plot : { ...plot, arm_tarifa_recepcao: plot.tarifa_recepcao, arm_tarifa_quinzena: plot.tarifa_quinzena, arm_carencia: plot.carencia_quinzenas, arm_quebra_pct: plot.quebra_quinzena_pct };
@@ -88,15 +99,17 @@ router.get("/:id/demonstrativo", asyncHandler(async (req, res) => {
   }
 
   const recebidoFazenda = distribuicao.comissaoFazenda + distribuicao.performanceFazenda;
-  const resultadoFazenda = captado - totalRealizado + recebidoFazenda
-    - (plot.arm_pagador === "fazenda" ? distribuicao.armazem : plot.arm_pagador === "dividido" ? distribuicao.armazem * (1 - parteInvestidores(plot)) : 0);
+  const resultadoFazenda = plot.modelo === "piso"
+    ? captado - totalRealizado + recebidoFazenda
+    : captado - totalRealizado + recebidoFazenda
+      - (plot.arm_pagador === "fazenda" ? distribuicao.armazem : plot.arm_pagador === "dividido" ? distribuicao.armazem * (1 - parteInvestidores(plot)) : 0);
 
   res.json({
     talhao: {
       id: plot.id, nome: plot.nome, grao: plot.grao, variedade: plot.variedade, tipo_producao: plot.tipo_producao, safra: plot.safra,
       area_ha: plot.area_ha, unidade: plot.unidade, unidade_plural: unidadeTexto(plot.unidade, 2), cotas_totais: plot.cotas_totais,
       status: plot.status, fase: fasesDe(plot)[plot.fase_atual], farm_id: plot.farm_id, farm_name: plot.farm_name, farm_location: plot.farm_location,
-      warehouse_name: plot.warehouse_name, previsao_retorno: plot.previsao_retorno, retorno_final: plot.retorno_final,
+      warehouse_name: plot.warehouse_name, previsao_retorno: plot.previsao_retorno, retorno_final: plot.retorno_final, modelo: plot.modelo, piso_pct: plot.piso_pct,
       preco_venda_estimado: plot.preco_venda_estimado, arm_pagador: plot.arm_pagador, arm_investidor_pct: plot.arm_investidor_pct,
     },
     categorias,

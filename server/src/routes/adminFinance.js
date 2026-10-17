@@ -14,6 +14,8 @@ const TIPOS = {
   pagamento_investidor: { label: "Pagamento a investidor", sentido: "saida" },
   repasse_fazenda: { label: "Comissão da fazenda", sentido: "saida" },
   performance_fazenda: { label: "Performance da fazenda", sentido: "saida" },
+  aporte_fazenda: { label: "Aporte da fazenda para o piso", sentido: "entrada" },
+  gestao_fundo: { label: "Gestão do fundo", sentido: "saida" },
   tarifa_armazem: { label: "Tarifa de armazenagem", sentido: "saida" },
   comissao_plataforma: { label: "Comissão da plataforma", sentido: "receita" },
 };
@@ -89,8 +91,8 @@ async function summary(filters) {
   return {
     porTipo,
     quantidade: rows.reduce((s, r) => s + r.n, 0),
-    entradas: soma(["compra_cota"]),
-    saidas: soma(["pagamento_investidor", "repasse_fazenda", "performance_fazenda", "tarifa_armazem"]),
+    entradas: soma(["compra_cota", "aporte_fazenda"]),
+    saidas: soma(["pagamento_investidor", "repasse_fazenda", "performance_fazenda", "tarifa_armazem", "gestao_fundo"]),
     receitaPlataforma: soma(["comissao_plataforma"]),
   };
 }

@@ -142,6 +142,7 @@ async function start() {
         multiplicadores: Object.fromEntries(rows.map((r) => [r.fase, Math.round(Number(r.multiplicador) * 10000) / 10000])),
         performance_max: PERFORMANCE_MAX,
         niveis: NIVEIS.map(({ id, label, minimo }) => ({ id, label, minimo })),
+        piso: require("./piso").REGRAS,
         // taxas de referência para comparar o ganho da safra com o que o mesmo
         // dinheiro renderia no mesmo prazo (ajustáveis por variáveis de ambiente)
         referencias: {

@@ -56,6 +56,17 @@ router.get("/", asyncHandler(async (req, res) => {
     }
     // prévia exata do pagamento (mesma conta do harvestPayout), para conferir antes de aprovar
     const { rows: invs } = await pool.query("SELECT cotas, valor_investido FROM investments WHERE plot_id = $1 AND status = 'ativo'", [p.id]);
+    if (p.modelo === "piso") {
+      const { calcularPagamentoPiso } = require("../piso");
+      const unidades = invs.reduce((s, i) => s + Number(i.cotas), 0);
+      const desp = p.warehouse_id ? despesaReal(p, { unidades, precoVenda }).total : 0;
+      const x = calcularPagamentoPiso(p, invs, precoVenda, { despesaArmazenagem: desp });
+      delete x.linhas;
+      out.modelo = "piso"; out.piso_pct = p.piso_pct; out.preco_piso = p.preco_venda_estimado * (1 + (p.piso_pct || 0) / 100);
+      out.previa = { ...x, fazenda: x.fazendaLiquido, performance: 0, app: x.plataforma };
+      enriched.push(out);
+      continue;
+    }
     const { rows: fr } = await pool.query("SELECT commission_pct FROM farms WHERE id = $1", [p.farm_id]);
     const prev = { investidores: 0, fazenda: 0, performance: 0, app: 0, armazem: 0 };
     for (const i of invs) {

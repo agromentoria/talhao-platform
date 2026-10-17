@@ -6,7 +6,7 @@ import { despesaPorUnidade, tarifasTexto, quinzenasTexto, OPCOES_QUINZENAS, part
 
 // Despesa de armazém no cadastro do talhão: tabela do armazém escolhido,
 // quem paga e quanto tempo a produção deve ficar guardada.
-export default function ArmazenagemFields({ warehouse, value, onChange, precoVenda, unidade = "saca", quantidade }) {
+export default function ArmazenagemFields({ warehouse, value, onChange, precoVenda, unidade = "saca", quantidade, pagadorFixo = false }) {
   const set = (patch) => onChange({ ...value, ...patch });
   const u = unidadeNome(unidade, 1);
   const d = despesaPorUnidade(warehouse, { quinzenas: Number(value.quinzenas), precoVenda: Number(precoVenda) || 0 });
@@ -26,6 +26,10 @@ export default function ArmazenagemFields({ warehouse, value, onChange, precoVen
       )}
 
       <div className="form-grid">
+        {pagadorFixo ? (
+          <p className="span-all text-sm text-2">No produto com renda mínima, a armazenagem é sempre paga pela fazenda: o investidor recebe sem esse desconto.</p>
+        ) : (
+          <>
         <div className="field span-all">
           <span className="field-label" id="arm-pagador">Quem paga a armazenagem</span>
           <Segmented label="Quem paga a armazenagem" value={value.pagador}
@@ -43,6 +47,8 @@ export default function ArmazenagemFields({ warehouse, value, onChange, precoVen
           <TextField label="Parte paga pelos investidores (%)" type="number" inputMode="decimal" min={1} max={99} step="1"
             value={value.investidorPct ?? 50} onChange={(v) => set({ investidorPct: v })}
             hint="Ex.: 50 = metade para cada lado." />
+        )}
+          </>
         )}
         <SelectField label="Tempo previsto no armazém" value={String(value.quinzenas)} onChange={(v) => set({ quinzenas: Number(v) })}
           hint="Da entrega no armazém até a venda. A cobrança real conta o tempo efetivo."

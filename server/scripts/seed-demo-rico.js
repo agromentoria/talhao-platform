@@ -122,6 +122,7 @@ async function main() {
   // rodada de compras, simulando o avanço real da safra ao longo do tempo
   async function createPlot(farmId, farmToken, nome, grao, area, safra, previsaoRetorno) {
     const data = await call("POST", "/plots", farmToken, {
+      modelo: "meta", // histórico de safras anteriores ao produto com piso
       farm_id: farmId, nome, grao, area_ha: area, safra, previsao_retorno: previsaoRetorno,
       variedade: VARIEDADE[grao] || "Convencional", ...ciclo(safra), warehouse_id: whId,
     });

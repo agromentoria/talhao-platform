@@ -8,7 +8,7 @@ import { fmtBRL, fmtNumber, fmtPct } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
-import { Stars, RegrasTalhao } from "../components/domain";
+import { Stars, RegrasTalhao, RegrasPiso } from "../components/domain";
 import { TextField, FilterChips, Button, Banner, ErrorBanner, Tabs, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
 
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
   async function approveHarvest(id) {
     const r = harvestRequests.find((x) => x.id === id);
     const v = r?.previa;
-    const resumo = v ? ` Investidores ${fmtBRL(v.investidores)} · fazenda ${fmtBRL(v.fazenda)} (comissão ${fmtBRL(v.fazenda - v.performance)} + performance ${fmtBRL(v.performance)}) · armazém ${fmtBRL(v.armazem)} · plataforma ${fmtBRL(v.app)}.` : "";
+    const resumo = v && r.modelo === "piso" ? ` Investidores ${fmtBRL(v.investidores)} · plataforma ${fmtBRL(v.plataforma)} · armazém ${fmtBRL(v.armazem)} · fundo ${fmtBRL(v.fundo)} · fazenda ${v.fazendaLiquido >= 0 ? "fica com" : "aporta"} ${fmtBRL(Math.abs(v.fazendaLiquido))}.` : v ? ` Investidores ${fmtBRL(v.investidores)} · fazenda ${fmtBRL(v.fazenda)} (comissão ${fmtBRL(v.fazenda - v.performance)} + performance ${fmtBRL(v.performance)}) · armazém ${fmtBRL(v.armazem)} · plataforma ${fmtBRL(v.app)}.` : "";
     const ok = await dialog.confirm({ title: "Aprovar e pagar?", message: `Todos serão pagos imediatamente. Esta ação não pode ser desfeita.${resumo}`, confirmLabel: "Aprovar e pagar" });
     if (!ok) return;
     try {
@@ -365,9 +365,13 @@ export default function AdminDashboard() {
               <details style={{ marginBottom: 12 }}>
                 <summary className="text-sm" style={{ cursor: "pointer", fontWeight: 600, color: "var(--link)" }}>Ver ganhos do investidor e divisão do lucro</summary>
                 <div style={{ marginTop: 10 }}>
+                  {p.modelo === "piso" ? (
+                    <RegrasPiso precoRef={p.preco_venda_estimado} colheitaPrevista={p.colheita_prevista} unidade={p.unidade} paraFazenda />
+                  ) : (
                   <RegrasTalhao precoRef={p.preco_venda_estimado} metaPct={p.previsao_retorno} perfPct={Number(p.perf_excedente_pct) || 0}
                     comissaoFazendaPct={p.farm_commission_pct ?? 0} appPct={appCommission ?? 5} multiplicadores={regras?.multiplicadores || {}}
                     unidade={p.unidade} tipoProducao={p.tipo_producao} inicioCiclo={p.plantio_ate} fimCiclo={p.colheita_prevista} quinzenasArmazem={p.arm_quinzenas_previstas || 0} />
+                  )}
                 </div>
               </details>
               {p.aprovacao_status === "rejeitado" && p.aprovacao_motivo && <Banner tone="error" style={{ marginBottom: 12 }}>Ajuste pedido: {p.aprovacao_motivo}</Banner>}
@@ -770,6 +774,33 @@ function EntityRow({ icon, iconTone, title, estrelas, lines, metrics, status, ac
 
 // o que o armazém garantidor validou — base para aprovar o pagamento
 // prévia exata do pagamento calculada pelo servidor
+// prévia do pagamento no produto com piso (mesma conta do servidor)
+function HarvestPreviewPiso({ r }) {
+  const v = r.previa;
+  const u = unidadeNome(r.unidade, 1);
+  const acima = r.preco_venda_declarado - r.preco_piso;
+  return (
+    <div className="card card--well" style={{ padding: 12, marginBottom: 12 }}>
+      <p className="card-title" style={{ marginBottom: 6 }}>Prévia do pagamento · renda mínima</p>
+      <p className="text-sm" style={{ marginBottom: 8 }}>
+        Venda declarada <strong>{fmtBRL(r.preco_venda_declarado)}</strong> por {u} · preço-piso <strong>{fmtBRL(r.preco_piso)}</strong> (piso de {fmtPct(r.piso_pct, 2)})
+        {acima > 0.004 ? <> · <span className="text-success">{fmtBRL(acima)} acima do piso</span></> : <> · <span className="text-danger">abaixo do piso: a fazenda completa</span></>}
+      </p>
+      <dl className="kv" style={{ margin: 0 }}>
+        <div><dt>Investidores · mínimo garantido</dt><dd>{fmtBRL(v.valorPiso)}</dd></div>
+        <div><dt>Investidores · 30% da alta</dt><dd>{fmtBRL(v.investidores - v.valorPiso)}</dd></div>
+        <div><dt>Investidores recebem</dt><dd><strong>{fmtBRL(v.investidores)}</strong></dd></div>
+        <div><dt>Plataforma · estruturação + 10% da alta</dt><dd>{fmtBRL(v.estruturacao)} + {fmtBRL(v.plataformaExcedente)}</dd></div>
+        <div><dt>Armazém · custódia + armazenagem</dt><dd>{fmtBRL(v.custodia)} + {fmtBRL(v.armazenagem)}</dd></div>
+        <div><dt>Fundo · gestão</dt><dd>{fmtBRL(v.fundo)}</dd></div>
+        <div className="total"><dt>{v.fazendaLiquido >= 0 ? "Fazenda fica com (60% da alta − taxas)" : "Aporte da fazenda"}</dt>
+          <dd className={v.fazendaLiquido >= 0 ? "text-success" : "text-danger"}>{fmtBRL(Math.abs(v.fazendaLiquido))}</dd></div>
+      </dl>
+      <p className="text-xs text-3" style={{ marginTop: 8 }}>Confere com a venda: {fmtBRL(v.valorVenda)} = investidores + plataforma + armazém + fundo {v.fazendaLiquido >= 0 ? "+" : "−"} fazenda.</p>
+    </div>
+  );
+}
+
 function performanceMotivo(r) {
   if (!(Number(r.perf_excedente_pct) > 0)) return "não definida neste talhão (0%)";
   if (r.preco_venda_declarado <= r.preco_meta + 0.004) return "venda não passou da meta";
@@ -779,6 +810,7 @@ function performanceMotivo(r) {
 function HarvestPreview({ r }) {
   const v = r.previa;
   if (!v) return null;
+  if (r.modelo === "piso") return <HarvestPreviewPiso r={r} />;
   const u = unidadeNome(r.unidade, 1);
   const acima = r.preco_venda_declarado - r.preco_meta;
   return (

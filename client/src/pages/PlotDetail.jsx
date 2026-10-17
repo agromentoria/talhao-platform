@@ -11,7 +11,8 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
-import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, PilhaDeSacas, ListaDeEspera } from "../components/domain";
+import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, RegrasPiso, PilhaDeSacas, ListaDeEspera } from "../components/domain";
+import { ehPiso, ganhoInvestidor, prazoDias } from "../lib/piso";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -98,7 +99,10 @@ export default function PlotDetail() {
   const custoTotal = qtd * plot.cota_valor;
   // mesmo cálculo do pagamento real no servidor (harvestPayout.js):
   // preço de venda projetado = preço de referência × (1 + retorno estimado)
-  const precoVendaProjetado = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
+  const piso = ehPiso(plot);
+  const ganhoPiso = piso ? ganhoInvestidor({ precoReferencia: plot.preco_venda_estimado, precoPago: plot.cota_valor, piso: Number(plot.piso_pct) || 0,
+    dias: plot.piso_dias_restantes || prazoDias(plot.colheita_prevista, regras?.piso) || 150 }, regras?.piso) : null;
+  const precoVendaProjetado = piso ? ganhoPiso.minimo : plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
   const margemPorUnidade = precoVendaProjetado - plot.cota_valor;
   const retornoBruto = qtd * precoVendaProjetado;
   // armazenagem prevista: só desconta do investidor quando ele é quem paga
@@ -125,7 +129,7 @@ export default function PlotDetail() {
     const card = cards.find((c) => c.id === selectedCardId);
     const ok = await dialog.confirm({
       title: "Confirmar compra das sacas",
-      message: `${qtd} ${unitPlural(plot.unidade, qtd)} de ${plot.grao} em ${plot.nome} por ${fmtBRL(custoTotal)}, pagos ${paymentType === "pix" ? "via Pix" : `no cartão ${card?.brand} final ${card?.last4}`}. Os valores de retorno são estimativas.${Number(plot.perf_excedente_pct) > 0 ? ` Acima da meta de ${fmtPct(plot.previsao_retorno)}, a fazenda fica com ${plot.perf_excedente_pct}% do lucro excedente.` : ""}`,
+      message: `${qtd} ${unitPlural(plot.unidade, qtd)} de ${plot.grao} em ${plot.nome} por ${fmtBRL(custoTotal)}, pagos ${paymentType === "pix" ? "via Pix" : `no cartão ${card?.brand} final ${card?.last4}`}. ${piso ? `Renda mínima garantida pela fazenda: ${fmtBRL(qtd * ganhoPiso.minimo)} (${fmtPct(ganhoPiso.minimoPct, 2)}), mais 30% da alta do preço.` : "Os valores de retorno são estimativas."}${Number(plot.perf_excedente_pct) > 0 ? ` Acima da meta de ${fmtPct(plot.previsao_retorno)}, a fazenda fica com ${plot.perf_excedente_pct}% do lucro excedente.` : ""}`,
       confirmLabel: `Pagar ${fmtBRL(custoTotal)}`,
     });
     if (!ok) return;
@@ -210,16 +214,18 @@ export default function PlotDetail() {
                 <p className="stat-value text-primary" style={{ marginTop: 2 }}>{fmtBRL(plot.cota_valor)}</p>
               </div>
               <div>
-                <p className="label-xs">Meta de venda no fim do ciclo</p>
+                <p className="label-xs">{piso ? "Renda mínima garantida" : "Meta de venda no fim do ciclo"}</p>
                 <p className="stat-value" style={{ marginTop: 2 }}>{fmtBRL(precoVendaProjetado)}</p>
               </div>
               <div>
-                <p className="label-xs">Margem bruta por {unidade} (antes das comissões)</p>
+                <p className="label-xs">{piso ? `Ganho mínimo por ${unidade}` : `Margem bruta por ${unidade} (antes das comissões)`}</p>
                 <p className={`stat-value ${margemPorUnidade >= 0 ? "text-success" : "text-danger"}`} style={{ marginTop: 2 }}>{fmtBRL(margemPorUnidade)}</p>
               </div>
             </div>
             <p className="text-xs text-3" style={{ marginTop: 12 }}>
-              Preço de referência: {fmtBRL(plot.preco_venda_estimado)} por {unidade}. A fazenda promete vender {fmtPct(plot.previsao_retorno)} acima dele (meta de {fmtBRL(precoVendaProjetado)}).
+              {piso
+                ? <>Preço de referência: {fmtBRL(plot.preco_venda_estimado)} por {unidade}. A fazenda garante no mínimo {fmtBRL(precoVendaProjetado)} por {unidade} (piso de {fmtPct(plot.piso_pct, 2)} na safra) e você ainda fica com 30% do que a venda passar disso.</>
+                : <>Preço de referência: {fmtBRL(plot.preco_venda_estimado)} por {unidade}. A fazenda promete vender {fmtPct(plot.previsao_retorno)} acima dele (meta de {fmtBRL(precoVendaProjetado)}).</>}
             </p>
           </section>
 
@@ -246,6 +252,13 @@ export default function PlotDetail() {
 
           <section className="card" aria-labelledby="com-t">
             <h2 id="com-t" className="card-title" style={{ marginBottom: 4 }}>Regras deste talhão: ganhos e comissões</h2>
+            {piso ? (
+              <>
+                <p className="card-desc" style={{ marginBottom: 12 }}>Renda mínima garantida pela fazenda mais parte da alta do preço. Regras validadas pelo fundo.</p>
+                <RegrasPiso precoRef={plot.preco_venda_estimado} piso={plot.piso_pct} pisoDias={plot.piso_dias} publicadoEm={plot.publicado_em}
+                  colheitaPrevista={plot.colheita_prevista} unidade={plot.unidade} />
+              </>
+            ) : (<>
             <p className="card-desc" style={{ marginBottom: 12 }}>
               A fazenda promete uma meta de venda. Até a meta, o lucro é dividido pelas comissões abaixo; acima dela vale a regra de performance{perfPct > 0 ? ` (${fmtPct(perfPct)} do excedente para a fazenda)` : ""}. Regras validadas pela administração.
             </p>
@@ -253,6 +266,7 @@ export default function PlotDetail() {
               appPct={appCommission} multiplicadores={regras?.multiplicadores || {}} unidade={plot.unidade} tipoProducao={plot.tipo_producao}
               inicioCiclo={plot.plantio_ate} fimCiclo={plot.colheita_prevista} quinzenasArmazem={armazenagem?.quinzenas_previstas || 0}
               despesaInvestidorUnidade={(armazenagem?.porUnidade || 0) * parteArmazemInvestidor} faseAtual={plot.fase_atual} />
+            </>)}
           </section>
 
           <DemonstrativoCard plotId={plot.id} />
@@ -290,7 +304,7 @@ export default function PlotDetail() {
               <>
                 <h2 id="investir-t" className="card-title">Comprar sacas deste talhão</h2>
                 <p className="card-desc" style={{ marginBottom: 16 }}>
-                  {fmtNumber(plot.cotas_disponiveis)} de {fmtNumber(plot.cotas_totais)} {unitPlural(plot.unidade, plot.cotas_totais)} disponíveis nesta fase
+                  {fmtNumber(plot.cotas_disponiveis)} de {fmtNumber(plot.cotas_totais)} {unitPlural(plot.unidade, plot.cotas_totais)} disponíveis{plot.modelo === "piso" ? "" : " nesta fase"}
                 </p>
 
                 <ErrorBanner message={error} />
@@ -324,11 +338,19 @@ export default function PlotDetail() {
 
                 <dl className="kv" style={{ margin: "0 0 16px" }}>
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
+                  {piso ? (
+                    <>
+                      <div><dt>Recebimento mínimo garantido</dt><dd>{fmtBRL(qtd * ganhoPiso.minimo)}</dd></div>
+                      <div><dt>Esperado, com parte da alta</dt><dd>{fmtBRL(qtd * ganhoPiso.esperado)}</dd></div>
+                      <div className="total"><dt>Lucro mínimo garantido</dt><dd className="text-success">{fmtBRL(qtd * ganhoPiso.minimo - custoTotal)} ({fmtPct(ganhoPiso.minimoPct, 2)})</dd></div>
+                    </>
+                  ) : (<>
                   {investidorPagaArmazem && despesaArmazem > 0 && (
                     <div><dt>Armazenagem estimada{parteArmazemInvestidor < 1 ? ` (sua parte: ${String(Math.round(parteArmazemInvestidor * 1000) / 10).replace(".", ",")}%)` : ""} · {quinzenasTexto(armazenagem.quinzenas_previstas)}</dt><dd>{"−\u00a0"}{fmtBRL(despesaArmazem)}</dd></div>
                   )}
                   <div><dt>Recebimento estimado</dt><dd>{fmtBRL(recebimentoLiquido)}</dd></div>
                   <div className="total"><dt>Lucro líquido estimado</dt><dd className={lucroLiquido >= 0 ? "text-success" : "text-danger"}>{fmtBRL(lucroLiquido)}</dd></div>
+                  </>)}
                 </dl>
 
                 {isInvestor && (

@@ -150,29 +150,36 @@ export default function Demonstrativo() {
 
       {/* ---------- distribuição do resultado ---------- */}
       <section className="card" style={{ marginBottom: 16 }} aria-labelledby="dem-dist">
-        <h2 id="dem-dist" className="card-title">{dist.tipo === "realizado" ? "Como o resultado foi dividido" : "Como o resultado será dividido (se a venda sair na meta)"}</h2>
+        <h2 id="dem-dist" className="card-title">{dist.tipo === "realizado" ? "Como o resultado foi dividido" : t.modelo === "piso" ? "Como o resultado será dividido (se o preço não subir)" : "Como o resultado será dividido (se a venda sair na meta)"}</h2>
         <p className="card-desc" style={{ marginBottom: 12 }}>
           {dist.tipo === "realizado"
             ? `Venda a ${fmtBRL(dist.precoVenda)} por ${u} (retorno de ${fmtPct(t.retorno_final, 2)}).`
-            : `Simulação com venda a ${fmtBRL(dist.precoVenda)} por ${u}, a meta prometida (${fmtPct(t.previsao_retorno)}). Acima disso entra a performance da fazenda.`}
+            : t.modelo === "piso"
+              ? `Simulação conservadora com venda a ${fmtBRL(dist.precoVenda)} por ${u} (preço de referência): os investidores recebem o piso de ${fmtPct(t.piso_pct, 2)} e a fazenda paga o piso, as taxas e a armazenagem. Se o preço subir, a fazenda fica com 60% da alta.`
+              : `Simulação com venda a ${fmtBRL(dist.precoVenda)} por ${u}, a meta prometida (${fmtPct(t.previsao_retorno)}). Acima disso entra a performance da fazenda.`}
         </p>
         {tot.vendidas === 0 ? <p className="text-sm text-2">Ainda não há investimentos neste talhão.</p> : (
           <>
             <dl className="kv" style={{ margin: 0 }}>
               <div><dt>Valor da venda ({fmtNumber(tot.vendidas)} {unidadeNome(t.unidade, tot.vendidas)} dos investidores)</dt><dd>{fmtBRL(dist.valorVenda)}</dd></div>
               <div><dt>Investidores (capital + lucro)</dt><dd className="text-success">{fmtBRL(dist.investidores)}</dd></div>
+              {t.modelo === "piso" ? (
+                <div><dt>{dist.comissaoFazenda >= 0 ? "Fazenda · 60% da alta, menos taxas e armazenagem" : "Fazenda · paga para garantir o piso (+ taxas e armazenagem)"}</dt><dd className={dist.comissaoFazenda >= 0 ? undefined : "text-danger"}>{dist.comissaoFazenda < 0 ? "−\u00a0" : ""}{fmtBRL(Math.abs(dist.comissaoFazenda))}</dd></div>
+              ) : (<>
               <div><dt>Fazenda · comissão até a meta</dt><dd>{fmtBRL(dist.comissaoFazenda)}</dd></div>
               <div><dt>Fazenda · performance acima da meta</dt><dd>{fmtBRL(dist.performanceFazenda)}</dd></div>
+              </>)}
+              {dist.fundo > 0 && <div><dt>Fundo gestor</dt><dd>{fmtBRL(dist.fundo)}</dd></div>}
               <div><dt>Armazém garantidor{t.warehouse_name ? ` (${t.warehouse_name})` : ""}</dt><dd>{fmtBRL(dist.armazem)}</dd></div>
               <div><dt>Plataforma Meu Talhão</dt><dd>{fmtBRL(dist.plataforma)}</dd></div>
             </dl>
             <div className="dem-split" aria-hidden style={{ marginTop: 14 }}>
-              {[["investidores", dist.investidores, "var(--success)"], ["fazenda", recebidoFazenda, "var(--brand-orange)"], ["armazem", dist.armazem, "#6B8CAE"], ["plataforma", dist.plataforma, "#C9A227"]]
+              {[["investidores", dist.investidores, "var(--success)"], ["fazenda", Math.max(0, recebidoFazenda), "var(--brand-orange)"], ["armazem", dist.armazem, "#6B8CAE"], ["plataforma", dist.plataforma, "#C9A227"]]
                 .map(([k, v, cor]) => <span key={k} style={{ flexGrow: Math.max(v, 0.0001), background: cor }} />)}
             </div>
             <div className="grid-stats" style={{ marginTop: 14 }}>
               <div><p className="label-xs">Lucro dos investidores</p><p className="stat-value text-success" style={{ marginTop: 2 }}>{fmtBRL(lucroInvestidores)}</p><p className="text-xs text-3">{fmtPct(tot.captado ? (lucroInvestidores / tot.captado) * 100 : 0, 2)} sobre o investido</p></div>
-              <div><p className="label-xs">Recebido pela fazenda na colheita</p><p className="stat-value" style={{ marginTop: 2 }}>{fmtBRL(recebidoFazenda)}</p><p className="text-xs text-3">comissão + performance</p></div>
+              <div><p className="label-xs">Recebido pela fazenda na colheita</p><p className="stat-value" style={{ marginTop: 2 }}>{fmtBRL(recebidoFazenda)}</p><p className="text-xs text-3">{t.modelo === "piso" ? "parte da alta, já descontados piso e taxas" : "comissão + performance"}</p></div>
             </div>
           </>
         )}

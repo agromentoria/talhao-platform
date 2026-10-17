@@ -138,7 +138,8 @@ const INVESTIDORES = ["ana.cedo@demo.com", "bruno.tardio@demo.com", "carla.diver
     }
     const captado = vendidas * t.preco;
     const situacao = t.publicar === false ? "aguardando aprovação do fundo" : vendidas ? `${Math.round((vendidas / t.cotas_totais) * 100)}% vendido (R$ ${captado.toLocaleString("pt-BR")})` : "na vitrine, sem compras";
-    console.log(`  ✓ ${t.nome}: ${t.cotas_totais.toLocaleString("pt-BR")} ${t.unidade}s a R$ ${t.preco} · meta ${t.meta}% · ${situacao}`);
+    const final = (await call("GET", `/plots/${plot.id}`)).plot;
+    console.log(`  ✓ ${t.nome}: ${t.cotas_totais.toLocaleString("pt-BR")} ${t.unidade}s a R$ ${t.preco} · ${final.modelo === "piso" ? `renda mínima ${final.piso_pct}% na safra` : `meta ${t.meta}%`} · ${situacao}`);
   }
   console.log("[boa-vista] pronto.");
 })().catch((e) => { console.error("[boa-vista] erro:", e.message); process.exit(1); });

@@ -155,7 +155,7 @@ const listarVitrine = asyncHandler(async (req, res) => {
   }
   sql += " ORDER BY p.created_at DESC";
   const { rows } = await pool.query(sql, params);
-  res.json({ plots: rows, app_commission_pct: appCommissionPct });
+  res.json({ plots: rows.map(require("../piso").comPrecoDoDia), app_commission_pct: appCommissionPct });
 });
 
 // fazenda: todos os seus talhões, em qualquer status (inclusive já colhidos,
@@ -174,7 +174,7 @@ router.get("/farm/mine", requireAuth, requireRole("fazenda"), asyncHandler(async
      ORDER BY p.created_at DESC`,
     [req.user.farm_id]
   );
-  res.json({ plots: rows, app_commission_pct: appCommissionPct });
+  res.json({ plots: rows.map(require("../piso").comPrecoDoDia), app_commission_pct: appCommissionPct });
 }));
 
 router.get("/:id", asyncHandler(async (req, res) => {
@@ -220,7 +220,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
     armazenagem = { ...d, pagador: plot.arm_pagador, parte_investidores: parteInvestidores(plot), quinzenas_previstas: plot.arm_quinzenas_previstas, entrada_em: plot.arm_entrada_em };
   }
   res.json({
-    plot, historico: historico.rows, app_commission_pct: appCommissionPct, fotos: fotos.rows, armazem, validacoes,
+    plot: require("../piso").comPrecoDoDia(plot), historico: historico.rows, app_commission_pct: appCommissionPct, fotos: fotos.rows, armazem, validacoes,
     publico: isPublic(plot), pendencias: pendencias(plot), armazenagem,
   });
 }));
@@ -247,7 +247,10 @@ async function notifyWarehouseIndication(warehouse, plot, farmName) {
 }
 
 router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
-  const { farm_id, nome, area_ha, safra, previsao_retorno, warehouse_id } = req.body || {};
+  const { farm_id, nome, area_ha, safra, warehouse_id } = req.body || {};
+  // talhões novos usam o produto com piso; 'meta' só se pedido explicitamente
+  const modelo = req.body?.modelo === "meta" ? "meta" : "piso";
+  const previsao_retorno = modelo === "piso" ? 0 : req.body?.previsao_retorno;
 
   if (!farm_id || !nome || !area_ha || !safra || previsao_retorno == null) {
     return res.status(400).json({ error: "Preencha todos os campos do talhão." });
@@ -279,10 +282,14 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
 
   const c = await parseCultivo(req.body, area);
   if (c.error) return res.status(400).json({ error: c.error });
-  const arm = parseArmazenagem(req.body);
+  // no produto com piso a armazenagem é sempre da fazenda e não há performance
+  const arm = parseArmazenagem(modelo === "piso" ? { ...req.body, arm_pagador: "fazenda" } : req.body);
   if (arm.error) return res.status(400).json({ error: arm.error });
-  const perf = parsePerformance(req.body);
+  const perf = modelo === "piso" ? { pct: 0 } : parsePerformance(req.body);
   if (perf.error) return res.status(400).json({ error: perf.error });
+  const { prazoDias, pisoPct } = require("../piso");
+  const dias = modelo === "piso" ? prazoDias(c.colheita_prevista) : null;
+  const piso = modelo === "piso" ? pisoPct(dias) : null;
 
   // preço inicial (fase 0) — o mais barato, sobe conforme a fase avança
   const multiplicadorFase0 = await getFaseMultiplier(0);
@@ -291,10 +298,12 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   const { rows } = await pool.query(
     `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra,
                         cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado,
-                        warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_investidor_pct)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18, $19) RETURNING *`,
+                        warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_investidor_pct,
+                        modelo, piso_pct, piso_dias)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
     [farm_id, String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct]
+     cotaValorInicial, c.cotas, modelo === "piso" ? piso : retorno, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct,
+     modelo, piso, dias]
   );
   const plot = rows[0];
   await notifyWarehouseIndication(wh.warehouse, plot, owned.farm.name);
@@ -372,7 +381,8 @@ router.patch("/:id/progress", requireAuth, requireRole("fazenda", "admin"), asyn
     // o preço da cota sobe conforme a fase avança, aproximando-se do
     // preço de venda estimado — quem compra mais cedo paga menos
     const multiplicador = await getFaseMultiplier(fase);
-    const novoCotaValor = plot.preco_venda_estimado * multiplicador;
+    // no produto com piso o preço não muda por fase: sobe com o tempo (preço do dia)
+    const novoCotaValor = plot.modelo === "piso" ? plot.cota_valor : plot.preco_venda_estimado * multiplicador;
 
     await client.query(
       "UPDATE plots SET fase_atual = $1, progresso = $2, status = $3, cota_valor = $4 WHERE id = $5",
@@ -530,7 +540,9 @@ router.delete("/:id", requireAuth, requireRole("fazenda", "admin"), asyncHandler
 // criar um novo, mantendo o histórico de pagamento anterior intacto
 // para o investidor, e volta a aparecer na vitrine para investimento
 router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
-  const { nome, area_ha, safra, previsao_retorno } = req.body || {};
+  const { nome, area_ha, safra } = req.body || {};
+  // todo novo ciclo já nasce no produto com piso
+  const previsao_retorno = 0;
 
   const existing = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
   const plot = existing.rows[0];
@@ -556,10 +568,12 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
   }
   const c = await parseCultivo(req.body, area);
   if (c.error) return res.status(400).json({ error: c.error });
-  const arm = parseArmazenagem(req.body);
+  const arm = parseArmazenagem({ ...req.body, arm_pagador: "fazenda" });
   if (arm.error) return res.status(400).json({ error: arm.error });
-  const perf = parsePerformance(req.body);
-  if (perf.error) return res.status(400).json({ error: perf.error });
+  const perf = { pct: 0 };
+  const { prazoDias, pisoPct } = require("../piso");
+  const dias = prazoDias(c.colheita_prevista);
+  const piso = pisoPct(dias);
 
   const multiplicadorFase0 = await getFaseMultiplier(0);
   const cotaValorInicial = c.precoVenda * multiplicadorFase0;
@@ -573,11 +587,12 @@ router.patch("/:id/restart", requireAuth, requireRole("fazenda", "admin"), async
        custodia_status = 'pendente', custodia_motivo = NULL, custodia_em = NULL,
        aprovacao_status = 'pendente', aprovacao_motivo = NULL, aprovacao_em = NULL, exige_garantia = true, publicado_em = NULL,
        arm_pagador = $15, arm_quinzenas_previstas = $16, arm_entrada_em = NULL, perf_excedente_pct = $17, arm_investidor_pct = $18,
-       arm_tarifa_recepcao = NULL, arm_tarifa_quinzena = NULL, arm_carencia = NULL, arm_quebra_pct = NULL
+       arm_tarifa_recepcao = NULL, arm_tarifa_quinzena = NULL, arm_carencia = NULL, arm_quebra_pct = NULL,
+       modelo = 'piso', piso_pct = $19, piso_dias = $20
      WHERE id = $14
      RETURNING *`,
     [String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, retorno, c.unidade, c.precoVenda, plot.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct]
+     cotaValorInicial, c.cotas, piso, c.unidade, c.precoVenda, plot.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct, piso, dias]
   );
   await pool.query("DELETE FROM plot_validations WHERE plot_id = $1", [plot.id]);
   const { rows: w } = await pool.query("SELECT * FROM warehouses WHERE id = $1", [rows[0].warehouse_id]);

@@ -9,8 +9,8 @@ import { useAuth } from "../context/AuthContext";
 import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../lib/validators";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
-import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasTalhao } from "../components/domain";
-import { despesaPorUnidade, parteInvestidores } from "../lib/armazenagem";
+import { dividirPiso } from "../lib/piso";
+import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasPiso } from "../components/domain";
 import { tarifasTexto, quinzenasTexto, armDoTalhao, pagadorTexto } from "../lib/armazenagem";
 
 const STATUS_FILTERS = [
@@ -175,12 +175,12 @@ function CommissionCard({ farm, onSaved, onError }) {
   );
 }
 
-function NewPlotForm({ farmId, farmCommission = 0, appPct = 5, references, fasePricing, warehouses = [], onCreated, setError }) {
+function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreated, setError }) {
   const [warehouseId, setWarehouseId] = useState("");
   const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "" });
   const [cultivo, setCultivo] = useState(emptyCultivo());
   const [arm, setArm] = useState({ pagador: "investidores", quinzenas: 2, investidorPct: 50 });
-  const [perf, setPerf] = useState("0");
+  const [perf] = useState("0");
   const [saving, setSaving] = useState(false);
   const warehouse = warehouses.find((w) => String(w.id) === String(warehouseId));
 
@@ -216,21 +216,15 @@ function NewPlotForm({ farmId, farmCommission = 0, appPct = 5, references, faseP
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <CultivoFields value={cultivo} onChange={setCultivo} area={form.area_ha} references={references} fasePricing={fasePricing} />
       <Field label="Safra / ciclo (ex: 2026/27)" value={form.safra} onChange={(v) => update("safra", v)} required />
-<Field label="Retorno prometido — meta de venda (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required
-        hint="Quanto acima do preço de referência a fazenda espera vender. Ex.: 7,5% sobre R$ 120 = meta de R$ 129 por saca. Acima da meta entra a performance." />
       <div className="span-all">
         <WarehousePicker warehouses={warehouses} value={warehouseId} onChange={setWarehouseId} />
       </div>
-      <ArmazenagemFields warehouse={warehouse} value={arm} onChange={setArm}
+      <ArmazenagemFields warehouse={warehouse} value={arm} onChange={setArm} pagadorFixo
         precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
-      <PerformanceField value={perf} onChange={setPerf} precoReferencia={cultivo.preco} retornoPct={form.previsao_retorno}
-        comissaoFazendaPct={farmCommission} unidade={cultivo.unidade || "saca"} />
       <div className="span-all card" style={{ padding: 14 }}>
         <p className="card-title" style={{ marginBottom: 8 }}>Resumo das regras deste talhão</p>
         {Number(cultivo.preco) > 0 ? (
-          <RegrasTalhao precoRef={cultivo.preco} metaPct={form.previsao_retorno} perfPct={Number(perf) || 0} comissaoFazendaPct={farmCommission} appPct={appPct}
-            multiplicadores={fasePricing} unidade={cultivo.unidade || "saca"} tipoProducao={cultivo.tipo_producao} inicioCiclo={cultivo.plantio_ate} fimCiclo={cultivo.colheita_prevista}
-            quinzenasArmazem={arm.quinzenas} despesaInvestidorUnidade={warehouse ? despesaPorUnidade(warehouse, { quinzenas: arm.quinzenas, precoVenda: Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100) }).total * parteInvestidores(arm) : 0} />
+          <RegrasPiso precoRef={cultivo.preco} colheitaPrevista={cultivo.colheita_prevista} unidade={cultivo.unidade || "saca"} paraFazenda />
         ) : <p className="text-sm text-2">Preencha a cultura e o preço para ver como ficam os ganhos de cada lado.</p>}
       </div>
       <p className="span-all text-sm text-2">
@@ -580,7 +574,7 @@ function EditPlotForm({ plot, onDone, setError }) {
       <Field label="Variedade" value={form.variedade} onChange={(v) => update("variedade", v)} />
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <Field label="Safra / ciclo" value={form.safra} onChange={(v) => update("safra", v)} required />
-      <Field label="Retorno prometido — meta (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />
+      {plot.modelo !== "piso" && <Field label="Retorno prometido — meta (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required />}
       <div className="span-all">
         <Button type="submit" variant="secondary" loading={saving}>Salvar alterações</Button>
       </div>
@@ -588,11 +582,11 @@ function EditPlotForm({ plot, onDone, setError }) {
   );
 }
 
-function RestartPlotForm({ plot, farmCommission = 0, appPct = 5, references, fasePricing, warehouses = [], onDone, setError }) {
+function RestartPlotForm({ plot, references, fasePricing, warehouses = [], onDone, setError }) {
   const [form, setForm] = useState({ nome: plot.nome, area_ha: plot.area_ha, safra: "", previsao_retorno: plot.previsao_retorno });
   const [cultivo, setCultivo] = useState(emptyCultivo(plot));
   const [arm, setArm] = useState(armDoTalhao(plot));
-  const [perf, setPerf] = useState(String(plot.perf_excedente_pct ?? 0));
+  const [perf] = useState(String(plot.perf_excedente_pct ?? 0));
   const [saving, setSaving] = useState(false);
 
   function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
@@ -619,17 +613,12 @@ function RestartPlotForm({ plot, farmCommission = 0, appPct = 5, references, fas
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <CultivoFields value={cultivo} onChange={setCultivo} area={form.area_ha} references={references} fasePricing={fasePricing} />
       <Field label="Nova safra / ciclo (ex: 2027/28)" value={form.safra} onChange={(v) => update("safra", v)} required />
-<Field label="Retorno prometido — meta de venda (%)" type="number" value={form.previsao_retorno} onChange={(v) => update("previsao_retorno", v)} required
-        hint="Quanto acima do preço de referência a fazenda espera vender. Ex.: 7,5% sobre R$ 120 = meta de R$ 129 por saca. Acima da meta entra a performance." />
-      <ArmazenagemFields warehouse={warehouses.find((w) => w.id === plot.warehouse_id)} value={arm} onChange={setArm}
+      <ArmazenagemFields warehouse={warehouses.find((w) => w.id === plot.warehouse_id)} value={arm} onChange={setArm} pagadorFixo
         precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
-      <PerformanceField value={perf} onChange={setPerf} precoReferencia={cultivo.preco} retornoPct={form.previsao_retorno} comissaoFazendaPct={farmCommission} unidade={cultivo.unidade || "saca"} />
       {Number(cultivo.preco) > 0 && (
         <div className="span-all card" style={{ padding: 14 }}>
           <p className="card-title" style={{ marginBottom: 8 }}>Resumo das regras do novo ciclo</p>
-          <RegrasTalhao precoRef={cultivo.preco} metaPct={form.previsao_retorno} perfPct={Number(perf) || 0} comissaoFazendaPct={farmCommission} appPct={appPct}
-            multiplicadores={fasePricing} unidade={cultivo.unidade || "saca"} tipoProducao={cultivo.tipo_producao} inicioCiclo={cultivo.plantio_ate} fimCiclo={cultivo.colheita_prevista}
-            quinzenasArmazem={arm.quinzenas} />
+          <RegrasPiso precoRef={cultivo.preco} colheitaPrevista={cultivo.colheita_prevista} unidade={cultivo.unidade || "saca"} paraFazenda />
         </div>
       )}
       <div className="span-all">
@@ -684,7 +673,7 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
       {plot.custodia_status === "recusada" && plot.custodia_motivo && <p className="text-sm text-danger" style={{ marginBottom: 10 }}>Motivo da recusa: {plot.custodia_motivo}</p>}
       {plot.custodia_status === "pendente" && <p className="text-sm text-2" style={{ marginBottom: 10 }}>O armazém ainda não respondeu. Investidores veem que a garantia está em análise.</p>}
       <StorageTerms plot={plot} warehouses={warehouses} onChanged={onChanged} setNotice={setNotice} setError={setError} />
-      <PerformanceTerms plot={plot} onChanged={onChanged} setNotice={setNotice} setError={setError} />
+      {plot.modelo !== "piso" && <PerformanceTerms plot={plot} onChanged={onChanged} setNotice={setNotice} setError={setError} />}
       {plot.custodia_status === "aceita" && (
         <CustodyTimeline plot={plot} validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
       )}
@@ -703,6 +692,7 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
 
 // preço real de venda → retorno calculado e efeito da regra de performance
 function FinalizePreview({ plot, preco, onChange, uid }) {
+  if (plot.modelo === "piso") return <FinalizePreviewPiso plot={plot} preco={preco} onChange={onChange} uid={uid} />;
   const u = unitPlural(plot.unidade, 1);
   const p = Number(String(preco).replace(",", "."));
   const meta = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
@@ -733,6 +723,33 @@ function FinalizePreview({ plot, preco, onChange, uid }) {
 }
 
 // regra de performance (só muda antes de ter investidores; volta para aprovação)
+// prévia da finalização no produto com piso: o mínimo dos investidores é
+// garantido; a fazenda vê se fica com parte da alta ou se precisa completar
+function FinalizePreviewPiso({ plot, preco, onChange, uid }) {
+  const u = unitPlural(plot.unidade, 1);
+  const p = Number(String(preco).replace(",", "."));
+  const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
+  const precoPiso = plot.preco_venda_estimado * (1 + (Number(plot.piso_pct) || 0) / 100);
+  const x = p > 0 ? dividirPiso({ cotas: vendidas, precoReferencia: plot.preco_venda_estimado, pisoPct: Number(plot.piso_pct) || 0, precoVenda: p }) : null;
+  return (
+    <div>
+      <label htmlFor={`fpv-${uid}`} style={{ fontSize: 12.5, color: COLORS.soilLight }}>Preço médio de venda por {u} (R$)</label>
+      <input id={`fpv-${uid}`} type="number" required min={0.01} step="0.01" inputMode="decimal" value={preco}
+        onChange={(e) => onChange(e.target.value)} className="input" style={{ marginTop: 4, width: 180 }} placeholder={precoPiso.toFixed(2)} />
+      <p style={{ fontSize: 12.5, color: COLORS.soilLight, margin: "6px 0 0", lineHeight: 1.5 }}>
+        Renda mínima garantida aos investidores: {fmtBRL(precoPiso)} por {u} (piso de {fmtPct(plot.piso_pct, 2)}).
+      </p>
+      {x && (
+        <p style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, color: COLORS.soil }}>
+          {x.excedente > 0
+            ? <>Venda {fmtBRL(p - precoPiso)} por {u} acima do piso: a fazenda fica com <strong>{fmtBRL(x.fazendaExcedente)}</strong> da alta (60%), antes das taxas.</>
+            : <>Venda abaixo do piso: a fazenda completa <strong>{fmtBRL(x.aporteFazenda)}</strong> para garantir o mínimo dos investidores.</>}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function PerformanceTerms({ plot, onChanged, setNotice, setError }) {
   const dialog = useDialog();
   const [editing, setEditing] = useState(false);

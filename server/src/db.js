@@ -540,6 +540,15 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role) WHERE deleted_at IS NUL
 CREATE INDEX IF NOT EXISTS idx_plots_status ON plots(status);
 CREATE INDEX IF NOT EXISTS idx_farm_characteristics_farm ON farm_characteristics(farm_id);
 
+-- ===================== Produto com piso (v2) =====================
+-- modelo: 'meta' (regra antiga: meta, comissão e performance) ou 'piso'
+-- (renda mínima + divisão da alta). Talhões novos nascem com 'piso'.
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS modelo TEXT NOT NULL DEFAULT 'meta';
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS piso_pct DOUBLE PRECISION;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS piso_dias INTEGER;
+ALTER TABLE payouts ADD COLUMN IF NOT EXISTS valor_piso DOUBLE PRECISION;
+ALTER TABLE payouts ADD COLUMN IF NOT EXISTS aporte_fazenda DOUBLE PRECISION DEFAULT 0;
+
 -- ===================== Crescimento: lista de espera e indicação =====================
 CREATE TABLE IF NOT EXISTS plot_waitlist (
   id SERIAL PRIMARY KEY,

@@ -1,5 +1,14 @@
 # Registro de mudanças
 
+## 2.7.0 — carga de demonstração: um ano do app em operação
+
+- Novo script `scripts/carga-ano-completo.js` (`npm run carga:ano`): simula de ago/2025 a out/2026 com **safra 2025/26 e safrinha 2026 colhidas e pagas**, **safra 2026/27 plantada** (captação quase esgotada, com lista de espera) e **safrinha 2027 em captação**.
+- **20 fazendas, 4 armazéns** (o SIAP existente + Silos Norte Mato Grosso, Armazéns Gerais Cone Sul e Armazém Vale do Paranaíba, cada fazenda ligada ao da sua região), **~4.000 investidores** pessoa física de todo o país.
+- **Compras pulverizadas:** 70 a 110 compradores por talhão, compra média de ~R$ 1,8 mil (75% até R$ 1.200), recompra entre safras e indicação.
+- Produto com renda mínima, preço do dia e pagamento com a mesma conta do app; custos lançados, diário da lavoura, validações dos armazéns, notificações e bônus de indicação.
+- Resultado da carga: ~R$ 12 mi captados no ano; investidores +6,8% nas safras pagas; fazendas com custo do dinheiro de ~7,4%.
+- Gravação em lote numa única transação (alguns minutos no Neon); rodar de novo recria do zero; `REMOVER=1` apaga. Substitui a carga anterior (`carga-safrinha-2027.js`), que é removida automaticamente.
+
 ## 2.6.2 — safrinha 2026 colhida e paga na carga de demonstração
 
 - A carga `carga-safrinha-2027.js` agora também cria **12 talhões da safrinha 2026 já colhidos, vendidos e pagos** (milho, feijão, sorgo e trigo), comprados pela ana.cedo@demo.com e pagos pela mesma rotina do app. Preços reais de venda entre −8% e +21% sobre a referência: nos casos de queda, a Ana recebe o piso e a fazenda completa.

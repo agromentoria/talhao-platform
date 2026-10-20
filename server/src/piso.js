@@ -82,7 +82,7 @@ function diasDecorridos(plot, agora = new Date()) {
   return Math.max(0, (agora.getTime() - new Date(plot.publicado_em).getTime()) / 86400000);
 }
 function precoAtualPiso(plot, agora = new Date()) {
-  const P = Number(plot.preco_venda_estimado);
+  const P = plot.modelo === "custo" ? Number(plot.custo_saca) : Number(plot.preco_venda_estimado);
   const dias = Number(plot.piso_dias) || 0;
   if (!dias || !plot.publicado_em) return P;
   const frac = Math.min(1, diasDecorridos(plot, agora) / dias);
@@ -93,7 +93,58 @@ function diasRestantes(plot, agora = new Date()) {
 }
 // aplica o preço do dia nas respostas da API (vitrine, página do talhão)
 function comPrecoDoDia(plot) {
-  if (!plot || plot.modelo !== "piso") return plot;
+  if (!plot || (plot.modelo !== "piso" && plot.modelo !== "custo")) return plot;
   return { ...plot, cota_valor: precoAtualPiso(plot), piso_dias_restantes: diasRestantes(plot) };
 }
 Object.assign(module.exports, { precoAtualPiso, diasRestantes, comPrecoDoDia });
+
+// =====================================================================
+// Modelo "Custo + Lucro" (v3): o investidor paga o CUSTO de produção por
+// saca; na venda, o lucro (preço − custo) é dividido 30% investidor ·
+// 65% fazenda · 5% plataforma. Mínimo do investidor = 90% do CDI no prazo
+// (equivalente à LCA), garantido pela fazenda. A fazenda paga 0,5% de
+// estruturação, 0,15% de custódia e 0,15% de gestão sobre o captado.
+// =====================================================================
+const CUSTO = {
+  min_pct_cdi: num("CUSTO_MIN_PCT_CDI", 90),
+  lucro_investidor_pct: num("CUSTO_LUCRO_INVESTIDOR_PCT", 30),
+  lucro_fazenda_pct: num("CUSTO_LUCRO_FAZENDA_PCT", 65),
+  lucro_plataforma_pct: num("CUSTO_LUCRO_PLATAFORMA_PCT", 5),
+  estruturacao_pct: num("CUSTO_ESTRUTURACAO_PCT", 0.5),
+  custodia_armazem_pct: num("CUSTO_CUSTODIA_ARMAZEM_PCT", 0.15),
+  gestao_fundo_pct: num("CUSTO_GESTAO_FUNDO_PCT", 0.15),
+};
+function minimoPct(dias) {
+  const taxa = (CUSTO.min_pct_cdi / 100) * REGRAS.cdi_aa;
+  return Math.round(((Math.pow(1 + taxa / 100, dias / 365) - 1) * 100) * 100) / 100;
+}
+function dividirCusto({ cotas, custoSaca, minimoPct: mn, precoVenda }) {
+  const base = cotas * custoSaca;
+  const valorMinimo = base * (1 + mn / 100);
+  const valorVenda = cotas * precoVenda;
+  const lucro = Math.max(0, valorVenda - base);
+  const porLucro = base + lucro * CUSTO.lucro_investidor_pct / 100;
+  const investidor = Math.max(valorMinimo, porLucro);
+  const plataforma = lucro * CUSTO.lucro_plataforma_pct / 100;
+  return { base, valorMinimo, valorVenda, lucro, investidor, plataforma, minimoAtivo: valorMinimo > porLucro };
+}
+function calcularPagamentoCusto(plot, investments, precoVenda, { despesaArmazenagem = 0 } = {}) {
+  const custoSaca = Number(plot.custo_saca) || Number(plot.preco_venda_estimado);
+  const linhas = investments.map((inv) => ({ inv, ...dividirCusto({ cotas: Number(inv.cotas), custoSaca, minimoPct: Number(plot.piso_pct) || 0, precoVenda }) }));
+  const soma = (k) => linhas.reduce((s, l) => s + l[k], 0);
+  const captado = investments.reduce((s, i) => s + Number(i.valor_investido), 0);
+  const estruturacao = captado * CUSTO.estruturacao_pct / 100;
+  const custodia = captado * CUSTO.custodia_armazem_pct / 100;
+  const gestao = captado * CUSTO.gestao_fundo_pct / 100;
+  const investidores = soma("investidor"), plataformaLucro = soma("plataforma"), valorVenda = soma("valorVenda");
+  const fazendaLiquido = valorVenda - investidores - plataformaLucro - estruturacao - custodia - gestao - despesaArmazenagem;
+  // compatível com a forma do pagamento com piso (mesmas chaves)
+  for (const l of linhas) { l.valorPiso = l.valorMinimo; l.excedente = l.lucro; l.fazendaExcedente = l.lucro * CUSTO.lucro_fazenda_pct / 100; l.aporteFazenda = 0; }
+  return {
+    modelo: "custo", linhas, captado, valorVenda, valorPiso: soma("valorMinimo"), excedente: soma("lucro"),
+    investidores, plataforma: plataformaLucro + estruturacao, plataformaExcedente: plataformaLucro, estruturacao,
+    armazem: custodia + despesaArmazenagem, custodia, armazenagem: despesaArmazenagem, fundo: gestao,
+    fazendaExcedente: soma("lucro") * CUSTO.lucro_fazenda_pct / 100, aportePiso: Math.max(0, -fazendaLiquido), fazendaLiquido,
+  };
+}
+Object.assign(module.exports, { CUSTO, minimoPct, dividirCusto, calcularPagamentoCusto });

@@ -547,6 +547,10 @@ ALTER TABLE plots ADD COLUMN IF NOT EXISTS modelo TEXT NOT NULL DEFAULT 'meta';
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS piso_pct DOUBLE PRECISION;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS piso_dias INTEGER;
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS valor_piso DOUBLE PRECISION;
+-- modelo "custo" (v3): custo de produção por hectare, produtividade e custo por saca
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS custo_ha DOUBLE PRECISION;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS produtividade_ha DOUBLE PRECISION;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS custo_saca DOUBLE PRECISION;
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS aporte_fazenda DOUBLE PRECISION DEFAULT 0;
 
 -- ===================== Crescimento: lista de espera e indicação =====================

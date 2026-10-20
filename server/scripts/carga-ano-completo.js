@@ -9,7 +9,8 @@
  *
  * 20 fazendas, 4 armazéns (o SIAP que já existe + 3 regionais), ~4.000
  * investidores pessoa física com compras pulverizadas, recompra entre safras e
- * indicação. Produto com renda mínima (piso), preço do dia, pagamentos com a
+ * indicação. Modelo "Custo + Lucro": o investidor paga o custo de produção por
+ * saca e fica com 30% do lucro (mínimo de 90% do CDI); a fazenda, 65%. Preço do dia, pagamentos com a
  * mesma conta do app. Tudo gravado em lote numa única transação.
  *
  * Uso (pasta server):
@@ -22,7 +23,7 @@
  */
 const bcrypt = require("bcryptjs");
 const { pool } = require("../src/db");
-const { pisoPct, calcularPagamentoPiso, REGRAS } = require("../src/piso");
+const { minimoPct, calcularPagamentoCusto, REGRAS } = require("../src/piso");
 const { despesaPrevista } = require("../src/storageFees");
 
 const D_FAZ = "carga-safrinha.meutalhao.com.br";      // mesmo domínio da carga anterior (é limpa junto)
@@ -57,10 +58,11 @@ const CARAC_ARM = ["silo_metalico", "armazem_graneleiro", "balanca_rodoviaria", 
 
 // ---------- culturas e preços (referência na abertura · realizado na venda) ----------
 const CULT = {
-  soja:    { grao: "Soja", variedade: "Intacta RR2 PRO", unidade: "saca", prod: [58, 68], custoHa: 4900 },
-  milho:   { grao: "Milho", variedade: "Grão amarelo (comum)", unidade: "saca", prod: [100, 125], custoHa: 3900 },
-  sorgo:   { grao: "Sorgo", variedade: "Granífero", unidade: "saca", prod: [70, 85], custoHa: 2500 },
-  feijao:  { grao: "Feijão", variedade: "Carioca", unidade: "saca", prod: [32, 42], custoHa: 5600 },
+  // custo = custo operacional efetivo por ha (Imea 2026/27; feijão e sorgo: faixas Conab)
+  soja:    { grao: "Soja", variedade: "Intacta RR2 PRO", unidade: "saca", prod: [57, 64], custoHa: 6122 },
+  milho:   { grao: "Milho", variedade: "Grão amarelo (comum)", unidade: "saca", prod: [108, 122], custoHa: 5508 },
+  sorgo:   { grao: "Sorgo", variedade: "Granífero", unidade: "saca", prod: [68, 78], custoHa: 2900 },
+  feijao:  { grao: "Feijão", variedade: "Carioca", unidade: "saca", prod: [43, 50], custoHa: 11500 },
   algodao: { grao: "Algodão", variedade: "Transgênico", unidade: "arroba", prod: [105, 120], custoHa: 12500 },
   trigo:   { grao: "Trigo", variedade: "Pão", unidade: "saca", prod: [50, 62], custoHa: 3600 },
 };
@@ -69,11 +71,11 @@ const SAFRAS = [
   { id: "s25", safra: "2025/26", nome: "Soja Verão", pub: ["2025-08-18", "2025-09-12"], plantio: ["2025-10-10", "2025-11-08"], colheita: ["2026-02-08", "2026-03-12"],
     preco: { soja: 121 }, venda: [0.93, 1.12], paga: true, fill: [0.92, 1] },
   { id: "m26", safra: "2026 safrinha", nome: "Safrinha", pub: ["2026-01-05", "2026-01-25"], plantio: ["2026-02-12", "2026-03-08"], colheita: ["2026-06-15", "2026-07-25"],
-    preco: { milho: 56, sorgo: 45, feijao: 262, algodao: 126, trigo: 73 }, venda: [0.90, 1.20], paga: true, fill: [0.9, 1] },
+    preco: { milho: 56, sorgo: 46, feijao: 300 }, venda: [0.88, 1.18], paga: true, fill: [0.9, 1] },
   { id: "s26", safra: "2026/27", nome: "Soja Verão", pub: ["2026-08-18", "2026-09-15"], plantio: ["2026-10-08", "2026-11-12"], colheita: ["2027-02-10", "2027-03-15"],
     preco: { soja: 120 }, paga: false, fill: [0.82, 1], fase: [1, 2] },
   { id: "m27", safra: "2027 safrinha", nome: "Safrinha", pub: ["2026-09-28", "2026-10-14"], plantio: ["2027-02-15", "2027-03-08"], colheita: ["2027-06-20", "2027-07-20"],
-    preco: { milho: 58, sorgo: 47, feijao: 280, algodao: 128, trigo: 76 }, paga: false, fill: [0.05, 0.3], fase: [0, 0] },
+    preco: { milho: 57, sorgo: 46, feijao: 305 }, paga: false, fill: [0.05, 0.3], fase: [0, 0] },
 ];
 const RATEIO = { preparo_solo: 0.04, sementes: 0.18, fertilizantes: 0.30, plantio: 0.04, defensivos: 0.22, manejo: 0.05, colheita: 0.07, frete: 0.04, mao_obra: 0.02, maquinas: 0.03, seguro: 0.01 };
 
@@ -223,17 +225,23 @@ async function limpar(client) {
     const novasRecompensas = new Set();
     for (const S of SAFRAS) {
       for (const fz of fazendas) {
-        const culturas = S.id.startsWith("s") ? ["soja"] : S.id === "m27" ? [fz.safrinha[0]] : fz.safrinha.slice(0, rnd() < 0.5 ? 2 : 1);
+        const sem = (k) => (k === "algodao" ? "milho" : k === "trigo" ? "feijao" : k); // margem insuficiente hoje
+        const safr = fz.safrinha.map(sem);
+        const culturas = S.id.startsWith("s") ? ["soja"] : S.id === "m27" ? [safr[0]] : safr.slice(0, rnd() < 0.5 ? 2 : 1);
         for (const chave of culturas) {
           const c = CULT[chave];
-          const P = c2((S.preco[chave] || 100) * entre(0.97, 1.03));
+          // preço esperado de venda (milho em MT tem preço menor: base ~R$ 50)
+          const P = c2((chave === "milho" && fz.uf === "MT" ? 50 : (S.preco[chave] || 100)) * entre(0.97, 1.03));
+          const prodHa = Math.round(entre(c.prod[0], c.prod[1]) * 10) / 10;
+          const custoHa = Math.round(c.custoHa * entre(0.95, 1.05));
+          const custoSaca = c2(custoHa / prodHa);
           const pub = entreDatas(dia(S.pub[0]), dia(S.pub[1])), plantio = entreDatas(dia(S.plantio[0]), dia(S.plantio[1])), colheita = entreDatas(dia(S.colheita[0]), dia(S.colheita[1]));
           const dias = Math.max(30, diasEntre(pub, maisDias(colheita, REGRAS.dias_pos_colheita)));
-          const piso = pisoPct(dias);
+          const piso = minimoPct(dias); // mínimo do investidor: 90% do CDI no prazo
           const capital = Math.exp(entre(Math.log(80000), Math.log(360000)));
-          const cotas = Math.max(500, arred(capital / P, 50));
-          const prod = Math.round(entre(c.prod[0], c.prod[1]));
-          const area = Math.max(20, arred(cotas / (prod * entre(0.45, 0.6)), 5));
+          const cotas = Math.max(500, arred(capital / custoSaca, 50));
+          const prod = prodHa;
+          const area = Math.max(20, arred(cotas / (prodHa * entre(0.6, 0.9)), 5)); // investidores financiam 60% a 90% da produção
           const nome = `Talhão ${String(10 + (seqTal++ % 80)).padStart(2, "0")} – ${c.grao} ${S.nome}${S.paga ? ` ${S.safra.slice(0, 4)}` : ""}`;
           const arm = fz.armazem;
           const fase = S.paga ? 5 : int(S.fase[0], S.fase[1]);
@@ -245,16 +253,16 @@ async function limpar(client) {
             `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis,
                previsao_retorno, unidade, preco_venda_estimado, warehouse_id, custodia_status, custodia_em, aprovacao_status, aprovacao_em, aprovacao_por, exige_garantia,
                publicado_em, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_tarifa_recepcao, arm_tarifa_quinzena, arm_carencia, arm_quebra_pct,
-               modelo, piso_pct, piso_dias, status, fase_atual, progresso, retorno_final, arm_entrada_em, created_at)
-             VALUES ($1,$2,$3,$4,'lavoura',$5,$6,$7,$8,$9,$10,$10,$11,$12,$9,$13,'aceita',$14,'aprovado',$14,$15,true,$14,'fazenda',2,0,$16,$17,$18,$19,
-               'piso',$11,$20,$21,$22,$23,$24,$25,$26) RETURNING *`,
+               modelo, piso_pct, piso_dias, status, fase_atual, progresso, retorno_final, arm_entrada_em, created_at, custo_ha, produtividade_ha, custo_saca)
+             VALUES ($1,$2,$3,$4,'lavoura',$5,$6,$7,$8,$27,$10,$10,$11,$12,$9,$13,'aceita',$14,'aprovado',$14,$15,true,$14,'fazenda',2,0,$16,$17,$18,$19,
+               'custo',$11,$20,$21,$22,$23,$24,$25,$26,$28,$29,$27) RETURNING *`,
             [fz.id, nome, c.grao, c.variedade, iso(plantio), iso(colheita), area, S.safra, P, cotas, piso, c.unidade, arm.id, pub.toISOString(), aprovador,
              arm.tarifa_recepcao, arm.tarifa_quinzena, arm.carencia_quinzenas, arm.quebra_quinzena_pct, dias,
-             S.paga ? "pago" : fase === 0 ? "captacao" : "em_andamento", fase, progresso, retorno, S.paga ? maisDias(colheita, 3).toISOString() : null, maisDias(pub, -int(3, 10)).toISOString()]);
+             S.paga ? "pago" : fase === 0 ? "captacao" : "em_andamento", fase, progresso, retorno, S.paga ? maisDias(colheita, 3).toISOString() : null, maisDias(pub, -int(3, 10)).toISOString(),
+             custoSaca, custoHa, prodHa]);
           const plot = np[0]; resumo.talhoes++;
 
           // orçamento e custos lançados
-          const custoHa = c.custoHa * entre(0.95, 1.06);
           await bulk(client, "plot_budget", ["plot_id", "categoria", "valor"], Object.entries(RATEIO).map(([k, f]) => [plot.id, k, Math.round(area * custoHa * f)]));
           const lancadas = S.paga ? Object.keys(RATEIO) : fase >= 1 ? ["preparo_solo", "sementes", "fertilizantes", "plantio"] : ["preparo_solo"];
           await bulk(client, "plot_costs", ["plot_id", "categoria", "descricao", "valor", "data", "created_by"], lancadas.map((k) => [plot.id, k, `Lançamento de ${k.replace("_", " ")}`,
@@ -284,7 +292,7 @@ async function limpar(client) {
               if (cand.entrada <= quando && (compradoresAnteriores.has(cand.id) || rnd() < 0.7)) v = cand;
             }
             if (!v) continue;
-            const preco = c2(P * Math.pow(1 + piso / 100, Math.min(1, diasEntre(pub, quando) / dias)));
+            const preco = c2(custoSaca * Math.pow(1 + piso / 100, Math.min(1, diasEntre(pub, quando) / dias))); // preço do dia sobre o custo
             let q = Math.max(1, Math.round((v.ana ? entre(1500, 6000) : ticket()) / preco));
             q = Math.min(q, alvo - vendidas); if (q <= 0) break;
             compras.push({ user: v.id, q, preco, valor: c2(q * preco), quando, v });
@@ -309,7 +317,7 @@ async function limpar(client) {
           if (S.paga && compras.length) {
             const pagoEm = maisDias(colheita, int(28, 40));
             const desp = despesaPrevista(plot, { unidades: vendidas, precoVenda }).total;
-            const r = calcularPagamentoPiso(plot, compras.map((x) => ({ id: x.id, user_id: x.user, cotas: x.q, valor_investido: x.valor })), precoVenda, { despesaArmazenagem: desp });
+            const r = calcularPagamentoCusto(plot, compras.map((x) => ({ id: x.id, user_id: x.user, cotas: x.q, valor_investido: x.valor })), precoVenda, { despesaArmazenagem: desp });
             await client.query(`INSERT INTO harvest_requests (plot_id, farm_id, retorno_final, comprovante_texto, status, requested_by, reviewed_by, created_at, reviewed_at)
               VALUES ($1,$2,$3,$4,'aprovado',$5,$6,$7,$8)`, [plot.id, fz.id, retorno, `Venda de ${vendidas.toLocaleString("pt-BR")} ${c.unidade}s a R$ ${precoVenda.toFixed(2).replace(".", ",")} (nota fiscal anexada).`,
               fz.owner, aprovador, maisDias(pagoEm, -5).toISOString(), pagoEm.toISOString()]);
@@ -317,10 +325,10 @@ async function limpar(client) {
               r.linhas.map((l) => [l.inv.id, c2(l.valorVenda), c2(l.fazendaExcedente), c2(l.plataforma), c2(l.investidor), 0, 0, c2(l.valorPiso), c2(l.aporteFazenda), pagoEm.toISOString()]));
             await bulk(client, "transactions", ["type", "status", "user_id", "farm_id", "plot_id", "investment_id", "amount", "description", "created_at"],
               r.linhas.map((l) => ["pagamento_investidor", "aprovado", l.inv.user_id, fz.id, plot.id, l.inv.id, c2(l.investidor),
-                `Pagamento da colheita de ${nome}: mínimo garantido (piso de ${piso}%)${l.excedente > 0 ? " + 30% da alta" : ""}`, pagoEm.toISOString()]));
+                `Pagamento da colheita de ${nome}: ${l.minimoAtivo ? `mínimo garantido (${piso}%)` : "custo + 30% do lucro"}`, pagoEm.toISOString()]));
             const extras = [
-              r.fazendaLiquido >= 0 ? ["repasse_fazenda", fz.owner, r.fazendaLiquido, `${nome}: 60% da alta menos taxas e armazenagem`] : ["aporte_fazenda", fz.owner, -r.fazendaLiquido, `${nome}: aporte para garantir o piso, taxas e armazenagem`],
-              ["comissao_plataforma", null, r.plataforma, `${nome}: estruturação + 10% da alta`],
+              r.fazendaLiquido >= 0 ? ["repasse_fazenda", fz.owner, r.fazendaLiquido, `${nome}: lucro da fazenda (65%) menos taxas e armazenagem`] : ["aporte_fazenda", fz.owner, -r.fazendaLiquido, `${nome}: aporte para garantir o piso, taxas e armazenagem`],
+              ["comissao_plataforma", null, r.plataforma, `${nome}: estruturação + 5% do lucro`],
               ["tarifa_armazem", arm.owner_user_id, r.armazem, `${nome} em ${arm.name}: custódia + armazenagem, pagas pela fazenda`],
               ["gestao_fundo", null, r.fundo, `${nome}: gestão do fundo`],
             ].filter((e) => e[2] > 0.004);
@@ -331,7 +339,8 @@ async function limpar(client) {
               Object.entries(porUser).map(([u, v]) => [Number(u), "sistema", fz.id, plot.id, "pagamento_recebido", "Você recebeu um pagamento",
                 `A colheita de ${nome} foi paga. Você recebeu R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`, rnd() < 0.85 ? pagoEm.toISOString() : null, pagoEm.toISOString()]));
             resumo.pagos++; resumo.invRecebido += r.investidores; resumo.invAplicado += r.captado; resumo.fazAlta += r.fazendaExcedente;
-            resumo.fazCusto += (r.valorPiso - r.captado) + r.estruturacao + r.custodia + r.fundo; resumo.plataforma += r.plataforma; resumo.armazem += r.armazem;
+            resumo.fazCusto += r.fazendaLiquido; resumo.plataforma += r.plataforma; resumo.armazem += r.armazem;
+            resumo.fazLucroBanco = (resumo.fazLucroBanco || 0) + (r.valorVenda - r.captado - r.captado * (Math.pow(1.18, dias / 365) - 1)) - r.armazenagem;
           }
           // safra atual quase esgotada: lista de espera
           if (S.id === "s26" && vendidas >= cotas * 0.98) {
@@ -351,7 +360,7 @@ async function limpar(client) {
     console.log(`Fazendas: 20 · talhões: ${resumo.talhoes} (${resumo.pagos} colhidos e pagos) · compras: ${f(resumo.compras)} · GMV do ano: R$ ${f(resumo.gmv)}`);
     console.log(`Investidores: ${f(invs.length)} cadastrados, ${f(ativos)} compraram, ${f(recompra)} compraram mais de uma vez · ${novasRecompensas.size} chegaram por indicação`);
     console.log(`Safras pagas: investidores aplicaram R$ ${f(resumo.invAplicado)} e receberam R$ ${f(resumo.invRecebido)} (+${((resumo.invRecebido / resumo.invAplicado - 1) * 100).toFixed(2)}%)`);
-    console.log(`Fazendas: custo do dinheiro ${(resumo.fazCusto / resumo.invAplicado * 100).toFixed(2)}% nas safras pagas e R$ ${f(resumo.fazAlta)} de parte da alta · plataforma R$ ${f(resumo.plataforma)} · armazéns R$ ${f(resumo.armazem)}`);
+    console.log(`Fazendas: lucro de R$ ${f(resumo.fazCusto)} nas sacas financiadas (com crédito bancário a 18% a.a. seria R$ ${f(resumo.fazLucroBanco)}) · plataforma R$ ${f(resumo.plataforma)} · armazéns R$ ${f(resumo.armazem)}`);
     console.log(`Logins de demonstração (senha ${SENHA}): fazendas <nome>@${D_FAZ} · investidores <nome.sobrenome>@${D_INV} · armazéns <nome>@${D_ARM}`);
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});

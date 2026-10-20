@@ -74,7 +74,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     }
 
     // no produto com piso, o preço é o do dia (sobe com o tempo na taxa do piso)
-    const precoUnit = plot.modelo === "piso" ? require("../piso").precoAtualPiso(plot) : Number(plot.cota_valor);
+    const precoUnit = plot.modelo === "piso" || plot.modelo === "custo" ? require("../piso").precoAtualPiso(plot) : Number(plot.cota_valor);
     const valorInvestido = qtd * precoUnit;
 
     await client.query(
@@ -166,7 +166,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
 
 router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT i.*, p.nome as plot_nome, p.grao, p.variedade, p.tipo_producao, p.colheita_prevista, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado, p.cota_valor, p.retorno_final, p.previsao_retorno, p.modelo, p.piso_pct, p.piso_dias, p.publicado_em,
+    `SELECT i.*, p.nome as plot_nome, p.grao, p.variedade, p.tipo_producao, p.colheita_prevista, p.fase_atual, p.progresso, p.safra, p.status as plot_status, p.unidade, p.preco_venda_estimado, p.cota_valor, p.retorno_final, p.previsao_retorno, p.modelo, p.piso_pct, p.piso_dias, p.publicado_em, p.custo_saca,
             f.name as farm_name,
             po.valor_bruto, po.comissao_fazenda, po.comissao_app, po.valor_liquido
      FROM investments i
@@ -179,7 +179,7 @@ router.get("/me", requireAuth, requireRole("investidor"), asyncHandler(async (re
   );
   // no produto com piso, "valem hoje" usa o preço do dia
   const { precoAtualPiso } = require("../piso");
-  const comPreco = rows.map((r) => (r.modelo === "piso" ? { ...r, cota_valor: precoAtualPiso(r) } : r));
+  const comPreco = rows.map((r) => (r.modelo === "piso" || r.modelo === "custo" ? { ...r, cota_valor: precoAtualPiso(r) } : r));
   res.json({ investments: comPreco, nivel: await getInvestorLevel(pool, req.user.id) });
 }));
 

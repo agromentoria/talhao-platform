@@ -8,7 +8,7 @@ import { fmtBRL, fmtNumber, fmtPct } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
-import { Stars, RegrasTalhao, RegrasPiso } from "../components/domain";
+import { Stars, RegrasTalhao, RegrasPiso, RegrasCusto } from "../components/domain";
 import { TextField, FilterChips, Button, Banner, ErrorBanner, Tabs, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
 
@@ -365,7 +365,9 @@ export default function AdminDashboard() {
               <details style={{ marginBottom: 12 }}>
                 <summary className="text-sm" style={{ cursor: "pointer", fontWeight: 600, color: "var(--link)" }}>Ver ganhos do investidor e divisão do lucro</summary>
                 <div style={{ marginTop: 10 }}>
-                  {p.modelo === "piso" ? (
+                  {p.modelo === "custo" ? (
+                    <RegrasCusto custoHa={p.custo_ha} produtividade={p.produtividade_ha} precoEsperado={p.preco_venda_estimado} colheitaPrevista={p.colheita_prevista} unidade={p.unidade} area={p.area_ha} paraFazenda />
+                  ) : p.modelo === "piso" ? (
                     <RegrasPiso precoRef={p.preco_venda_estimado} colheitaPrevista={p.colheita_prevista} unidade={p.unidade} paraFazenda />
                   ) : (
                   <RegrasTalhao precoRef={p.preco_venda_estimado} metaPct={p.previsao_retorno} perfPct={Number(p.perf_excedente_pct) || 0}
@@ -781,19 +783,19 @@ function HarvestPreviewPiso({ r }) {
   const acima = r.preco_venda_declarado - r.preco_piso;
   return (
     <div className="card card--well" style={{ padding: 12, marginBottom: 12 }}>
-      <p className="card-title" style={{ marginBottom: 6 }}>Prévia do pagamento · renda mínima</p>
+      <p className="card-title" style={{ marginBottom: 6 }}>Prévia do pagamento · {r.modelo === "custo" ? "custo + lucro" : "renda mínima"}</p>
       <p className="text-sm" style={{ marginBottom: 8 }}>
-        Venda declarada <strong>{fmtBRL(r.preco_venda_declarado)}</strong> por {u} · preço-piso <strong>{fmtBRL(r.preco_piso)}</strong> (piso de {fmtPct(r.piso_pct, 2)})
+        Venda declarada <strong>{fmtBRL(r.preco_venda_declarado)}</strong> por {u} · {r.modelo === "custo" ? <>custo <strong>{fmtBRL(r.custo_saca)}</strong> · mínimo do investidor {fmtPct(r.piso_pct, 2)}</> : <>preço-piso <strong>{fmtBRL(r.preco_piso)}</strong> (piso de {fmtPct(r.piso_pct, 2)})</>}
         {acima > 0.004 ? <> · <span className="text-success">{fmtBRL(acima)} acima do piso</span></> : <> · <span className="text-danger">abaixo do piso: a fazenda completa</span></>}
       </p>
       <dl className="kv" style={{ margin: 0 }}>
         <div><dt>Investidores · mínimo garantido</dt><dd>{fmtBRL(v.valorPiso)}</dd></div>
-        <div><dt>Investidores · 30% da alta</dt><dd>{fmtBRL(v.investidores - v.valorPiso)}</dd></div>
+        <div><dt>{r.modelo === "custo" ? "Investidores · acima do mínimo (30% do lucro)" : "Investidores · 30% da alta"}</dt><dd>{fmtBRL(Math.max(0, v.investidores - v.valorPiso))}</dd></div>
         <div><dt>Investidores recebem</dt><dd><strong>{fmtBRL(v.investidores)}</strong></dd></div>
-        <div><dt>Plataforma · estruturação + 10% da alta</dt><dd>{fmtBRL(v.estruturacao)} + {fmtBRL(v.plataformaExcedente)}</dd></div>
+        <div><dt>{r.modelo === "custo" ? "Plataforma · estruturação + 5% do lucro" : "Plataforma · estruturação + 10% da alta"}</dt><dd>{fmtBRL(v.estruturacao)} + {fmtBRL(v.plataformaExcedente)}</dd></div>
         <div><dt>Armazém · custódia + armazenagem</dt><dd>{fmtBRL(v.custodia)} + {fmtBRL(v.armazenagem)}</dd></div>
         <div><dt>Fundo · gestão</dt><dd>{fmtBRL(v.fundo)}</dd></div>
-        <div className="total"><dt>{v.fazendaLiquido >= 0 ? "Fazenda fica com (60% da alta − taxas)" : "Aporte da fazenda"}</dt>
+        <div className="total"><dt>{v.fazendaLiquido >= 0 ? (r.modelo === "custo" ? "Fazenda fica com (lucro − taxas)" : "Fazenda fica com (60% da alta − taxas)") : "Aporte da fazenda"}</dt>
           <dd className={v.fazendaLiquido >= 0 ? "text-success" : "text-danger"}>{fmtBRL(Math.abs(v.fazendaLiquido))}</dd></div>
       </dl>
       <p className="text-xs text-3" style={{ marginTop: 8 }}>Confere com a venda: {fmtBRL(v.valorVenda)} = investidores + plataforma + armazém + fundo {v.fazendaLiquido >= 0 ? "+" : "−"} fazenda.</p>
@@ -810,7 +812,7 @@ function performanceMotivo(r) {
 function HarvestPreview({ r }) {
   const v = r.previa;
   if (!v) return null;
-  if (r.modelo === "piso") return <HarvestPreviewPiso r={r} />;
+  if (r.modelo === "piso" || r.modelo === "custo") return <HarvestPreviewPiso r={r} />;
   const u = unidadeNome(r.unidade, 1);
   const acima = r.preco_venda_declarado - r.preco_meta;
   return (

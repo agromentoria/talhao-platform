@@ -10,7 +10,7 @@ const { dividirLucro } = require("./profitSplit");
 // pago x preço real de venda, para que quem comprou mais cedo continue
 // lucrando mais do que quem comprou mais perto da colheita.
 async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
-  if (plot.modelo === "piso") return executePisoPayout({ plot, farm, retorno });
+  if (plot.modelo === "piso" || plot.modelo === "custo") return executePisoPayout({ plot, farm, retorno });
   const client = await pool.connect();
   let investidoresPagos = 0;
   let totalComissaoFazenda = 0;
@@ -177,7 +177,8 @@ async function executeHarvestPayout({ plot, farm, retorno, appCommissionPct }) {
 
 // ---------- produto com piso (v2) ----------
 async function executePisoPayout({ plot, farm, retorno }) {
-  const { calcularPagamentoPiso, REGRAS } = require("./piso");
+  const { calcularPagamentoPiso: calcPiso, calcularPagamentoCusto, REGRAS } = require("./piso");
+  const calcularPagamentoPiso = plot.modelo === "custo" ? calcularPagamentoCusto : calcPiso;
   const client = await pool.connect();
   let r;
   try {

@@ -69,7 +69,7 @@ export function PlotCard({ plot }) {
               <p className="plot-card-price">{fmtBRL(plot.cota_valor)}</p>
             </div>
             <div style={{ textAlign: "right" }}>
-              <p className="label-xs">{plot.modelo === "piso" ? "renda mínima na safra" : "meta de retorno"}</p>
+              <p className="label-xs">{plot.modelo === "custo" ? "mínimo + 30% do lucro" : plot.modelo === "piso" ? "renda mínima na safra" : "meta de retorno"}</p>
               <p className="plot-card-return"><TrendingUp size={15} aria-hidden /> {fmtPct(plot.modelo === "piso" ? plot.piso_pct : plot.previsao_retorno, plot.modelo === "piso" ? 1 : undefined)}</p>
             </div>
           </div>

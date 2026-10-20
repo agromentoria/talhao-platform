@@ -10,7 +10,7 @@ import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
 import { dividirPiso } from "../lib/piso";
-import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasPiso } from "../components/domain";
+import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasPiso, RegrasCusto } from "../components/domain";
 import { tarifasTexto, quinzenasTexto, armDoTalhao, pagadorTexto } from "../lib/armazenagem";
 
 const STATUS_FILTERS = [
@@ -177,7 +177,7 @@ function CommissionCard({ farm, onSaved, onError }) {
 
 function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreated, setError }) {
   const [warehouseId, setWarehouseId] = useState("");
-  const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "" });
+  const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "", custo_ha: "", produtividade_ha: "" });
   const [cultivo, setCultivo] = useState(emptyCultivo());
   const [arm, setArm] = useState({ pagador: "investidores", quinzenas: 2, investidorPct: 50 });
   const [perf] = useState("0");
@@ -216,6 +216,10 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <CultivoFields value={cultivo} onChange={setCultivo} area={form.area_ha} references={references} fasePricing={fasePricing} />
       <Field label="Safra / ciclo (ex: 2026/27)" value={form.safra} onChange={(v) => update("safra", v)} required />
+      <Field label="Custo de produção por hectare (R$)" type="number" value={form.custo_ha} onChange={(v) => update("custo_ha", v)} required
+        hint="Custo operacional efetivo (insumos, operações, mão de obra). Ex.: soja ~R$ 6.100/ha; milho safrinha ~R$ 5.500/ha." />
+      <Field label={`Produtividade esperada (${cultivo.unidade === "arroba" ? "arrobas" : "sacas"} por ha)`} type="number" value={form.produtividade_ha} onChange={(v) => update("produtividade_ha", v)} required
+        hint={Number(form.custo_ha) > 0 && Number(form.produtividade_ha) > 0 ? `Custo por unidade: R$ ${(Number(form.custo_ha) / Number(form.produtividade_ha)).toFixed(2).replace(".", ",")} — é o preço que o investidor paga na abertura.` : "Média das últimas safras da área."} />
       <div className="span-all">
         <WarehousePicker warehouses={warehouses} value={warehouseId} onChange={setWarehouseId} />
       </div>
@@ -223,9 +227,8 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
         precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
       <div className="span-all card" style={{ padding: 14 }}>
         <p className="card-title" style={{ marginBottom: 8 }}>Resumo das regras deste talhão</p>
-        {Number(cultivo.preco) > 0 ? (
-          <RegrasPiso precoRef={cultivo.preco} colheitaPrevista={cultivo.colheita_prevista} unidade={cultivo.unidade || "saca"} paraFazenda />
-        ) : <p className="text-sm text-2">Preencha a cultura e o preço para ver como ficam os ganhos de cada lado.</p>}
+        <RegrasCusto custoHa={form.custo_ha} produtividade={form.produtividade_ha} precoEsperado={cultivo.preco} colheitaPrevista={cultivo.colheita_prevista}
+          unidade={cultivo.unidade || "saca"} area={Number(form.area_ha) || 0} paraFazenda />
       </div>
       <p className="span-all text-sm text-2">
         Depois de enviar, o talhão passa pela aprovação da administração e pelo aceite do armazém. Ele só aparece para os investidores quando os dois confirmarem.
@@ -692,7 +695,7 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
 
 // preço real de venda → retorno calculado e efeito da regra de performance
 function FinalizePreview({ plot, preco, onChange, uid }) {
-  if (plot.modelo === "piso") return <FinalizePreviewPiso plot={plot} preco={preco} onChange={onChange} uid={uid} />;
+  if (plot.modelo === "piso" || plot.modelo === "custo") return <FinalizePreviewPiso plot={plot} preco={preco} onChange={onChange} uid={uid} />;
   const u = unitPlural(plot.unidade, 1);
   const p = Number(String(preco).replace(",", "."));
   const meta = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
@@ -729,8 +732,12 @@ function FinalizePreviewPiso({ plot, preco, onChange, uid }) {
   const u = unitPlural(plot.unidade, 1);
   const p = Number(String(preco).replace(",", "."));
   const vendidas = plot.cotas_totais - plot.cotas_disponiveis;
-  const precoPiso = plot.preco_venda_estimado * (1 + (Number(plot.piso_pct) || 0) / 100);
-  const x = p > 0 ? dividirPiso({ cotas: vendidas, precoReferencia: plot.preco_venda_estimado, pisoPct: Number(plot.piso_pct) || 0, precoVenda: p }) : null;
+  const custo = plot.modelo === "custo";
+  const base = custo ? Number(plot.custo_saca) : plot.preco_venda_estimado;
+  const precoPiso = base * (1 + (Number(plot.piso_pct) || 0) / 100);
+  const x0 = p > 0 ? dividirPiso({ cotas: vendidas, precoReferencia: base, pisoPct: Number(plot.piso_pct) || 0, precoVenda: p }) : null;
+  // no custo + lucro a fazenda fica com 65% do lucro sobre o custo (e cobre o mínimo se faltar)
+  const x = x0 && custo ? { ...x0, excedente: Math.max(0, p - base) * vendidas, fazendaExcedente: Math.max(0, p - base) * vendidas * 0.65 - Math.max(0, base * vendidas * (Number(plot.piso_pct) || 0) / 100 - Math.max(0, p - base) * vendidas * 0.30), aporteFazenda: Math.max(0, precoPiso - p) * vendidas } : x0;
   return (
     <div>
       <label htmlFor={`fpv-${uid}`} style={{ fontSize: 12.5, color: COLORS.soilLight }}>Preço médio de venda por {u} (R$)</label>

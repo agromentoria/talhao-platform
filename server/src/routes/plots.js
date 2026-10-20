@@ -249,8 +249,10 @@ async function notifyWarehouseIndication(warehouse, plot, farmName) {
 router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
   const { farm_id, nome, area_ha, safra, warehouse_id } = req.body || {};
   // talhões novos usam o produto com piso; 'meta' só se pedido explicitamente
-  const modelo = req.body?.modelo === "meta" ? "meta" : "piso";
-  const previsao_retorno = modelo === "piso" ? 0 : req.body?.previsao_retorno;
+  const custoHa = Number(req.body?.custo_ha), prodHa = Number(req.body?.produtividade_ha);
+  // v3: com custo por hectare e produtividade, o talhão nasce no modelo "Custo + Lucro"
+  const modelo = req.body?.modelo === "meta" ? "meta" : req.body?.modelo === "piso" ? "piso" : custoHa > 0 && prodHa > 0 ? "custo" : "piso";
+  const previsao_retorno = modelo === "meta" ? req.body?.previsao_retorno : 0;
 
   if (!farm_id || !nome || !area_ha || !safra || previsao_retorno == null) {
     return res.status(400).json({ error: "Preencha todos os campos do talhão." });
@@ -283,13 +285,14 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   const c = await parseCultivo(req.body, area);
   if (c.error) return res.status(400).json({ error: c.error });
   // no produto com piso a armazenagem é sempre da fazenda e não há performance
-  const arm = parseArmazenagem(modelo === "piso" ? { ...req.body, arm_pagador: "fazenda" } : req.body);
+  const arm = parseArmazenagem(modelo !== "meta" ? { ...req.body, arm_pagador: "fazenda" } : req.body);
   if (arm.error) return res.status(400).json({ error: arm.error });
-  const perf = modelo === "piso" ? { pct: 0 } : parsePerformance(req.body);
+  const perf = modelo !== "meta" ? { pct: 0 } : parsePerformance(req.body);
   if (perf.error) return res.status(400).json({ error: perf.error });
-  const { prazoDias, pisoPct } = require("../piso");
-  const dias = modelo === "piso" ? prazoDias(c.colheita_prevista) : null;
-  const piso = modelo === "piso" ? pisoPct(dias) : null;
+  const { prazoDias, pisoPct, minimoPct } = require("../piso");
+  const dias = modelo !== "meta" ? prazoDias(c.colheita_prevista) : null;
+  const piso = modelo === "piso" ? pisoPct(dias) : modelo === "custo" ? minimoPct(dias) : null;
+  const custoSaca = modelo === "custo" ? Math.round((custoHa / prodHa) * 100) / 100 : null;
 
   // preço inicial (fase 0) — o mais barato, sobe conforme a fase avança
   const multiplicadorFase0 = await getFaseMultiplier(0);
@@ -299,11 +302,11 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
     `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra,
                         cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado,
                         warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_investidor_pct,
-                        modelo, piso_pct, piso_dias)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
+                        modelo, piso_pct, piso_dias, custo_ha, produtividade_ha, custo_saca)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
     [farm_id, String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
-     cotaValorInicial, c.cotas, modelo === "piso" ? piso : retorno, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct,
-     modelo, piso, dias]
+     modelo === "custo" ? custoSaca : cotaValorInicial, c.cotas, modelo === "meta" ? retorno : piso, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct,
+     modelo, piso, dias, modelo === "custo" ? custoHa : null, modelo === "custo" ? prodHa : null, custoSaca]
   );
   const plot = rows[0];
   await notifyWarehouseIndication(wh.warehouse, plot, owned.farm.name);

@@ -57,3 +57,28 @@ export function precoNoDia(precoReferencia, piso, diasTotal, t) {
 export function diasDesde(data) {
   return data ? Math.max(0, (Date.now() - new Date(data).getTime()) / 86400000) : 0;
 }
+
+// ---------- Modelo "Custo + Lucro" (v3) ----------
+export const CUSTO_PADRAO = { min_pct_cdi: 90, lucro_investidor_pct: 30, lucro_fazenda_pct: 65, lucro_plataforma_pct: 5, estruturacao_pct: 0.5, custodia_armazem_pct: 0.15, gestao_fundo_pct: 0.15 };
+export const ehCusto = (plot) => plot?.modelo === "custo";
+export function minimoPct(dias, cdi = 13.65, R = CUSTO_PADRAO) {
+  return Math.round(((Math.pow(1 + (R.min_pct_cdi / 100) * cdi / 100, dias / 365) - 1) * 100) * 100) / 100;
+}
+// o que o investidor recebe por saca, dado o preço de venda
+export function recebeCusto(custoSaca, minPct, precoVenda, R = CUSTO_PADRAO) {
+  return Math.max(custoSaca * (1 + minPct / 100), custoSaca + Math.max(0, precoVenda - custoSaca) * R.lucro_investidor_pct / 100);
+}
+// valor esperado (preço futuro centrado no preço esperado, volatilidade de 20% ao ano)
+export function esperadoCusto(custoSaca, minPct, precoEsperado, dias, R = CUSTO_PADRAO) {
+  const s = 0.2 * Math.sqrt(Math.max(1, dias) / 365); let soma = 0; const n = 41;
+  for (let i = 0; i < n; i++) { const z = -3 + (6 * i) / (n - 1); const w = Math.exp(-z * z / 2);
+    soma += w * recebeCusto(custoSaca, minPct, precoEsperado * Math.exp(-0.5 * s * s + s * z), R); }
+  let pesos = 0; for (let i = 0; i < n; i++) { const z = -3 + (6 * i) / (n - 1); pesos += Math.exp(-z * z / 2); }
+  return soma / pesos;
+}
+export function ganhoInvestidorCusto({ custoSaca, precoPago, minPct, precoEsperado, dias }, R = CUSTO_PADRAO) {
+  const minimo = custoSaca * (1 + minPct / 100);
+  const naVendaEsperada = recebeCusto(custoSaca, minPct, precoEsperado, R);
+  const esperado = esperadoCusto(custoSaca, minPct, precoEsperado, dias, R);
+  return { minimo, esperado, naVendaEsperada, minimoPct: (minimo / precoPago - 1) * 100, esperadoPct: (esperado / precoPago - 1) * 100 };
+}

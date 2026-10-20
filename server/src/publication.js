@@ -39,11 +39,11 @@ async function maybePublish(plotId) {
 
   const { rowCount } = await pool.query("UPDATE plots SET publicado_em = now() WHERE id = $1 AND publicado_em IS NULL", [plot.id]);
   if (!rowCount) return false;
-  if (plot.modelo === "piso") {
-    // o piso vale do dia em que a captação abre até o pagamento previsto
-    const { prazoDias, pisoPct } = require("./piso");
+  if (plot.modelo === "piso" || plot.modelo === "custo") {
+    // o piso/mínimo vale do dia em que a captação abre até o pagamento previsto
+    const { prazoDias, pisoPct, minimoPct } = require("./piso");
     const dias = prazoDias(plot.colheita_prevista);
-    const piso = pisoPct(dias);
+    const piso = plot.modelo === "custo" ? minimoPct(dias) : pisoPct(dias);
     await pool.query("UPDATE plots SET piso_pct = $1, piso_dias = $2, previsao_retorno = $1 WHERE id = $3", [piso, dias, plot.id]);
   }
 

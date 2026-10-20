@@ -251,7 +251,7 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
   for (const t of talhoes) {
     t.armazenagem = armPorTalhao[t.id] || 0;
     // no piso, o repasse e o aporte já vêm líquidos de taxas e armazenagem
-    t.resultado = t.modelo === "piso"
+    t.resultado = t.modelo === "piso" || t.modelo === "custo"
       ? t.captado - t.custos + t.comissao - t.aporte
       : t.captado - t.custos + t.comissao + t.performance - t.armazenagem;
   }

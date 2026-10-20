@@ -1,5 +1,19 @@
 # Registro de mudanças
 
+## 3.0.0 — modelo "Custo + Lucro"
+
+O investidor passa a ser sócio da safra: financia o custo de produção e divide o lucro.
+
+- **Talhões novos** com custo por hectare e produtividade esperada nascem no modelo `custo`. Talhões antigos (piso e meta) continuam como estavam.
+- **Preço de compra = custo de produção por saca** (custo/ha ÷ produtividade; ex.: soja R$ 6.122/ha ÷ 59,9 sc/ha = R$ 102,15), subindo com o tempo para quem compra depois.
+- **Na venda, o lucro de cada saca (preço − custo) é dividido:** 65% fazenda · 30% investidor · 5% plataforma. **Mínimo do investidor:** 90% do CDI no prazo (equivalente à LCA), garantido pela fazenda. **Toda saca produzida além das financiadas é da fazenda.**
+- **A fazenda paga 0,8% sobre o captado** (0,5% estruturação, 0,15% custódia, 0,15% gestão) e a armazenagem.
+- Exemplo, 1.000 ha de soja vendida a R$ 120: investidor +6,22% (mínimo), fazenda R$ 586 mil (com banco a 18% a.a.: R$ 519 mil), plataforma R$ 84 mil.
+- **Cadastro:** campos de custo por hectare e produtividade esperada; quadro com custo por saca, margem, divisão do lucro e cenários de preço com o resultado da fazenda por hectare e no talhão; aviso de **margem insuficiente** quando o preço esperado não cobre o custo + o mínimo.
+- Página do talhão, vitrine, aprovação e pagamento do fundo, finalização da fazenda e demonstrativo no modelo novo; pagamento fecha ao centavo com a venda.
+- **Carga de um ano** (`carga-ano-completo.js`) no modelo novo, com custos Imea/Conab 2026/27 por cultura.
+- Regras ajustáveis: `CUSTO_MIN_PCT_CDI`, `CUSTO_LUCRO_INVESTIDOR_PCT`, `CUSTO_LUCRO_FAZENDA_PCT`, `CUSTO_LUCRO_PLATAFORMA_PCT`, `CUSTO_ESTRUTURACAO_PCT`, `CUSTO_CUSTODIA_ARMAZEM_PCT`, `CUSTO_GESTAO_FUNDO_PCT`.
+
 ## 2.7.0 — carga de demonstração: um ano do app em operação
 
 - Novo script `scripts/carga-ano-completo.js` (`npm run carga:ano`): simula de ago/2025 a out/2026 com **safra 2025/26 e safrinha 2026 colhidas e pagas**, **safra 2026/27 plantada** (captação quase esgotada, com lista de espera) e **safrinha 2027 em captação**.

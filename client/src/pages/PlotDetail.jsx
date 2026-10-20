@@ -11,8 +11,8 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
-import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, RegrasPiso, PilhaDeSacas, ListaDeEspera } from "../components/domain";
-import { ehPiso, ganhoInvestidor, prazoDias } from "../lib/piso";
+import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, RegrasPiso, RegrasCusto, PilhaDeSacas, ListaDeEspera } from "../components/domain";
+import { ehPiso, ehCusto, ganhoInvestidor, ganhoInvestidorCusto, prazoDias } from "../lib/piso";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -99,8 +99,10 @@ export default function PlotDetail() {
   const custoTotal = qtd * plot.cota_valor;
   // mesmo cálculo do pagamento real no servidor (harvestPayout.js):
   // preço de venda projetado = preço de referência × (1 + retorno estimado)
-  const piso = ehPiso(plot);
-  const ganhoPiso = piso ? ganhoInvestidor({ precoReferencia: plot.preco_venda_estimado, precoPago: plot.cota_valor, piso: Number(plot.piso_pct) || 0,
+  const custo = ehCusto(plot);
+  const piso = ehPiso(plot) || custo;
+  const ganhoPiso = custo ? ganhoInvestidorCusto({ custoSaca: Number(plot.custo_saca), precoPago: plot.cota_valor, minPct: Number(plot.piso_pct) || 0,
+    precoEsperado: plot.preco_venda_estimado, dias: plot.piso_dias_restantes || 150 }, regras?.custo) : piso ? ganhoInvestidor({ precoReferencia: plot.preco_venda_estimado, precoPago: plot.cota_valor, piso: Number(plot.piso_pct) || 0,
     dias: plot.piso_dias_restantes || prazoDias(plot.colheita_prevista, regras?.piso) || 150 }, regras?.piso) : null;
   const precoVendaProjetado = piso ? ganhoPiso.minimo : plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
   const margemPorUnidade = precoVendaProjetado - plot.cota_valor;
@@ -224,7 +226,8 @@ export default function PlotDetail() {
             </div>
             <p className="text-xs text-3" style={{ marginTop: 12 }}>
               {piso
-                ? <>Preço de referência: {fmtBRL(plot.preco_venda_estimado)} por {unidade}. A fazenda garante no mínimo {fmtBRL(precoVendaProjetado)} por {unidade} (piso de {fmtPct(plot.piso_pct, 2)} na safra) e você ainda fica com 30% do que a venda passar disso.</>
+                ? custo ? <>Custo de produção: {fmtBRL(plot.custo_saca)} por {unidade} · venda esperada: {fmtBRL(plot.preco_venda_estimado)}. Você paga o custo, recebe no mínimo {fmtBRL(ganhoPiso.minimo)} e fica com 30% do lucro.</>
+                : <>Preço de referência: {fmtBRL(plot.preco_venda_estimado)} por {unidade}. A fazenda garante no mínimo {fmtBRL(precoVendaProjetado)} por {unidade} (piso de {fmtPct(plot.piso_pct, 2)} na safra) e você ainda fica com 30% do que a venda passar disso.</>
                 : <>Preço de referência: {fmtBRL(plot.preco_venda_estimado)} por {unidade}. A fazenda promete vender {fmtPct(plot.previsao_retorno)} acima dele (meta de {fmtBRL(precoVendaProjetado)}).</>}
             </p>
           </section>
@@ -252,7 +255,13 @@ export default function PlotDetail() {
 
           <section className="card" aria-labelledby="com-t">
             <h2 id="com-t" className="card-title" style={{ marginBottom: 4 }}>Regras deste talhão: ganhos e comissões</h2>
-            {piso ? (
+            {custo ? (
+              <>
+                <p className="card-desc" style={{ marginBottom: 12 }}>Você financia o custo de produção e fica com 30% do lucro da safra, com mínimo garantido. Regras validadas pelo fundo.</p>
+                <RegrasCusto custoHa={plot.custo_ha} produtividade={plot.produtividade_ha} precoEsperado={plot.preco_venda_estimado} piso={plot.piso_pct}
+                  pisoDias={plot.piso_dias} publicadoEm={plot.publicado_em} colheitaPrevista={plot.colheita_prevista} unidade={plot.unidade} />
+              </>
+            ) : piso ? (
               <>
                 <p className="card-desc" style={{ marginBottom: 12 }}>Renda mínima garantida pela fazenda mais parte da alta do preço. Regras validadas pelo fundo.</p>
                 <RegrasPiso precoRef={plot.preco_venda_estimado} piso={plot.piso_pct} pisoDias={plot.piso_dias} publicadoEm={plot.publicado_em}

@@ -100,8 +100,9 @@ router.get("/:id/demonstrativo", asyncHandler(async (req, res) => {
   }
 
   const recebidoFazenda = distribuicao.comissaoFazenda + distribuicao.performanceFazenda;
+  const taxaEntrada = plot.modelo === "custo" ? captado * require("../piso").CUSTO.estruturacao_pct / 100 : 0;
   const resultadoFazenda = plot.modelo === "piso" || plot.modelo === "custo"
-    ? captado - totalRealizado + recebidoFazenda
+    ? captado - taxaEntrada - totalRealizado + recebidoFazenda
     : captado - totalRealizado + recebidoFazenda
       - (plot.arm_pagador === "fazenda" ? distribuicao.armazem : plot.arm_pagador === "dividido" ? distribuicao.armazem * (1 - parteInvestidores(plot)) : 0);
 

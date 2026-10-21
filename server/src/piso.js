@@ -110,7 +110,11 @@ const CUSTO = {
   lucro_investidor_pct: num("CUSTO_LUCRO_INVESTIDOR_PCT", 30),
   lucro_fazenda_pct: num("CUSTO_LUCRO_FAZENDA_PCT", 65),
   lucro_plataforma_pct: num("CUSTO_LUCRO_PLATAFORMA_PCT", 5),
-  estruturacao_pct: num("CUSTO_ESTRUTURACAO_PCT", 0.5),
+  // ENTRADA: taxa de sucesso sobre o captado, paga pela fazenda a cada compra (como no mercado de crowdfunding)
+  estruturacao_pct: num("CUSTO_ESTRUTURACAO_PCT", 1.0),
+  // SAÍDA: o app fica com 5% do lucro (lucro_plataforma_pct). Taxa de desempenho
+  // sobre o ganho do investidor desligada por padrão, para manter só duas taxas.
+  desempenho_pct: num("CUSTO_DESEMPENHO_PCT", 0),
   custodia_armazem_pct: num("CUSTO_CUSTODIA_ARMAZEM_PCT", 0.15),
   gestao_fundo_pct: num("CUSTO_GESTAO_FUNDO_PCT", 0.15),
 };
@@ -124,25 +128,28 @@ function dividirCusto({ cotas, custoSaca, minimoPct: mn, precoVenda }) {
   const valorVenda = cotas * precoVenda;
   const lucro = Math.max(0, valorVenda - base);
   const porLucro = base + lucro * CUSTO.lucro_investidor_pct / 100;
-  const investidor = Math.max(valorMinimo, porLucro);
-  const plataforma = lucro * CUSTO.lucro_plataforma_pct / 100;
-  return { base, valorMinimo, valorVenda, lucro, investidor, plataforma, minimoAtivo: valorMinimo > porLucro };
+  const bruto = Math.max(valorMinimo, porLucro);
+  const desempenho = Math.max(0, bruto - valorMinimo) * CUSTO.desempenho_pct / 100; // só acima do mínimo
+  const investidor = bruto - desempenho;
+  const plataforma = lucro * CUSTO.lucro_plataforma_pct / 100 + desempenho;
+  return { base, valorMinimo, valorVenda, lucro, investidor, plataforma, desempenho, plataformaLucro: lucro * CUSTO.lucro_plataforma_pct / 100, minimoAtivo: valorMinimo >= porLucro };
 }
 function calcularPagamentoCusto(plot, investments, precoVenda, { despesaArmazenagem = 0 } = {}) {
   const custoSaca = Number(plot.custo_saca) || Number(plot.preco_venda_estimado);
   const linhas = investments.map((inv) => ({ inv, ...dividirCusto({ cotas: Number(inv.cotas), custoSaca, minimoPct: Number(plot.piso_pct) || 0, precoVenda }) }));
   const soma = (k) => linhas.reduce((s, l) => s + l[k], 0);
   const captado = investments.reduce((s, i) => s + Number(i.valor_investido), 0);
-  const estruturacao = captado * CUSTO.estruturacao_pct / 100;
+  // a estruturação (entrada) já foi cobrada nas compras; aqui só o que acontece na saída
+  const estruturacao = 0, estruturacaoEntrada = captado * CUSTO.estruturacao_pct / 100;
   const custodia = captado * CUSTO.custodia_armazem_pct / 100;
   const gestao = captado * CUSTO.gestao_fundo_pct / 100;
   const investidores = soma("investidor"), plataformaLucro = soma("plataforma"), valorVenda = soma("valorVenda");
-  const fazendaLiquido = valorVenda - investidores - plataformaLucro - estruturacao - custodia - gestao - despesaArmazenagem;
+  const fazendaLiquido = valorVenda - investidores - plataformaLucro - custodia - gestao - despesaArmazenagem;
   // compatível com a forma do pagamento com piso (mesmas chaves)
   for (const l of linhas) { l.valorPiso = l.valorMinimo; l.excedente = l.lucro; l.fazendaExcedente = l.lucro * CUSTO.lucro_fazenda_pct / 100; l.aporteFazenda = 0; }
   return {
     modelo: "custo", linhas, captado, valorVenda, valorPiso: soma("valorMinimo"), excedente: soma("lucro"),
-    investidores, plataforma: plataformaLucro + estruturacao, plataformaExcedente: plataformaLucro, estruturacao,
+    investidores, plataforma: plataformaLucro, plataformaExcedente: soma("plataformaLucro"), desempenho: soma("desempenho"), estruturacao, estruturacaoEntrada,
     armazem: custodia + despesaArmazenagem, custodia, armazenagem: despesaArmazenagem, fundo: gestao,
     fazendaExcedente: soma("lucro") * CUSTO.lucro_fazenda_pct / 100, aportePiso: Math.max(0, -fazendaLiquido), fazendaLiquido,
   };

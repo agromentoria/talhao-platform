@@ -59,14 +59,17 @@ export function diasDesde(data) {
 }
 
 // ---------- Modelo "Custo + Lucro" (v3) ----------
-export const CUSTO_PADRAO = { min_pct_cdi: 90, lucro_investidor_pct: 30, lucro_fazenda_pct: 65, lucro_plataforma_pct: 5, estruturacao_pct: 0.5, custodia_armazem_pct: 0.15, gestao_fundo_pct: 0.15 };
+export const CUSTO_PADRAO = { min_pct_cdi: 90, lucro_investidor_pct: 30, lucro_fazenda_pct: 65, lucro_plataforma_pct: 5, estruturacao_pct: 1.0, desempenho_pct: 0, custodia_armazem_pct: 0.15, gestao_fundo_pct: 0.15 };
 export const ehCusto = (plot) => plot?.modelo === "custo";
 export function minimoPct(dias, cdi = 13.65, R = CUSTO_PADRAO) {
   return Math.round(((Math.pow(1 + (R.min_pct_cdi / 100) * cdi / 100, dias / 365) - 1) * 100) * 100) / 100;
 }
 // o que o investidor recebe por saca, dado o preço de venda
+// já descontada a taxa de desempenho (só sobre o que passar do mínimo)
 export function recebeCusto(custoSaca, minPct, precoVenda, R = CUSTO_PADRAO) {
-  return Math.max(custoSaca * (1 + minPct / 100), custoSaca + Math.max(0, precoVenda - custoSaca) * R.lucro_investidor_pct / 100);
+  const minimo = custoSaca * (1 + minPct / 100);
+  const bruto = Math.max(minimo, custoSaca + Math.max(0, precoVenda - custoSaca) * R.lucro_investidor_pct / 100);
+  return bruto - Math.max(0, bruto - minimo) * (R.desempenho_pct ?? 0) / 100;
 }
 // valor esperado (preço futuro centrado no preço esperado, volatilidade de 20% ao ano)
 export function esperadoCusto(custoSaca, minPct, precoEsperado, dias, R = CUSTO_PADRAO) {

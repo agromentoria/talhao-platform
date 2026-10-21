@@ -25,8 +25,11 @@ export default function RegrasCusto({ custoHa, produtividade, precoEsperado, pis
   const insuficiente = M <= C * (1 + mn / 100);
   const cenarios = [-0.1, 0, 0.1, 0.2].map((d) => {
     const pv = M * (1 + d), inv = recebeCusto(C, mn, pv, R), lucro = Math.max(0, pv - C);
-    const faz = pv - inv - lucro * R.lucro_plataforma_pct / 100 - C * (R.estruturacao_pct + R.custodia_armazem_pct + R.gestao_fundo_pct) / 100;
-    return { pv, invPct: (inv / C - 1) * 100, fazHa: faz * pr };
+    const minimo = C * (1 + mn / 100), bruto = Math.max(minimo, C + lucro * R.lucro_investidor_pct / 100);
+    const desempenho = Math.max(0, bruto - minimo) * (R.desempenho_pct ?? 0) / 100;
+    const faz = pv - bruto - lucro * R.lucro_plataforma_pct / 100 - C * (R.estruturacao_pct + R.custodia_armazem_pct + R.gestao_fundo_pct) / 100;
+    const app = C * R.estruturacao_pct / 100 + lucro * R.lucro_plataforma_pct / 100 + desempenho;
+    return { pv, invPct: (inv / C - 1) * 100, fazHa: faz * pr, appPct: app / C * 100 };
   });
   return (
     <div className="regras">
@@ -53,23 +56,27 @@ export default function RegrasCusto({ custoHa, produtividade, precoEsperado, pis
           <li><span>Investidor</span><strong className="text-success">{fmtPct(R.lucro_investidor_pct)}</strong></li>
           <li><span>Plataforma</span><strong>{fmtPct(R.lucro_plataforma_pct)}</strong></li>
         </ul></div>
-        <div><p className="label-xs">A fazenda paga sobre o captado</p><ul>
-          <li><span>Estruturação · custódia · gestão</span><strong>{fmtPct(R.estruturacao_pct + R.custodia_armazem_pct + R.gestao_fundo_pct, 2)}</strong></li>
+        <div><p className="label-xs">Como o app ganha</p><ul>
+          <li><span>Na entrada (paga pela fazenda)</span><strong>{fmtPct(R.estruturacao_pct)} do captado</strong></li>
+          <li><span>Na saída</span><strong>{fmtPct(R.lucro_plataforma_pct)} do lucro</strong></li>
+          <li><span>Custódia (armazém) · gestão (fundo)</span><strong>{fmtPct(R.custodia_armazem_pct + R.gestao_fundo_pct, 2)}</strong></li>
           <li><span>Toda saca além das financiadas</span><strong>é da fazenda</strong></li>
         </ul></div>
       </div>
       <div className="fin-table-wrap" style={{ display: "block" }}>
         <table className="fin-table regras-tabela">
-          <thead><tr><th>Venda da {u}</th><th className="num">Investidor</th><th className="num">Fazenda por ha</th>{area ? <th className="num hide-sm">Fazenda no talhão</th> : null}</tr></thead>
+          <thead><tr><th>Venda da {u}</th><th className="num">Investidor*</th><th className="num">Fazenda por ha</th>{area ? <th className="num hide-sm">Fazenda no talhão</th> : null}<th className="num hide-sm">Plataforma</th></tr></thead>
           <tbody>{cenarios.map((c) => (
             <tr key={c.pv} style={{ cursor: "default" }} className={c.pv === M ? "is-atual" : undefined}>
               <td>{fmtBRL(c.pv)}{c.pv === M && <span className="badge badge--info" style={{ marginLeft: 6 }}>esperado</span>}</td>
               <td className="num"><strong className="text-success">{fmtPct(c.invPct, 2)}</strong></td>
               <td className={`num ${c.fazHa >= 0 ? "" : "text-danger"}`}>{fmtBRL(c.fazHa)}</td>
               {area ? <td className={`num hide-sm ${c.fazHa >= 0 ? "" : "text-danger"}`}>{fmtBRL(c.fazHa * area)}</td> : null}
+              <td className="num hide-sm">{fmtPct(c.appPct, 2)}</td>
             </tr>))}</tbody>
         </table>
       </div>
+      <p className="text-xs text-3">* O investidor não paga taxa para entrar nem para sair.</p>
       {paraFazenda && <p className="text-xs text-3">Resultado da fazenda sobre as sacas financiadas, já descontados o mínimo do investidor (quando acionado), a parte do lucro e as taxas; a armazenagem também fica com a fazenda. Produzindo acima de {fmtNumber(pr)} {unidadeNome(unidade, 2)}/ha, o excedente é todo da fazenda.</p>}
       <p className="regras-nota"><Info size={14} aria-hidden /> O mínimo do investidor ({R.min_pct_cdi}% do CDI no prazo) é garantido pela fazenda e pelo grão no armazém; não é coberto pelo FGC. <Link to="/como-funciona">Como funciona</Link></p>
     </div>

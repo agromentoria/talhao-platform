@@ -23,7 +23,7 @@
  */
 const bcrypt = require("bcryptjs");
 const { pool } = require("../src/db");
-const { minimoPct, calcularPagamentoCusto, REGRAS } = require("../src/piso");
+const { minimoPct, calcularPagamentoCusto, REGRAS, CUSTO } = require("../src/piso");
 const { despesaPrevista } = require("../src/storageFees");
 
 const D_FAZ = "carga-safrinha.meutalhao.com.br";      // mesmo domínio da carga anterior (é limpa junto)
@@ -305,6 +305,11 @@ async function limpar(client) {
           await bulk(client, "transactions", ["type", "status", "user_id", "farm_id", "plot_id", "investment_id", "amount", "payment_method_type", "description", "created_at"],
             compras.map((x) => ["compra_cota", "aprovado", x.user, fz.id, plot.id, x.id, x.valor, rnd() < 0.85 ? "pix" : "cartao", `Compra de ${x.q} ${c.unidade}s de ${c.grao} em ${nome}`, x.quando.toISOString()]));
           await client.query("UPDATE plots SET cotas_disponiveis = cotas_totais - $1 WHERE id = $2", [vendidas, plot.id]);
+          // ENTRADA: taxa de sucesso da plataforma sobre cada compra (paga pela fazenda)
+          await bulk(client, "transactions", ["type", "status", "user_id", "farm_id", "plot_id", "investment_id", "amount", "description", "created_at"],
+            compras.map((x) => ["taxa_estruturacao", "aprovado", null, fz.id, plot.id, x.id, c2(x.valor * CUSTO.estruturacao_pct / 100),
+              `Taxa de entrada do app: ${CUSTO.estruturacao_pct}% sobre a captação de ${nome} (paga pela fazenda)`, x.quando.toISOString()]));
+          resumo.entrada = (resumo.entrada || 0) + compras.reduce((s, x) => s + x.valor, 0) * CUSTO.estruturacao_pct / 100;
           resumo.compras += compras.length; resumo.gmv += compras.reduce((s, x) => s + x.valor, 0);
           // indicação: a 1ª compra de quem foi indicado gera o bônus
           const rec = [];
@@ -328,7 +333,7 @@ async function limpar(client) {
                 `Pagamento da colheita de ${nome}: ${l.minimoAtivo ? `mínimo garantido (${piso}%)` : "custo + 30% do lucro"}`, pagoEm.toISOString()]));
             const extras = [
               r.fazendaLiquido >= 0 ? ["repasse_fazenda", fz.owner, r.fazendaLiquido, `${nome}: lucro da fazenda (65%) menos taxas e armazenagem`] : ["aporte_fazenda", fz.owner, -r.fazendaLiquido, `${nome}: aporte para garantir o piso, taxas e armazenagem`],
-              ["comissao_plataforma", null, r.plataforma, `${nome}: estruturação + 5% do lucro`],
+              ["comissao_plataforma", null, r.plataforma, `${nome}: saída — 5% do lucro da safra`],
               ["tarifa_armazem", arm.owner_user_id, r.armazem, `${nome} em ${arm.name}: custódia + armazenagem, pagas pela fazenda`],
               ["gestao_fundo", null, r.fundo, `${nome}: gestão do fundo`],
             ].filter((e) => e[2] > 0.004);
@@ -339,7 +344,7 @@ async function limpar(client) {
               Object.entries(porUser).map(([u, v]) => [Number(u), "sistema", fz.id, plot.id, "pagamento_recebido", "Você recebeu um pagamento",
                 `A colheita de ${nome} foi paga. Você recebeu R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`, rnd() < 0.85 ? pagoEm.toISOString() : null, pagoEm.toISOString()]));
             resumo.pagos++; resumo.invRecebido += r.investidores; resumo.invAplicado += r.captado; resumo.fazAlta += r.fazendaExcedente;
-            resumo.fazCusto += r.fazendaLiquido; resumo.plataforma += r.plataforma; resumo.armazem += r.armazem;
+            resumo.fazCusto += r.fazendaLiquido - r.captado * CUSTO.estruturacao_pct / 100; resumo.plataforma += r.plataforma; resumo.armazem += r.armazem;
             resumo.fazLucroBanco = (resumo.fazLucroBanco || 0) + (r.valorVenda - r.captado - r.captado * (Math.pow(1.18, dias / 365) - 1)) - r.armazenagem;
           }
           // safra atual quase esgotada: lista de espera
@@ -360,7 +365,7 @@ async function limpar(client) {
     console.log(`Fazendas: 20 · talhões: ${resumo.talhoes} (${resumo.pagos} colhidos e pagos) · compras: ${f(resumo.compras)} · GMV do ano: R$ ${f(resumo.gmv)}`);
     console.log(`Investidores: ${f(invs.length)} cadastrados, ${f(ativos)} compraram, ${f(recompra)} compraram mais de uma vez · ${novasRecompensas.size} chegaram por indicação`);
     console.log(`Safras pagas: investidores aplicaram R$ ${f(resumo.invAplicado)} e receberam R$ ${f(resumo.invRecebido)} (+${((resumo.invRecebido / resumo.invAplicado - 1) * 100).toFixed(2)}%)`);
-    console.log(`Fazendas: lucro de R$ ${f(resumo.fazCusto)} nas sacas financiadas (com crédito bancário a 18% a.a. seria R$ ${f(resumo.fazLucroBanco)}) · plataforma R$ ${f(resumo.plataforma)} · armazéns R$ ${f(resumo.armazem)}`);
+    console.log(`Fazendas: lucro de R$ ${f(resumo.fazCusto)} nas sacas financiadas (com crédito bancário a 18% a.a. seria R$ ${f(resumo.fazLucroBanco)}) · plataforma: entrada R$ ${f(resumo.entrada || 0)} (todas as safras) + saída R$ ${f(resumo.plataforma)} (safras pagas) · armazéns R$ ${f(resumo.armazem)}`);
     console.log(`Logins de demonstração (senha ${SENHA}): fazendas <nome>@${D_FAZ} · investidores <nome.sobrenome>@${D_INV} · armazéns <nome>@${D_ARM}`);
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});

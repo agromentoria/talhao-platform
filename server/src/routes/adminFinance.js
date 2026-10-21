@@ -16,6 +16,7 @@ const TIPOS = {
   performance_fazenda: { label: "Performance da fazenda", sentido: "saida" },
   aporte_fazenda: { label: "Aporte da fazenda para o piso", sentido: "entrada" },
   gestao_fundo: { label: "Gestão do fundo", sentido: "saida" },
+  taxa_estruturacao: { label: "Taxa de entrada (1% do captado)", sentido: "receita" },
   tarifa_armazem: { label: "Tarifa de armazenagem", sentido: "saida" },
   comissao_plataforma: { label: "Comissão da plataforma", sentido: "receita" },
 };
@@ -93,7 +94,9 @@ async function summary(filters) {
     quantidade: rows.reduce((s, r) => s + r.n, 0),
     entradas: soma(["compra_cota", "aporte_fazenda"]),
     saidas: soma(["pagamento_investidor", "repasse_fazenda", "performance_fazenda", "tarifa_armazem", "gestao_fundo"]),
-    receitaPlataforma: soma(["comissao_plataforma"]),
+    receitaPlataforma: soma(["comissao_plataforma", "taxa_estruturacao"]),
+    receitaEntrada: soma(["taxa_estruturacao"]),
+    receitaSaida: soma(["comissao_plataforma"]),
   };
 }
 
@@ -173,6 +176,7 @@ const GROUPS = {
       custos_lancados: "(SELECT COALESCE(SUM(c.valor), 0) FROM plot_costs c JOIN plots pp ON pp.id = c.plot_id WHERE pp.farm_id = f.id)",
       armazenagem: "SUM(CASE WHEN t.type = 'tarifa_armazem' THEN t.amount ELSE 0 END)",
       comissao_plataforma: "SUM(CASE WHEN t.type = 'comissao_plataforma' THEN t.amount ELSE 0 END)",
+      taxa_estruturacao: "SUM(CASE WHEN t.type = 'taxa_estruturacao' THEN t.amount ELSE 0 END)",
     },
   },
   armazem: {
@@ -198,6 +202,7 @@ const GROUPS = {
       performance_fazenda: "SUM(CASE WHEN t.type = 'performance_fazenda' THEN t.amount ELSE 0 END)",
       armazenagem: "SUM(CASE WHEN t.type = 'tarifa_armazem' THEN t.amount ELSE 0 END)",
       comissao_plataforma: "SUM(CASE WHEN t.type = 'comissao_plataforma' THEN t.amount ELSE 0 END)",
+      taxa_estruturacao: "SUM(CASE WHEN t.type = 'taxa_estruturacao' THEN t.amount ELSE 0 END)",
     },
   },
   mes: {
@@ -208,7 +213,7 @@ const GROUPS = {
     cols: {
       entradas: "SUM(CASE WHEN t.type = 'compra_cota' THEN t.amount ELSE 0 END)",
       saidas: "SUM(CASE WHEN t.type IN ('pagamento_investidor','repasse_fazenda','performance_fazenda','tarifa_armazem') THEN t.amount ELSE 0 END)",
-      receita_plataforma: "SUM(CASE WHEN t.type = 'comissao_plataforma' THEN t.amount ELSE 0 END)",
+      receita_plataforma: "SUM(CASE WHEN t.type IN ('comissao_plataforma', 'taxa_estruturacao') THEN t.amount ELSE 0 END)",
     },
   },
 };

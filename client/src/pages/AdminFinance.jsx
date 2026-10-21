@@ -17,6 +17,7 @@ const TIPOS = {
   performance_fazenda: { label: "Performance da fazenda", curto: "Performance", cor: "#D9822B", tone: "info" },
   aporte_fazenda: { label: "Aporte da fazenda (piso)", curto: "Aporte", cor: "#A33A1E", tone: "warning" },
   gestao_fundo: { label: "Gestão do fundo", curto: "Fundo", cor: "#2F4318", tone: "info" },
+  taxa_estruturacao: { label: "Taxa de entrada (1% do captado)", curto: "Entrada", cor: "#D9A400", tone: "success" },
   tarifa_armazem: { label: "Tarifa de armazenagem", curto: "Armazenagem", cor: "#6B8CAE", tone: undefined },
   comissao_plataforma: { label: "Comissão da plataforma", curto: "Plataforma", cor: "#C9A227", tone: "warning" },
 };
@@ -218,7 +219,8 @@ export default function AdminFinance() {
         <div className="grid-stats" style={{ marginBottom: 16 }}>
           <Stat label="Entradas (compras)" value={fmtBRL(resumo.entradas)} icon={ArrowDownCircle} tone="success" />
           <Stat label="Saídas (investidores, fazendas, armazéns)" value={fmtBRL(resumo.saidas)} icon={ArrowUpCircle} />
-          <Stat label="Receita da plataforma" value={fmtBRL(resumo.receitaPlataforma)} icon={Coins} tone="success" />
+          <Stat label="Receita da plataforma" value={fmtBRL(resumo.receitaPlataforma)} icon={Coins} tone="success"
+            hint={resumo.receitaEntrada != null ? `entrada ${fmtBRL(resumo.receitaEntrada)} · saída ${fmtBRL(resumo.receitaSaida)}` : undefined} />
           <Stat label="Transações" value={fmtNumber(resumo.quantidade)} icon={Receipt} />
         </div>
       )}

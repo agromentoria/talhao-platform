@@ -18,11 +18,12 @@ const STATUS_FILTERS = [
   { id: "pagos", label: "Vendidas e pagas", match: (s) => s === "pago" },
 ];
 
-export function Stat({ label, value, icon: Icon, tone }) {
+export function Stat({ label, value, icon: Icon, tone, hint }) {
   return (
     <div className="stat">
       <p className="stat-label">{Icon && <Icon size={16} aria-hidden />} {label}</p>
       <p className={`stat-value ${tone === "success" ? "text-success" : ""}`}>{value}</p>
+      {hint && <p className="text-xs text-3" style={{ marginTop: 2 }}>{hint}</p>}
     </div>
   );
 }

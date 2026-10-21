@@ -1,5 +1,21 @@
 # Registro de mudanças
 
+## 3.2.0 — duas taxas, simples de explicar
+
+- O app ganha em **dois momentos**: **na entrada, 1% do valor captado** (pago pela fazenda, a cada compra) e **na saída, 5% do lucro da safra**. O lucro fica dividido em investidor 30% · fazenda 65% · app 5%.
+- A taxa de desempenho sobre o ganho do investidor sai do padrão (`CUSTO_DESEMPENHO_PCT=0`; pode ser religada pela variável). O investidor não paga taxa para entrar nem para sair.
+- Exemplo, 1.000 ha de soja a R$ 120: app R$ 61 mil na entrada + R$ 53 mil na saída; fazenda R$ 556 mil (banco: R$ 519 mil); investidor +6,22% (mínimo), +8,18% a R$ 130 e +11,11% a R$ 140.
+
+## 3.1.0 — a plataforma ganha na entrada e na saída
+
+Como no mercado de crowdfunding (taxa de sucesso paga por quem capta; taxa de desempenho sobre o ganho do investidor):
+
+- **Entrada:** taxa de sucesso de **1% sobre cada compra** num talhão Custo + Lucro, paga pela fazenda e registrada na hora (`taxa_estruturacao`). O investidor não paga nada para entrar.
+- **Saída:** **5% do lucro** da safra (como antes) **+ taxa de desempenho de 10% sobre o ganho do investidor acima do mínimo** (o mínimo igual à LCA nunca é tocado).
+- Exemplo, 1.000 ha de soja a R$ 120: plataforma R$ 61 mil na entrada + R$ 53 mil na saída = **1,87% do captado**; a R$ 140, 3,34%. Fazenda R$ 556 mil (banco: R$ 519 mil); investidor +6,22% (mínimo) a +10,63%.
+- Quadro de regras mostra "Como a plataforma ganha" (entrada e saída) e a receita da plataforma em cada cenário; Financeiro separa receita de entrada e de saída; carteira e demonstrativo da fazenda descontam a taxa de entrada.
+- Carga de um ano com a taxa de entrada em cada compra. Novos parâmetros: `CUSTO_ESTRUTURACAO_PCT` (padrão 1) e `CUSTO_DESEMPENHO_PCT` (padrão 10).
+
 ## 3.0.0 — modelo "Custo + Lucro"
 
 O investidor passa a ser sócio da safra: financia o custo de produção e divide o lucro.

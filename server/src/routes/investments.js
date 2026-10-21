@@ -109,6 +109,17 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     // com muitas compras simultâneas, segurar esta travava o servidor inteiro
     liberar();
 
+    // ENTRADA: taxa de sucesso da plataforma sobre a captação (paga pela fazenda)
+    if (plot.modelo === "custo") {
+      try {
+        const { CUSTO } = require("../piso");
+        const { recordTransaction } = require("../ledger");
+        await recordTransaction(pool, { type: "taxa_estruturacao", status: "aprovado", userId: null, farmId: plot.farm_id, plotId: plot.id, investmentId: investment.id,
+          amount: Number(investment.valor_investido) * CUSTO.estruturacao_pct / 100,
+          description: `Taxa de entrada do app: ${CUSTO.estruturacao_pct}% sobre a captação de ${plot.nome} (paga pela fazenda)` });
+      } catch (e) { console.error("[estruturacao]", e.message); }
+    }
+
     // indicação: a 1ª compra de quem foi indicado gera bônus para os dois
     try {
       const { registrarIndicacao, BONUS_INDICADOR } = require("./growth");

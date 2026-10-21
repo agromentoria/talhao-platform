@@ -44,7 +44,7 @@ export default function FarmWallet() {
         <Stat label="Custos lançados" value={fmtBRL(data.totalCustos || 0)} icon={Receipt} />
         <Stat label="Recebido nas colheitas" value={fmtBRL(data.totalRecebido)} icon={Coins} tone="success" />
         {data.totalPerformance > 0 && <Stat label="Performance acima da meta" value={fmtBRL(data.totalPerformance)} icon={TrendingUp} tone="success" />}
-        {data.totalAporte > 0 && <Stat label="Piso dos investidores e taxas pagos" value={`−${fmtBRL(data.totalAporte)}`} icon={TrendingUp} />}
+        {data.totalAporte > 0 && <Stat label="Taxas, mínimo dos investidores e aportes" value={`−${fmtBRL(data.totalAporte)}`} icon={TrendingUp} />}
       </div>
       <div className="grid-stats" style={{ marginBottom: 24 }}>
         {data.totalArmazenagem > 0 && <Stat label="Armazenagem paga pela fazenda" value={fmtBRL(data.totalArmazenagem)} icon={Warehouse} />}
@@ -110,8 +110,8 @@ export default function FarmWallet() {
               );
             }
             const titulo = t.type === "compra_cota" ? "Venda antecipada" : t.type === "performance_fazenda" ? "Performance acima da meta"
-              : t.type === "aporte_fazenda" ? "Piso dos investidores e taxas" : t.plot_modelo === "piso" || /alta/.test(t.description || "") ? "Sua parte da alta" : "Comissão até a meta";
-            const saida = t.type === "aporte_fazenda";
+              : t.type === "aporte_fazenda" ? "Piso dos investidores e taxas" : t.type === "taxa_estruturacao" ? "Taxa de entrada do app (1%)" : t.plot_modelo === "piso" || /alta/.test(t.description || "") ? "Sua parte da alta" : "Comissão até a meta";
+            const saida = t.type === "aporte_fazenda" || t.type === "taxa_estruturacao";
             return (
               <li key={t.id} className="list-item">
                 <GrainThumb grao={t.grao} />

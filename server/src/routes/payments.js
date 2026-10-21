@@ -216,7 +216,7 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
      FROM transactions t
      LEFT JOIN plots p ON p.id = t.plot_id
      LEFT JOIN users u ON u.id = t.user_id AND t.type = 'compra_cota'
-     WHERE t.farm_id = $1 AND t.type IN ('compra_cota', 'repasse_fazenda', 'performance_fazenda', 'tarifa_armazem', 'aporte_fazenda')
+     WHERE t.farm_id = $1 AND t.type IN ('compra_cota', 'repasse_fazenda', 'performance_fazenda', 'tarifa_armazem', 'aporte_fazenda', 'taxa_estruturacao')
      ORDER BY t.created_at DESC
      LIMIT 300`,
     [req.user.farm_id]
@@ -226,7 +226,7 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
   const totalRecebido = rows.filter((r) => r.type === "repasse_fazenda").reduce((s, r) => s + Number(r.amount), 0);
   const totalPerformance = rows.filter((r) => r.type === "performance_fazenda").reduce((s, r) => s + Number(r.amount), 0);
   // produto com piso: o que a fazenda pagou para garantir o mínimo dos investidores (+ taxas e armazenagem)
-  const totalAporte = rows.filter((r) => r.type === "aporte_fazenda").reduce((s, r) => s + Number(r.amount), 0);
+  const totalAporte = rows.filter((r) => r.type === "aporte_fazenda" || r.type === "taxa_estruturacao").reduce((s, r) => s + Number(r.amount), 0);
 
   // armazenagem que a própria fazenda assumiu (quando os investidores pagam, só aparece como informação)
   // parte da fazenda: tudo quando ela assume, o complemento quando é dividido
@@ -237,7 +237,7 @@ router.get("/transactions/farm", requireAuth, requireRole("fazenda"), asyncHandl
   // resumo por talhão: de onde veio o dinheiro, quanto foi gasto e o resultado
   const { rows: talhoes } = await pool.query(
     `SELECT p.id, p.nome, p.grao, p.variedade, p.safra, p.status, p.unidade, p.area_ha, p.modelo, p.piso_pct,
-            COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.plot_id = p.id AND t.type = 'aporte_fazenda'), 0)::float8 AS aporte,
+            COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.plot_id = p.id AND t.type IN ('aporte_fazenda', 'taxa_estruturacao')), 0)::float8 AS aporte,
             COALESCE((SELECT SUM(i.valor_investido) FROM investments i WHERE i.plot_id = p.id AND i.status IN ('ativo','pago')), 0)::float8 AS captado,
             COALESCE((SELECT SUM(c.valor) FROM plot_costs c WHERE c.plot_id = p.id), 0)::float8 AS custos,
             COALESCE((SELECT SUM(b.valor) FROM plot_budget b WHERE b.plot_id = p.id), 0)::float8 AS orcamento,

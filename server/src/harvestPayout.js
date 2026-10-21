@@ -210,7 +210,9 @@ async function executePisoPayout({ plot, farm, retorno }) {
     }
     if (r.plataforma > 0.004) {
       await tx({ type: "comissao_plataforma", userId: null, amount: r.plataforma,
-        description: `${plot.nome}: estruturação de ${REGRAS.estruturacao_pct}% (${fmtBRL(r.estruturacao)})${r.plataformaExcedente > 0 ? ` + ${REGRAS.excedente_plataforma_pct}% da alta (${fmtBRL(r.plataformaExcedente)})` : ""}` });
+        description: r.modelo === "custo"
+          ? `${plot.nome}: saída — 5% do lucro da safra (${fmtBRL(r.plataformaExcedente)})`
+          : `${plot.nome}: estruturação de ${REGRAS.estruturacao_pct}% (${fmtBRL(r.estruturacao)})${r.plataformaExcedente > 0 ? ` + ${REGRAS.excedente_plataforma_pct}% da alta (${fmtBRL(r.plataformaExcedente)})` : ""}` });
     }
     if (plot.warehouse_id && r.armazem > 0.004) {
       const { rows: wh } = await client.query("SELECT owner_user_id, name FROM warehouses WHERE id = $1", [plot.warehouse_id]);

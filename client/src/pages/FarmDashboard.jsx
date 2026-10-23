@@ -8,7 +8,7 @@ import { readImageFile } from "../lib/files";
 import { useAuth } from "../context/AuthContext";
 import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../lib/validators";
 import { Page, PageHeader } from "../components/layout/Page";
-import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
+import { MoneyField, Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
 import { dividirPiso } from "../lib/piso";
 import { useRegras } from "../lib/referencias";
 import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasPiso, RegrasCusto } from "../components/domain";
@@ -218,12 +218,28 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
       <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
       <CultivoFields value={cultivo} onChange={setCultivo} area={form.area_ha} references={references} fasePricing={fasePricing} />
       <Field label="Safra / ciclo (ex: 2026/27)" value={form.safra} onChange={(v) => update("safra", v)} required />
-      <Field label="Custo de produção por hectare (R$)" type="number" value={form.custo_ha} onChange={(v) => update("custo_ha", v)} required
+      <MoneyField label="Custo de produção por hectare" value={form.custo_ha} onChange={(v) => update("custo_ha", v)} required
         hint="Custo operacional efetivo (insumos, operações, mão de obra). Ex.: soja ~R$ 6.100/ha; milho safrinha ~R$ 5.500/ha." />
-      <Field label="Base regional (R$ por unidade)" type="number" value={form.base_regional ?? ""} onChange={(v) => update("base_regional", v)}
+      <MoneyField label="Base regional por unidade" allowNegative value={form.base_regional ?? ""} onChange={(v) => update("base_regional", v)}
         hint={`Diferença média da sua praça para ${regrasApp?.indices?.[cultivo.grao] || "o índice de referência"}. Negativa se a sua região vende abaixo do índice. O fundo confere.`} />
       <Field label="Seguradora" value={form.seguro_seguradora ?? ""} onChange={(v) => update("seguro_seguradora", v)} hint="Seguro agrícola é exigido: protege você e os investidores em caso de quebra." />
       <Field label="Nº da apólice ou proposta" value={form.seguro_apolice ?? ""} onChange={(v) => update("seguro_apolice", v)} />
+      <div className="span-all">
+        <p className="field-label">Anexar a apólice (PDF ou foto, até 1,5 MB)</p>
+        <label className="btn btn--secondary" style={{ marginTop: 4, cursor: "pointer", display: "inline-flex" }}>
+          {form.seguro_arquivo_nome ? "Trocar arquivo" : "Escolher arquivo"}
+        <input id="apolice-arquivo" type="file" accept="application/pdf,image/*" style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            if (file.size > 1_500_000) { setError("Apólice muito grande: envie um arquivo de até 1,5 MB."); e.target.value = ""; return; }
+            const reader = new FileReader();
+            reader.onload = () => setForm((f) => ({ ...f, seguro_arquivo: reader.result, seguro_arquivo_nome: file.name }));
+            reader.readAsDataURL(file);
+          }} />
+        </label>
+        <p className="field-hint">{form.seguro_arquivo_nome ? `Anexado: ${form.seguro_arquivo_nome}` : "Obrigatório quando você informa o seguro: o fundo confere a apólice antes de publicar o talhão."}</p>
+      </div>
       <Field label="Cobertura do seguro (% da produtividade)" type="number" value={form.seguro_cobertura_pct ?? ""} onChange={(v) => update("seguro_cobertura_pct", v)} hint="Mínimo de 65%." />
       <Field label={`Produtividade esperada (${cultivo.unidade === "arroba" ? "arrobas" : "sacas"} por ha)`} type="number" value={form.produtividade_ha} onChange={(v) => update("produtividade_ha", v)} required
         hint={Number(form.custo_ha) > 0 && Number(form.produtividade_ha) > 0

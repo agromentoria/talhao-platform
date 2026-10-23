@@ -53,7 +53,7 @@ router.get("/", asyncHandler(async (req, res) => {
       : p.preco_venda_estimado * (1 + Number(r.retorno_final ?? p.previsao_retorno) / 100);
     const out = { ...r, preco_estimado: custoSemIndice, indice_referencia: p.indice_referencia, base_regional: Number(p.base_regional || 0),
       janela_dias: p.janela_dias, janela_pregoes: p.janela_pregoes, colheita_prevista: p.colheita_prevista,
-      seguro_apolice: p.seguro_apolice, seguro_seguradora: p.seguro_seguradora, seguro_cobertura_pct: p.seguro_cobertura_pct,
+      seguro_apolice: p.seguro_apolice, seguro_seguradora: p.seguro_seguradora, seguro_cobertura_pct: p.seguro_cobertura_pct, seguro_anexado: p.seguro_anexado,
       preco_venda_declarado: precoVenda, preco_meta: p.preco_venda_estimado * (1 + p.previsao_retorno / 100), perf_excedente_pct: p.perf_excedente_pct };
     const parteInv = p.warehouse_id ? parteInvestidores(p) : 0;
     if (p.warehouse_id) {

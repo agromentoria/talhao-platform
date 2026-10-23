@@ -562,6 +562,18 @@ ALTER TABLE plots ADD COLUMN IF NOT EXISTS seguro_cobertura_pct DOUBLE PRECISION
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS prorrogado_em TIMESTAMPTZ;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS prorrogacao_motivo TEXT;
 ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS preco_indice DOUBLE PRECISION;
+-- documentos do talhão (apólice de seguro), fora da tabela de talhões para não pesar na vitrine
+CREATE TABLE IF NOT EXISTS plot_documents (
+  id SERIAL PRIMARY KEY,
+  plot_id INTEGER NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL,
+  nome TEXT,
+  conteudo TEXT NOT NULL,
+  enviado_por INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_plot_documents_plot ON plot_documents(plot_id, tipo);
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS seguro_anexado BOOLEAN DEFAULT false;
 ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS preco_liquidacao DOUBLE PRECISION;
 ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS fonte_indice TEXT;
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS aporte_fazenda DOUBLE PRECISION DEFAULT 0;

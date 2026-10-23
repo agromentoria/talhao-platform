@@ -366,7 +366,9 @@ export default function AdminDashboard() {
                 <summary className="text-sm" style={{ cursor: "pointer", fontWeight: 600, color: "var(--link)" }}>Ver ganhos do investidor e divisão do lucro</summary>
                 <div style={{ marginTop: 10 }}>
                   {p.modelo === "custo" ? (
-                    <RegrasCusto custoHa={p.custo_ha} produtividade={p.produtividade_ha} precoEsperado={p.preco_venda_estimado} colheitaPrevista={p.colheita_prevista} unidade={p.unidade} area={p.area_ha} paraFazenda />
+                    <><ApoliceSeguro plot={p} />
+                    <RegrasCusto custoHa={p.custo_ha} produtividade={p.produtividade_ha} precoEsperado={p.preco_venda_estimado} colheitaPrevista={p.colheita_prevista} unidade={p.unidade} area={p.area_ha} paraFazenda
+                      indice={p.indice_referencia} base={p.base_regional} seguro={{ seguradora: p.seguro_seguradora, cobertura: p.seguro_cobertura_pct }} /></>
                   ) : p.modelo === "piso" ? (
                     <RegrasPiso precoRef={p.preco_venda_estimado} colheitaPrevista={p.colheita_prevista} unidade={p.unidade} paraFazenda />
                   ) : (
@@ -776,6 +778,32 @@ function EntityRow({ icon, iconTone, title, estrelas, lines, metrics, status, ac
 
 // o que o armazém garantidor validou — base para aprovar o pagamento
 // prévia exata do pagamento calculada pelo servidor
+// seguro agrícola: dados declarados e a apólice anexada pela fazenda, para o fundo conferir
+function ApoliceSeguro({ plot }) {
+  const [erro, setErro] = useState("");
+  async function abrir() {
+    setErro("");
+    try {
+      const d = await api.apolice(plot.id);
+      const [meta, b64] = d.conteudo.split(",");
+      const tipo = meta.match(/data:([^;]+)/)?.[1] || "application/octet-stream";
+      const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      window.open(URL.createObjectURL(new Blob([bytes], { type: tipo })), "_blank", "noopener");
+    } catch (e) { setErro(e.message); }
+  }
+  const informado = plot.seguro_seguradora || plot.seguro_apolice;
+  return (
+    <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap", margin: "6px 0 10px" }}>
+      <span className={`text-sm ${informado ? "" : "text-danger"}`}>
+        {informado ? <>Seguro: <strong>{plot.seguro_seguradora || "—"}</strong> · apólice {plot.seguro_apolice || "—"}{plot.seguro_cobertura_pct ? ` · cobertura de ${plot.seguro_cobertura_pct}%` : ""}</> : "Seguro agrícola não informado neste talhão."}
+      </span>
+      {plot.seguro_anexado ? <Button size="sm" variant="secondary" onClick={abrir}>Ver apólice</Button> : informado ? <span className="text-xs text-danger">apólice não anexada</span> : null}
+      {erro && <span className="text-xs text-danger">{erro}</span>}
+    </div>
+  );
+}
+
 // preço de liquidação pela referência pública: o fundo informa a média do índice na janela
 function LiquidacaoIndice({ r, onChanged }) {
   const [valor, setValor] = useState(r.preco_indice ?? "");
@@ -806,8 +834,7 @@ function LiquidacaoIndice({ r, onChanged }) {
         <Button size="sm" onClick={salvar} loading={salvando}>Calcular pagamento</Button>
       </div>
       {erro && <p className="text-sm text-danger" style={{ marginTop: 6 }}>{erro}</p>}
-      {(r.seguro_apolice || r.seguro_seguradora) ? <p className="text-xs text-3" style={{ marginTop: 8 }}>Seguro: {r.seguro_seguradora || "—"} · apólice {r.seguro_apolice || "—"}{r.seguro_cobertura_pct ? ` · cobertura de ${r.seguro_cobertura_pct}%` : ""}</p>
-        : <p className="text-xs text-danger" style={{ marginTop: 8 }}>Seguro agrícola não informado neste talhão.</p>}
+      <ApoliceSeguro plot={{ id: r.plot_id, seguro_seguradora: r.seguro_seguradora, seguro_apolice: r.seguro_apolice, seguro_cobertura_pct: r.seguro_cobertura_pct, seguro_anexado: r.seguro_anexado }} />
     </div>
   );
 }

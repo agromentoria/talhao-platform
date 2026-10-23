@@ -3,7 +3,7 @@ import { Info } from "lucide-react";
 import { TIPOS, UNIDADES, unidadeNome } from "../../config/culturas";
 import { fmtBRL, fmtNumber } from "../../lib/format";
 import { useCatalog } from "../../lib/catalog";
-import { SelectField, TextField, Button, Banner } from "../ui";
+import { MoneyField, SelectField, TextField, Button, Banner } from "../ui";
 
 const OUTRA = "__outra";
 
@@ -150,7 +150,7 @@ export default function CultivoFields({ value: v, onChange, area, references = [
           )}
         </div>
         <div className="form-grid">
-          <TextField label={`Preço estimado de venda por ${uSing} (R$)`} type="number" inputMode="decimal" step="any" min={0}
+          <MoneyField label={`Preço estimado de venda por ${uSing}`}
             value={v.preco} onChange={(x) => set({ preco: x })} required readOnly={automatico} />
           <TextField label={`Total de ${uPlural} previstos`} type="number" inputMode="numeric" min={1}
             value={v.cotas} onChange={(x) => set({ cotas: x })} required readOnly={automatico} />

@@ -89,7 +89,7 @@ async function start() {
   app.use(compression());
   app.use(helmet());
   app.use(cors(buildCorsOptions()));
-  app.use(express.json({ limit: "2mb" })); // acomoda foto de perfil em base64
+  app.use(express.json({ limit: "4mb" })); // foto de perfil e apólice de seguro em base64
 
   // health check fica fora do limite (o Render consulta com frequência)
   const { version } = require("../package.json");

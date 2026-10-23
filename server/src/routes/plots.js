@@ -319,6 +319,17 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   if (seguroCob != null && (seguroCob < LIMITES.cobertura_min_seguro || seguroCob > 100)) {
     return res.status(400).json({ error: "A cobertura do seguro agrícola deve ficar entre 65% e 100% da produtividade esperada." });
   }
+  // apólice anexada: obrigatória quando o seguro é informado
+  const arquivo = req.body?.seguro_arquivo;
+  if ((req.body?.seguro_seguradora || req.body?.seguro_apolice) && !arquivo) {
+    return res.status(400).json({ error: "Anexe a apólice (PDF ou foto) para o fundo conferir o seguro." });
+  }
+  if (arquivo && (typeof arquivo !== "string" || !/^data:(application\/pdf|image\/[a-z+.-]+);base64,/.test(arquivo))) {
+    return res.status(400).json({ error: "A apólice precisa ser um PDF ou uma imagem." });
+  }
+  if (arquivo && arquivo.length > 2_100_000) {
+    return res.status(400).json({ error: "Apólice muito grande: envie um arquivo de até 1,5 MB." });
+  }
   const contrato = {
     indice: String(req.body?.indice_referencia || indiceDe(c.grao)).slice(0, 120),
     base: Number(req.body?.base_regional) || 0,
@@ -336,15 +347,19 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
                         cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado,
                         warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_investidor_pct,
                         modelo, piso_pct, piso_dias, custo_ha, produtividade_ha, custo_saca,
-                        indice_referencia, base_regional, seguro_seguradora, seguro_apolice, seguro_cobertura_pct)
+                        indice_referencia, base_regional, seguro_seguradora, seguro_apolice, seguro_cobertura_pct, seguro_anexado)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25,
-             $26, $27, $28, $29, $30) RETURNING *`,
+             $26, $27, $28, $29, $30, $31) RETURNING *`,
     [farm_id, String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
      modelo === "custo" ? custoSaca : cotaValorInicial, c.cotas, modelo === "meta" ? retorno : piso, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct,
      modelo, piso, dias, modelo === "custo" ? custoHa : null, modelo === "custo" ? prodHa : null, custoSaca,
-     contrato.indice, contrato.base, contrato.seguradora, contrato.apolice, contrato.cobertura]
+     contrato.indice, contrato.base, contrato.seguradora, contrato.apolice, contrato.cobertura, !!arquivo]
   );
   const plot = rows[0];
+  if (arquivo) {
+    await pool.query("INSERT INTO plot_documents (plot_id, tipo, nome, conteudo, enviado_por) VALUES ($1, 'apolice', $2, $3, $4)",
+      [plot.id, String(req.body?.seguro_arquivo_nome || "apolice").slice(0, 120), arquivo, req.user.id]);
+  }
   await notifyWarehouseIndication(wh.warehouse, plot, owned.farm.name);
   await notifyAdminsNewPlot(plot, owned.farm.name);
 
@@ -454,6 +469,20 @@ router.patch("/:id/progress", requireAuth, requireRole("fazenda", "admin"), asyn
   });
 
   res.json({ plot: rows[0] });
+}));
+
+// apólice de seguro: só a fazenda dona, o armazém do talhão, o fundo e a administração abrem
+router.get("/:id/apolice", requireAuth, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT p.id, f.owner_user_id, w.owner_user_id AS armazem_user FROM plots p JOIN farms f ON f.id = p.farm_id
+     LEFT JOIN warehouses w ON w.id = p.warehouse_id WHERE p.id = $1`, [req.params.id]);
+  const p = rows[0];
+  if (!p) return res.status(404).json({ error: "Talhão não encontrado." });
+  const pode = ["admin", "fundo"].includes(req.user.role) || p.owner_user_id === req.user.id || p.armazem_user === req.user.id;
+  if (!pode) return res.status(403).json({ error: "Sem permissão para ver a apólice." });
+  const { rows: d } = await pool.query("SELECT nome, conteudo, created_at FROM plot_documents WHERE plot_id = $1 AND tipo = 'apolice' ORDER BY id DESC LIMIT 1", [p.id]);
+  if (!d[0]) return res.status(404).json({ error: "Nenhuma apólice anexada." });
+  res.json(d[0]);
 }));
 
 // QUEBRA DE SAFRA: com sinistro reconhecido pela seguradora, o fundo pode

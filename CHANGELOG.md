@@ -1,5 +1,11 @@
 # Registro de mudanças
 
+## 3.5.0 — moeda no cadastro e apólice anexada
+
+- **Campos de valor em real com máscara:** custo de produção por hectare, preço estimado de venda e base regional (aceita negativo) mostram "R$ 6.122,00" enquanto a fazenda digita.
+- **Apólice de seguro anexada (PDF ou foto, até 1,5 MB):** obrigatória quando a fazenda informa seguradora ou apólice. Fica guardada à parte (tabela `plot_documents`), fora da vitrine; só a fazenda, o armazém do talhão, o fundo e a administração abrem.
+- Fundo vê seguradora, apólice, cobertura e o botão **"Ver apólice"** na aprovação do talhão e em "Aprovar e pagar".
+
 ## 3.4.0 — mínimo do investidor em 95% do CDI
 
 - O mínimo garantido sobe de 90% (igual à LCA) para **95% do CDI no prazo da safra**: o investidor fica sempre acima da LCA (6,55% contra 6,22% numa safra de soja de ~190 dias).

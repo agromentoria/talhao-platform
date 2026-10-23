@@ -34,6 +34,23 @@ export function TextField({ label, icon, hint, error, onChange, className, style
   );
 }
 
+// Moeda em real: a pessoa digita só os números e o campo formata (R$ 6.122,00).
+// O valor entregue ao formulário é numérico com ponto decimal ("6122.00").
+export function MoneyField({ label, value, onChange, allowNegative = false, hint, ...props }) {
+  const num = value === "" || value == null ? null : Number(value);
+  const neg = num != null && (num < 0 || Object.is(num, -0));
+  const texto = num == null || Number.isNaN(num) ? (neg ? "−" : "")
+    : `${neg ? "−" : ""}R$ ${Math.abs(num).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  function mudar(raw) {
+    const negativo = allowNegative && /[-−]/.test(raw);
+    const digitos = raw.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+    if (!digitos) { onChange?.(negativo ? "-0" : ""); return; }
+    const v = Number(digitos) / 100;
+    onChange?.((negativo ? -v : v).toFixed(2));
+  }
+  return <TextField label={label} value={texto} onChange={mudar} inputMode={allowNegative ? "text" : "decimal"} hint={hint} {...props} />;
+}
+
 export function SelectField({ label, icon, hint, error, onChange, options, children, className, style, value, ...props }) {
   const autoId = useId();
   const id = props.id || autoId;

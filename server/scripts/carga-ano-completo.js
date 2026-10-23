@@ -58,10 +58,9 @@ const CARAC_ARM = ["silo_metalico", "armazem_graneleiro", "balanca_rodoviaria", 
 
 // ---------- culturas e preços (referência na abertura · realizado na venda) ----------
 const CULT = {
-  // custo = custo operacional efetivo por ha (Imea 2026/27; feijão e sorgo: faixas Conab)
+  // custo = custo operacional efetivo por ha (Imea 2026/27; feijão: faixa Conab). Só culturas com boa margem: soja, milho safrinha e feijão
   soja:    { grao: "Soja", variedade: "Intacta RR2 PRO", unidade: "saca", prod: [57, 64], custoHa: 6122 },
   milho:   { grao: "Milho", variedade: "Grão amarelo (comum)", unidade: "saca", prod: [108, 122], custoHa: 5508 },
-  sorgo:   { grao: "Sorgo", variedade: "Granífero", unidade: "saca", prod: [68, 78], custoHa: 2900 },
   feijao:  { grao: "Feijão", variedade: "Carioca", unidade: "saca", prod: [43, 50], custoHa: 11500 },
   algodao: { grao: "Algodão", variedade: "Transgênico", unidade: "arroba", prod: [105, 120], custoHa: 12500 },
   trigo:   { grao: "Trigo", variedade: "Pão", unidade: "saca", prod: [50, 62], custoHa: 3600 },
@@ -71,36 +70,41 @@ const SAFRAS = [
   { id: "s25", safra: "2025/26", nome: "Soja Verão", pub: ["2025-08-18", "2025-09-12"], plantio: ["2025-10-10", "2025-11-08"], colheita: ["2026-02-08", "2026-03-12"],
     preco: { soja: 121 }, venda: [0.93, 1.12], paga: true, fill: [0.92, 1] },
   { id: "m26", safra: "2026 safrinha", nome: "Safrinha", pub: ["2026-01-05", "2026-01-25"], plantio: ["2026-02-12", "2026-03-08"], colheita: ["2026-06-15", "2026-07-25"],
-    preco: { milho: 56, sorgo: 46, feijao: 300 }, venda: [0.88, 1.18], paga: true, fill: [0.9, 1] },
+    preco: { milho: 56, feijao: 300 }, venda: [0.88, 1.18], paga: true, fill: [0.9, 1] },
   { id: "s26", safra: "2026/27", nome: "Soja Verão", pub: ["2026-08-18", "2026-09-15"], plantio: ["2026-10-08", "2026-11-12"], colheita: ["2027-02-10", "2027-03-15"],
     preco: { soja: 120 }, paga: false, fill: [0.82, 1], fase: [1, 2] },
   { id: "m27", safra: "2027 safrinha", nome: "Safrinha", pub: ["2026-09-28", "2026-10-14"], plantio: ["2027-02-15", "2027-03-08"], colheita: ["2027-06-20", "2027-07-20"],
-    preco: { milho: 57, sorgo: 46, feijao: 305 }, paga: false, fill: [0.05, 0.3], fase: [0, 0] },
+    preco: { milho: 57, feijao: 305 }, paga: false, fill: [0.05, 0.3], fase: [0, 0] },
 ];
+// base regional (R$/saca): diferença média da praça para o índice de referência
+const BASE = { soja: { MT: -9, GO: -5, MS: -6, PR: -2, MG: -4 }, milho: { MT: -12, GO: -6, MS: -7, PR: -3, MG: -5 }, feijao: { MT: -10, GO: -5, MS: -8, PR: -5, MG: -3 } };
+// apólice de demonstração (PDF mínimo) para o fundo poder abrir no app
+const APOLICE_DEMO = "data:application/pdf;base64," + Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 300 120]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj 4 0 obj<</Length 60>>stream\nBT /F1 12 Tf 20 60 Td (Apolice de seguro - demonstracao) Tj ET\nendstream endobj 5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF").toString("base64");
+
 const RATEIO = { preparo_solo: 0.04, sementes: 0.18, fertilizantes: 0.30, plantio: 0.04, defensivos: 0.22, manejo: 0.05, colheita: 0.07, frete: 0.04, mao_obra: 0.02, maquinas: 0.03, seguro: 0.01 };
 
 // ---------- 20 fazendas ----------
 const FAZENDAS = [
   ["Fazenda Santa Clara", "Sorriso, MT", "Rogério Albuquerque", ["milho", "algodao"]],
-  ["Fazenda Três Lagoas", "Lucas do Rio Verde, MT", "Helena Kowalski", ["milho", "sorgo"]],
+  ["Fazenda Três Lagoas", "Lucas do Rio Verde, MT", "Helena Kowalski", ["milho", "feijao"]],
   ["Fazenda Bom Jardim", "Sinop, MT", "Márcio Teixeira", ["milho", "feijao"]],
   ["Fazenda Rio Claro", "Nova Mutum, MT", "Patrícia Bortolini", ["milho", "milho"]],
   ["Fazenda Chapadão Verde", "Campo Novo do Parecis, MT", "Eduardo Fontana", ["algodao", "milho"]],
   ["Fazenda Primavera", "Primavera do Leste, MT", "Carla Menegotto", ["milho", "feijao"]],
-  ["Fazenda Água Limpa", "Rio Verde, GO", "Antônio Rezende", ["milho", "sorgo"]],
+  ["Fazenda Água Limpa", "Rio Verde, GO", "Antônio Rezende", ["milho", "feijao"]],
   ["Fazenda Boa Esperança", "Jataí, GO", "Luciana Carvalho", ["milho", "feijao"]],
-  ["Fazenda Serra Azul", "Mineiros, GO", "Fernando Moura", ["milho", "sorgo"]],
+  ["Fazenda Serra Azul", "Mineiros, GO", "Fernando Moura", ["milho", "feijao"]],
   ["Fazenda Planalto", "Cristalina, GO", "Juliana Prado", ["feijao", "trigo"]],
   ["Fazenda Cabeceira", "Chapadão do Sul, MS", "Ricardo Vendruscolo", ["milho", "algodao"]],
   ["Fazenda São Miguel", "Maracaju, MS", "Sandra Rizzi", ["milho", "milho"]],
   ["Fazenda Itaquiraí", "Dourados, MS", "Paulo Hashimoto", ["milho", "trigo"]],
-  ["Fazenda Campo Alegre", "São Gabriel do Oeste, MS", "Vera Lúcia Dalla Costa", ["milho", "sorgo"]],
+  ["Fazenda Campo Alegre", "São Gabriel do Oeste, MS", "Vera Lúcia Dalla Costa", ["milho", "feijao"]],
   ["Fazenda Sol Nascente", "Toledo, PR", "Gilberto Stein", ["milho", "trigo"]],
   ["Fazenda Ouro Verde", "Cascavel, PR", "Adriana Schmitt", ["milho", "feijao"]],
   ["Fazenda Cachoeira", "Assis Chateaubriand, PR", "José Carlos Bettio", ["milho", "milho"]],
   ["Fazenda Vereda Grande", "Unaí, MG", "Mariana Lacerda", ["feijao", "milho"]],
   ["Fazenda Morro Alto", "Paracatu, MG", "Otávio Guimarães", ["milho", "trigo"]],
-  ["Fazenda Retiro", "Uberlândia, MG", "Cristina Furtado", ["milho", "sorgo"]],
+  ["Fazenda Retiro", "Uberlândia, MG", "Cristina Furtado", ["milho", "feijao"]],
 ];
 const CARAC_FAZ = ["plantio_direto", "agricultura_precisao", "monitoramento_satelite", "maquinario_recente", "frota_propria", "armazenagem_propria", "experiencia_10anos", "sucessao_familiar", "certificacao_ambiental", "irrigacao_pivo", "energia_solar", "sensores_solo_clima"];
 
@@ -151,7 +155,19 @@ async function limpar(client) {
   await client.query("DELETE FROM warehouses WHERE id = ANY($1)", [wids]);
   await client.query("UPDATE users SET indicado_por = NULL WHERE indicado_por = ANY($1)", [uids]);
   await client.query("DELETE FROM users WHERE id = ANY($1)", [uids]);
-  return { fazendas: fids.length, talhoes: pids.length, usuarios: uids.length };
+  // demonstrações antigas (contas @demo.com / *.demo.com): apaga só os talhões acima de 100 ha
+  const { rows: grandes } = await client.query(
+    `SELECT p.id FROM plots p JOIN farms f ON f.id = p.farm_id JOIN users u ON u.id = f.owner_user_id
+     WHERE p.area_ha > 100 AND (u.email LIKE '%@demo.com' OR u.email LIKE '%.demo.com')`);
+  const gids = grandes.map((g) => g.id);
+  if (gids.length) {
+    await client.query("DELETE FROM payouts WHERE investment_id IN (SELECT id FROM investments WHERE plot_id = ANY($1))", [gids]);
+    await client.query("DELETE FROM transactions WHERE plot_id = ANY($1)", [gids]);
+    await client.query("DELETE FROM investments WHERE plot_id = ANY($1)", [gids]);
+    for (const t of ["plot_costs", "plot_budget", "progress_updates", "plot_validations", "plot_waitlist", "photos", "harvest_requests", "notifications"]) await client.query(`DELETE FROM ${t} WHERE plot_id = ANY($1)`, [gids]);
+    await client.query("DELETE FROM plots WHERE id = ANY($1)", [gids]);
+  }
+  return { fazendas: fids.length, talhoes: pids.length, usuarios: uids.length, antigos: gids.length };
 }
 
 (async () => {
@@ -161,6 +177,7 @@ async function limpar(client) {
     await client.query("BEGIN");
     const antes = await limpar(client);
     if (antes.usuarios) console.log(`Carga anterior removida: ${antes.fazendas} fazendas, ${antes.talhoes} talhões, ${antes.usuarios} contas.`);
+    if (antes.antigos) console.log(`Demonstrações antigas: ${antes.antigos} talhão(ões) acima de 100 ha removido(s).`);
     if (process.env.REMOVER) { await client.query("COMMIT"); console.log("Pronto (só remoção)."); return; }
 
     const { rows: siap } = await client.query("SELECT * FROM warehouses WHERE name ILIKE '%SIAP%' AND status = 'aprovado' ORDER BY id LIMIT 1");
@@ -225,7 +242,7 @@ async function limpar(client) {
     const novasRecompensas = new Set();
     for (const S of SAFRAS) {
       for (const fz of fazendas) {
-        const sem = (k) => (k === "algodao" ? "milho" : k === "trigo" ? "feijao" : k); // margem insuficiente hoje
+        const sem = (k) => (k === "algodao" || k === "sorgo" ? "milho" : k === "trigo" ? "feijao" : k); // só culturas com boa margem
         const safr = fz.safrinha.map(sem);
         const culturas = S.id.startsWith("s") ? ["soja"] : S.id === "m27" ? [safr[0]] : safr.slice(0, rnd() < 0.5 ? 2 : 1);
         for (const chave of culturas) {
@@ -237,11 +254,11 @@ async function limpar(client) {
           const custoSaca = c2(custoHa / prodHa);
           const pub = entreDatas(dia(S.pub[0]), dia(S.pub[1])), plantio = entreDatas(dia(S.plantio[0]), dia(S.plantio[1])), colheita = entreDatas(dia(S.colheita[0]), dia(S.colheita[1]));
           const dias = Math.max(30, diasEntre(pub, maisDias(colheita, REGRAS.dias_pos_colheita)));
-          const piso = minimoPct(dias); // mínimo do investidor: 90% do CDI no prazo
-          const capital = Math.exp(entre(Math.log(80000), Math.log(360000)));
-          const cotas = Math.max(500, arred(capital / custoSaca, 50));
+          const piso = minimoPct(dias); // mínimo do investidor: 95% do CDI no prazo
+          // talhões reais de 30 a 100 ha (a fazenda declara a área); até 80% da produção à venda
+          const area = int(30, 100);
           const prod = prodHa;
-          const area = Math.max(20, arred(cotas / (prodHa * entre(0.6, 0.9)), 5)); // investidores financiam 60% a 90% da produção
+          const cotas = Math.max(100, Math.floor(area * prodHa * entre(0.55, 0.8) / 10) * 10);
           const nome = `Talhão ${String(10 + (seqTal++ % 80)).padStart(2, "0")} – ${c.grao} ${S.nome}${S.paga ? ` ${S.safra.slice(0, 4)}` : ""}`;
           const arm = fz.armazem;
           const fase = S.paga ? 5 : int(S.fase[0], S.fase[1]);
@@ -253,13 +270,16 @@ async function limpar(client) {
             `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis,
                previsao_retorno, unidade, preco_venda_estimado, warehouse_id, custodia_status, custodia_em, aprovacao_status, aprovacao_em, aprovacao_por, exige_garantia,
                publicado_em, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_tarifa_recepcao, arm_tarifa_quinzena, arm_carencia, arm_quebra_pct,
-               modelo, piso_pct, piso_dias, status, fase_atual, progresso, retorno_final, arm_entrada_em, created_at, custo_ha, produtividade_ha, custo_saca, indice_referencia)
+               modelo, piso_pct, piso_dias, status, fase_atual, progresso, retorno_final, arm_entrada_em, created_at, custo_ha, produtividade_ha, custo_saca, indice_referencia,
+               base_regional, seguro_seguradora, seguro_apolice, seguro_cobertura_pct, seguro_anexado)
              VALUES ($1,$2,$3,$4,'lavoura',$5,$6,$7,$8,$27,$10,$10,$11,$12,$9,$13,'aceita',$14,'aprovado',$14,$15,true,$14,'fazenda',2,0,$16,$17,$18,$19,
-               'custo',$11,$20,$21,$22,$23,$24,$25,$26,$28,$29,$27,$30) RETURNING *`,
+               'custo',$11,$20,$21,$22,$23,$24,$25,$26,$28,$29,$27,$30,$31,'Seguradora parceira (demonstração)',$32,$33,true) RETURNING *`,
             [fz.id, nome, c.grao, c.variedade, iso(plantio), iso(colheita), area, S.safra, P, cotas, piso, c.unidade, arm.id, pub.toISOString(), aprovador,
              arm.tarifa_recepcao, arm.tarifa_quinzena, arm.carencia_quinzenas, arm.quebra_quinzena_pct, dias,
              S.paga ? "pago" : fase === 0 ? "captacao" : "em_andamento", fase, progresso, retorno, S.paga ? maisDias(colheita, 3).toISOString() : null, maisDias(pub, -int(3, 10)).toISOString(),
-             custoSaca, custoHa, prodHa, require("../src/culturas").indiceDe(c.grao)]);
+             custoSaca, custoHa, prodHa, require("../src/culturas").indiceDe(c.grao),
+             BASE[chave]?.[fz.uf] ?? 0, `DEMO-${String(fz.id).padStart(3, "0")}-${seqTal}`, [65, 70, 75][int(0, 2)]]);
+          await client.query("INSERT INTO plot_documents (plot_id, tipo, nome, conteudo) VALUES ($1, 'apolice', $2, $3)", [np[0].id, `apolice-demonstracao-${np[0].id}.pdf`, APOLICE_DEMO]);
           const plot = np[0]; resumo.talhoes++;
 
           // orçamento e custos lançados

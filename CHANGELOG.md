@@ -1,5 +1,10 @@
 # Registro de mudanças
 
+## 3.5.1 — carga de demonstração com talhões até 100 ha
+
+- `carga-ano-completo.js`: só culturas com boa margem (**soja, milho safrinha e feijão carioca**; sorgo, algodão e trigo saem); talhões de **30 a 100 ha**; no máximo **80% da produção** à venda; mínimo de 95% do CDI; índice público, base regional por estado, seguro com apólice de demonstração anexada.
+- Rodar a carga também remove os **talhões acima de 100 ha das demonstrações antigas** (só de contas @demo.com / *.demo.com). Dados reais e o armazém SIAP não são tocados.
+
 ## 3.5.0 — moeda no cadastro e apólice anexada
 
 - **Campos de valor em real com máscara:** custo de produção por hectare, preço estimado de venda e base regional (aceita negativo) mostram "R$ 6.122,00" enquanto a fazenda digita.

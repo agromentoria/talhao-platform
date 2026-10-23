@@ -67,7 +67,8 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
 export const api = {
   // auth
   login: (email, password) => request("/auth/login", { method: "POST", body: { email, password }, auth: false }),
-  register: (payload) => request("/auth/register", { method: "POST", body: payload, auth: false }),
+  register: (payload) => request("/auth/register", { method: "POST", body: { ...payload, aceite_termos: true, termos_versao: "2026-10" }, auth: false }),
+  meusDados: () => request("/auth/me/dados"),
   me: () => request("/auth/me"),
   updateAvatar: (avatar) => request("/auth/avatar", { method: "PATCH", body: { avatar } }),
   updateProfile: (payload) => request("/auth/profile", { method: "PATCH", body: payload }),

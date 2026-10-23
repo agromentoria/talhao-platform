@@ -40,7 +40,8 @@ function publicUser(user) {
 }
 
 router.post("/register", asyncHandler(async (req, res) => {
-  const { name, email, password, role, farmName, farmLocation, avatar, warehouseName, warehouseLocation, warehouseCnpj, indicacao } = req.body || {};
+  const { name, email, password, role, farmName, farmLocation, avatar, warehouseName, warehouseLocation, warehouseCnpj, indicacao, aceite_termos, termos_versao } = req.body || {};
+  if (aceite_termos !== true) return res.status(400).json({ error: "Para criar a conta, aceite os Termos de uso e a Política de privacidade." });
 
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "Preencha nome, e-mail, senha e tipo de conta." });
@@ -90,6 +91,7 @@ router.post("/register", asyncHandler(async (req, res) => {
       [name, emailLower, hash, role, avatar || null]
     );
     let user = userResult.rows[0];
+    await client.query("UPDATE users SET termos_aceitos_em = now(), termos_versao = $1 WHERE id = $2", [String(termos_versao || "2026-10").slice(0, 20), user.id]);
     // código próprio de indicação e quem indicou (se o código for válido)
     const { rows: cod } = await client.query(
       "UPDATE users SET codigo_indicacao = 'MT' || id || upper(substr(md5(email), 1, 3)) WHERE id = $1 RETURNING codigo_indicacao", [user.id]
@@ -367,6 +369,26 @@ router.delete("/me", requireAuth, asyncHandler(async (req, res) => {
     client.release();
   }
   res.json({ ok: true });
+}));
+
+// LGPD (art. 18): cópia dos dados pessoais do titular, em JSON
+router.get("/me/dados", requireAuth, asyncHandler(async (req, res) => {
+  const uid = req.user.id;
+  const q = async (sql, params = [uid]) => (await pool.query(sql, params)).rows;
+  const [usuario] = await q(`SELECT id, name, email, phone, role, created_at, last_login_at, termos_aceitos_em, termos_versao, consentimento_avisos,
+    codigo_indicacao, endereco_cidade, endereco_uf FROM users WHERE id = $1`);
+  const dados = {
+    gerado_em: new Date().toISOString(),
+    titular: usuario,
+    fazenda: await q("SELECT id, name, location, tipo_pessoa, cnpj, razao_social, car_numero, area_total_ha, created_at FROM farms WHERE owner_user_id = $1"),
+    compras: await q(`SELECT i.id, p.nome AS talhao, p.grao AS cultura, i.cotas AS sacas, i.valor_investido, i.status, i.created_at
+      FROM investments i JOIN plots p ON p.id = i.plot_id WHERE i.user_id = $1 ORDER BY i.created_at`),
+    movimentacoes: await q("SELECT type, amount, description, created_at FROM transactions WHERE user_id = $1 ORDER BY created_at"),
+    avisos: await q("SELECT type, title, created_at, read_at FROM notifications WHERE recipient_user_id = $1 ORDER BY created_at DESC LIMIT 500"),
+    meios_de_pagamento: await q("SELECT type, label, created_at FROM payment_methods WHERE user_id = $1").catch(() => []),
+  };
+  res.setHeader("Content-Disposition", `attachment; filename="meus-dados-meu-talhao.json"`);
+  res.json(dados);
 }));
 
 module.exports = router;

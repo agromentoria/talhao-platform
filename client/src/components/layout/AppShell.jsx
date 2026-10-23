@@ -192,6 +192,10 @@ function Sidebar() {
             <Button variant="on-dark" to="/login" block>Entrar</Button>
           </div>
         )}
+        <p className="sidebar-legal">
+          <Link to="/privacidade">Privacidade</Link> · <Link to="/termos">Termos</Link> · <Link to="/compliance">Riscos</Link>
+          <br />versão {__APP_VERSION__}
+        </p>
       </div>
     </aside>
   );

@@ -1,3 +1,4 @@
+import { LEGAL_CONTACT } from "./legal/LegalPage";
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { HelpCircle, Warehouse, Camera, UserRound, Mail, Phone, Lock, Tractor, CreditCard, QrCode, Landmark, MessageCircle, Bell, Coins, ChevronRight, LogOut, FileText, Shield, Trash2 } from "lucide-react";
@@ -183,8 +184,14 @@ function MoreTab({ onLogout }) {
     { to: "/avisos", icon: Bell, label: "Avisos" },
     { to: "/como-funciona", icon: HelpCircle, label: "Como funciona: ganhos, percentuais e comissões" },
     { to: "/termos", icon: FileText, label: "Termos de uso" },
-    { to: "/privacidade", icon: Shield, label: "Política de privacidade" },
+    { to: "/privacidade", icon: Shield, label: "Política de privacidade (LGPD)" },
+    { to: "/compliance", icon: Shield, label: "Compliance e avisos de risco" },
   ].filter(Boolean);
+  async function baixarDados() {
+    const d = await api.meusDados();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(d, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a"); a.href = url; a.download = "meus-dados-meu-talhao.json"; a.click(); URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="stack-lg">
@@ -200,6 +207,12 @@ function MoreTab({ onLogout }) {
         ))}
       </ul>
 
+      <section className="card">
+        <h2 className="card-title">Seus dados (LGPD)</h2>
+        <p className="card-desc" style={{ marginBottom: 14 }}>Baixe uma cópia dos seus dados pessoais, compras e movimentações. Para corrigir ou tirar dúvidas, fale com {LEGAL_CONTACT}.</p>
+        <Button variant="secondary" onClick={baixarDados}>Baixar meus dados</Button>
+      </section>
+
       <Button variant="secondary" icon={LogOut} block onClick={onLogout}>Sair da conta</Button>
 
       <section className="card" style={{ borderColor: "#e9b9b9" }}>
@@ -211,7 +224,7 @@ function MoreTab({ onLogout }) {
       </section>
 
       <DeleteAccountDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} />
-      <p className="text-xs text-3" style={{ textAlign: "center" }}>Meu Talhão · versão {__APP_VERSION__}</p>
+      <VersaoApp />
     </div>
   );
 }
@@ -471,4 +484,11 @@ function LegalInfoForm() {
       </form>
     </section>
   );
+}
+
+// versão do app e do servidor (confirma se o deploy subiu)
+function VersaoApp() {
+  const [servidor, setServidor] = useState(null);
+  useEffect(() => { fetch((import.meta.env.VITE_API_URL || "/api") + "/health").then((r) => r.json()).then((d) => setServidor(d.version)).catch(() => {}); }, []);
+  return <p className="text-xs text-3" style={{ textAlign: "center" }}>Meu Talhão · versão do app {__APP_VERSION__}{servidor ? ` · servidor ${servidor}` : ""}</p>;
 }

@@ -37,7 +37,7 @@ const login = async (email, password = "senha12345") => (await call("POST", "/au
     wh = await login("armazem@demo.com");
     console.log("[seed-armazem] armazém de demonstração já existe");
   } catch {
-    const r = await call("POST", "/auth/register", null, {
+    const r = await call("POST", "/auth/register", null, { aceite_termos: true, termos_versao: "2026-10",
       name: "Roberto Lima", email: "armazem@demo.com", password: "senha12345", role: "armazem",
       warehouseName: "Armazéns Gerais Sudoeste", warehouseCnpj: "11.444.777/0001-61", warehouseLocation: "Rio Verde, GO",
     });

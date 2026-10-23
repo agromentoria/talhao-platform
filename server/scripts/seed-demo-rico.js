@@ -39,7 +39,7 @@ async function call(method, path, token, body) {
 
 async function registerOrLogin(payload) {
   try {
-    return await call("POST", "/auth/register", null, payload);
+    return await call("POST", "/auth/register", null, { ...payload, aceite_termos: true, termos_versao: "2026-10" });
   } catch (err) {
     if (String(err.message).includes("já está cadastrado")) {
       return await call("POST", "/auth/login", null, { email: payload.email, password: payload.password });

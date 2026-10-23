@@ -1,5 +1,14 @@
 # Registro de mudanças
 
+## 3.6.0 — ajustes finais para ir ao ar
+
+- **Tela de abertura no desktop e tablet:** a arte (desenhada em pé, 9:16) aparece inteira e centralizada em telas largas; no celular continua cobrindo a tela.
+- **Versão visível:** rodapé do menu lateral e Perfil › Mais (versão do app e do servidor); rodapé das páginas legais.
+- **LGPD:** Política de Privacidade completa (controlador, encarregado, dados, bases legais, compartilhamento, retenção, direitos do art. 18, incidentes, menores); **aceite dos termos registrado no servidor** com data e versão (cadastro sem aceite é recusado); **Perfil › Mais › Baixar meus dados** (cópia em JSON); exclusão de conta já existente.
+- **Compliance:** nova página **/compliance** com aviso de risco (sem FGC, Resolução CVM 88), riscos do produto, limites de investimento, PLD/FT (Lei 9.613), conflitos de interesse, transparência e canais (compliance/denúncia, ouvidoria, privacidade).
+- **Termos de uso** reescritos para o modelo Custo + Lucro (mínimo de 95% do CDI, 30% do lucro, preço público, regra de quebra, taxas).
+- **Dados da empresa** centralizados em `client/src/pages/legal/empresa.js` (razão social, CNPJ, endereço, encarregado, e-mails, plataforma CVM parceira, foro); enquanto houver campo "[ ]", as páginas legais mostram um aviso para preencher.
+
 ## 3.5.1 — carga de demonstração com talhões até 100 ha
 
 - `carga-ano-completo.js`: só culturas com boa margem (**soja, milho safrinha e feijão carioca**; sorgo, algodão e trigo saem); talhões de **30 a 100 ha**; no máximo **80% da produção** à venda; mínimo de 95% do CDI; índice público, base regional por estado, seguro com apólice de demonstração anexada.

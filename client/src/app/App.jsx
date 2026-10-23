@@ -29,6 +29,7 @@ const ChatView = lazy(() => import("../pages/ChatView"));
 const PaymentMethods = lazy(() => import("../pages/PaymentMethods"));
 const ComoFunciona = lazy(() => import("../pages/ComoFunciona"));
 const Privacy = lazy(() => import("../pages/legal/Privacy"));
+const Compliance = lazy(() => import("../pages/legal/Compliance"));
 const Terms = lazy(() => import("../pages/legal/Terms"));
 
 function ScrollToTop() {
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="/cadastro" element={<GuestOnly><Register /></GuestOnly>} />
             <Route path="/como-funciona" element={<ComoFunciona />} />
             <Route path="/privacidade" element={<Privacy />} />
+            <Route path="/compliance" element={<Compliance />} />
             <Route path="/termos" element={<Terms />} />
 
             <Route path="/carteira" element={<RequireAuth role="investidor"><Portfolio /></RequireAuth>} />

@@ -503,3 +503,7 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .indique { background: linear-gradient(135deg, var(--primary-soft), var(--surface)); }
 .indique-codigo { display: inline-flex; flex-direction: column; padding: 8px 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); }
 .indique-codigo strong { font-family: var(--font-display); font-size: var(--fs-xl); letter-spacing: .06em; color: var(--primary-pressed); }
+
+.sidebar-legal { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: rgba(255,255,255,.72); text-align: center; }
+.sidebar-legal a { color: rgba(255,255,255,.88); text-decoration: underline; }
+.shell .sidebar[data-collapsed] .sidebar-legal, .sidebar--rail .sidebar-legal { display: none; }

@@ -1,5 +1,11 @@
 # Registro de mudanças
 
+## 3.4.0 — mínimo do investidor em 95% do CDI
+
+- O mínimo garantido sobe de 90% (igual à LCA) para **95% do CDI no prazo da safra**: o investidor fica sempre acima da LCA (6,55% contra 6,22% numa safra de soja de ~190 dias).
+- Talhão de referência de 100 ha de soja a R$ 120: fazenda R$ 53,6 mil (banco: R$ 51,9 mil; barter: R$ 34,4 mil); app R$ 6,1 mil na entrada + R$ 5,3 mil na saída. Investidor passa a receber mais que o mínimo quando a venda passa de R$ 124,46.
+- Talhões já publicados mantêm o mínimo com que foram vendidos; vale para os novos (ajustável por `CUSTO_MIN_PCT_CDI`).
+
 ## 3.3.0 — contrato completo: preço de liquidação, quebra de safra e limites
 
 **Preço de liquidação pela referência pública (a fazenda não escolhe o preço)**

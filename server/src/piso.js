@@ -101,12 +101,12 @@ Object.assign(module.exports, { precoAtualPiso, diasRestantes, comPrecoDoDia });
 // =====================================================================
 // Modelo "Custo + Lucro" (v3): o investidor paga o CUSTO de produção por
 // saca; na venda, o lucro (preço − custo) é dividido 30% investidor ·
-// 65% fazenda · 5% plataforma. Mínimo do investidor = 90% do CDI no prazo
-// (equivalente à LCA), garantido pela fazenda. A fazenda paga 0,5% de
+// 65% fazenda · 5% plataforma. Mínimo do investidor = 95% do CDI no prazo
+// (acima da LCA), garantido pela fazenda. A fazenda paga 0,5% de
 // estruturação, 0,15% de custódia e 0,15% de gestão sobre o captado.
 // =====================================================================
 const CUSTO = {
-  min_pct_cdi: num("CUSTO_MIN_PCT_CDI", 90),
+  min_pct_cdi: num("CUSTO_MIN_PCT_CDI", 95),
   lucro_investidor_pct: num("CUSTO_LUCRO_INVESTIDOR_PCT", 30),
   lucro_fazenda_pct: num("CUSTO_LUCRO_FAZENDA_PCT", 65),
   lucro_plataforma_pct: num("CUSTO_LUCRO_PLATAFORMA_PCT", 5),

@@ -59,7 +59,7 @@ export function diasDesde(data) {
 }
 
 // ---------- Modelo "Custo + Lucro" (v3) ----------
-export const CUSTO_PADRAO = { min_pct_cdi: 90, lucro_investidor_pct: 30, lucro_fazenda_pct: 65, lucro_plataforma_pct: 5, estruturacao_pct: 1.0, desempenho_pct: 0, custodia_armazem_pct: 0.15, gestao_fundo_pct: 0.15 };
+export const CUSTO_PADRAO = { min_pct_cdi: 95, lucro_investidor_pct: 30, lucro_fazenda_pct: 65, lucro_plataforma_pct: 5, estruturacao_pct: 1.0, desempenho_pct: 0, custodia_armazem_pct: 0.15, gestao_fundo_pct: 0.15 };
 export const ehCusto = (plot) => plot?.modelo === "custo";
 export function minimoPct(dias, cdi = 13.65, R = CUSTO_PADRAO) {
   return Math.round(((Math.pow(1 + (R.min_pct_cdi / 100) * cdi / 100, dias / 365) - 1) * 100) * 100) / 100;

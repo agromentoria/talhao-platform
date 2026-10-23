@@ -7,7 +7,8 @@ import { prazoDias, diasDesde, precoNoDia, CUSTO_PADRAO, minimoPct as calcMin, g
 
 // Quadro do modelo "Custo + Lucro": o investidor paga o custo de produção e
 // fica com 30% do lucro; a fazenda fica com 65% e com a boa safra.
-export default function RegrasCusto({ custoHa, produtividade, precoEsperado, piso, pisoDias, publicadoEm, colheitaPrevista, unidade = "saca", area, paraFazenda = false }) {
+export default function RegrasCusto({ custoHa, produtividade, precoEsperado, piso, pisoDias, publicadoEm, colheitaPrevista, unidade = "saca", area, paraFazenda = false,
+  indice, base, janelaDias = 15, janelaPregoes = 10, seguro, prorrogacao }) {
   const regras = useRegras();
   const R = regras?.custo || CUSTO_PADRAO;
   const ref = regras?.referencias || REFERENCIAS_PADRAO;
@@ -54,7 +55,7 @@ export default function RegrasCusto({ custoHa, produtividade, precoEsperado, pis
         <div><ul>
           <li><span>Fazenda</span><strong>{fmtPct(R.lucro_fazenda_pct)}</strong></li>
           <li><span>Investidor</span><strong className="text-success">{fmtPct(R.lucro_investidor_pct)}</strong></li>
-          <li><span>Plataforma</span><strong>{fmtPct(R.lucro_plataforma_pct)}</strong></li>
+          <li><span>App</span><strong>{fmtPct(R.lucro_plataforma_pct)}</strong></li>
         </ul></div>
         <div><p className="label-xs">Como o app ganha</p><ul>
           <li><span>Na entrada (paga pela fazenda)</span><strong>{fmtPct(R.estruturacao_pct)} do captado</strong></li>
@@ -78,6 +79,27 @@ export default function RegrasCusto({ custoHa, produtividade, precoEsperado, pis
       </div>
       <p className="text-xs text-3">* O investidor não paga taxa para entrar nem para sair.</p>
       {paraFazenda && <p className="text-xs text-3">Resultado da fazenda sobre as sacas financiadas, já descontados o mínimo do investidor (quando acionado), a parte do lucro e as taxas; a armazenagem também fica com a fazenda. Produzindo acima de {fmtNumber(pr)} {unidadeNome(unidade, 2)}/ha, o excedente é todo da fazenda.</p>}
+      <p className="regras-sub">Por {u}: você paga {fmtBRL(C)}, recebe no mínimo {fmtBRL(C * (1 + mn / 100))} e recebe mais quando a venda passa de {fmtBRL(C * (1 + (mn / 100) / (R.lucro_investidor_pct / 100)))} (aí vale 30% do lucro).</p>
+      <div className="regras-divisao">
+        <div>
+          <p className="label-xs">Como é calculado o pagamento</p>
+          <p className="text-sm" style={{ lineHeight: 1.5 }}>
+            Média de {janelaPregoes} pregões de <strong>{indice || "referência pública definida no contrato (B3/Cepea)"}</strong>, começando {janelaDias} dias depois da colheita prevista
+            {Number(base) ? <>, {Number(base) > 0 ? "mais" : "menos"} a base regional de {fmtBRL(Math.abs(Number(base)))}</> : null}.
+            A fazenda vende o grão quando quiser; o pagamento não depende do preço que ela conseguiu.
+          </p>
+        </div>
+        <div>
+          <p className="label-xs">Se a safra quebrar</p>
+          <ol className="text-sm" style={{ paddingLeft: 18, lineHeight: 1.5, margin: 0 }}>
+            <li>O talhão só oferece até 80% da produção esperada.</li>
+            <li>Seguro agrícola {seguro?.seguradora ? `(${seguro.seguradora}${seguro.cobertura ? `, ${seguro.cobertura}% de cobertura` : ""})` : "obrigatório"} paga primeiro.</li>
+            <li>Com sinistro reconhecido, o pagamento pode ir para a safra seguinte, com o mínimo correndo.</li>
+            <li>Sem sinistro, a dívida é da fazenda (CPR): garantias e grão no armazém respondem por ela.</li>
+          </ol>
+        </div>
+      </div>
+      {prorrogacao && <p className="text-sm text-danger" style={{ fontWeight: 600 }}>Pagamento prorrogado: {prorrogacao}</p>}
       <p className="regras-nota"><Info size={14} aria-hidden /> O mínimo do investidor ({R.min_pct_cdi}% do CDI no prazo) é garantido pela fazenda e pelo grão no armazém; não é coberto pelo FGC. <Link to="/como-funciona">Como funciona</Link></p>
     </div>
   );

@@ -163,4 +163,19 @@ function unidadeTexto(unidade, n) {
   return n === 1 ? u.singular : u.plural;
 }
 
-module.exports = { CATEGORIAS_CUSTO, categoriasCusto, UNIDADES, TIPOS, CULTURAS, REFERENCIAS, getCultura, tipoDe, fasesDe, etapaLabel, unidadeTexto };
+// Preço de liquidação: referência pública por cultura (média de pregões numa
+// janela fixada no contrato, mais a base regional). A fazenda não escolhe o preço.
+const INDICES = {
+  Soja: "B3 · Soja (SJC) / Cepea-Esalq Paranaguá",
+  Milho: "B3 · Milho (CCM) / Cepea-Esalq Campinas",
+  "Feijão": "Cepea · Feijão carioca",
+  Algodão: "Cepea-Esalq · Algodão em pluma",
+  Trigo: "Cepea · Trigo Paraná",
+  "Café": "Cepea-Esalq · Café arábica",
+  Arroz: "Cepea-Esalq · Arroz em casca RS",
+  "Bovinos de corte": "B3 · Boi gordo (BGI) / Cepea-Esalq",
+};
+const indiceDe = (cultura) => INDICES[cultura] || "Cotação de referência regional (definida no contrato)";
+const LIMITES = { sacas_pct_producao: 0.8, teto_talhao: 2500000, teto_pf_safra: 2500000, cobertura_min_seguro: 65 };
+
+module.exports = { INDICES, indiceDe, LIMITES, CATEGORIAS_CUSTO, categoriasCusto, UNIDADES, TIPOS, CULTURAS, REFERENCIAS, getCultura, tipoDe, fasesDe, etapaLabel, unidadeTexto };

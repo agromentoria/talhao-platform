@@ -294,6 +294,39 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
   const piso = modelo === "piso" ? pisoPct(dias) : modelo === "custo" ? minimoPct(dias) : null;
   const custoSaca = modelo === "custo" ? Math.round((custoHa / prodHa) * 100) / 100 : null;
 
+  // limites do talhão (tamanho livre: a fazenda declara a área e a cultura)
+  const { LIMITES, indiceDe } = require("../culturas");
+  if (modelo === "custo") {
+    const producao = area * prodHa;
+    if (c.cotas > producao * LIMITES.sacas_pct_producao + 0.5) {
+      return res.status(400).json({ error: `Este talhão pode oferecer até ${Math.floor(producao * LIMITES.sacas_pct_producao).toLocaleString("pt-BR")} ${c.unidade}s (80% da produção esperada de ${Math.round(producao).toLocaleString("pt-BR")}). O restante fica como margem de segurança para quebra de safra.` });
+    }
+    const valor = c.cotas * custoSaca;
+    if (valor > LIMITES.teto_talhao) {
+      return res.status(400).json({ error: `O valor do talhão (R$ ${Math.round(valor).toLocaleString("pt-BR")}) passa do teto de R$ 2,5 mi por talhão. Divida em talhões menores ou ofereça menos ${c.unidade}s.` });
+    }
+    const { rows: fz } = await pool.query("SELECT tipo_pessoa FROM farms WHERE id = $1", [farm_id]);
+    if ((fz[0]?.tipo_pessoa || "pf") === "pf") {
+      const { rows: soma } = await pool.query(
+        "SELECT COALESCE(SUM(cotas_totais * custo_saca), 0)::float8 AS total FROM plots WHERE farm_id = $1 AND safra = $2 AND modelo = 'custo' AND status <> 'cancelado'",
+        [farm_id, safra]);
+      if (soma[0].total + valor > LIMITES.teto_pf_safra) {
+        return res.status(400).json({ error: `Produtor pessoa física pode captar até R$ 2,5 mi por safra. Nesta safra a fazenda já tem R$ ${Math.round(soma[0].total).toLocaleString("pt-BR")} em talhões.` });
+      }
+    }
+  }
+  const seguroCob = Number(req.body?.seguro_cobertura_pct) || null;
+  if (seguroCob != null && (seguroCob < LIMITES.cobertura_min_seguro || seguroCob > 100)) {
+    return res.status(400).json({ error: "A cobertura do seguro agrícola deve ficar entre 65% e 100% da produtividade esperada." });
+  }
+  const contrato = {
+    indice: String(req.body?.indice_referencia || indiceDe(c.grao)).slice(0, 120),
+    base: Number(req.body?.base_regional) || 0,
+    seguradora: req.body?.seguro_seguradora ? String(req.body.seguro_seguradora).slice(0, 120) : null,
+    apolice: req.body?.seguro_apolice ? String(req.body.seguro_apolice).slice(0, 60) : null,
+    cobertura: seguroCob,
+  };
+
   // preço inicial (fase 0) — o mais barato, sobe conforme a fase avança
   const multiplicadorFase0 = await getFaseMultiplier(0);
   const cotaValorInicial = c.precoVenda * multiplicadorFase0;
@@ -302,11 +335,14 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
     `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra,
                         cota_valor, cotas_totais, cotas_disponiveis, previsao_retorno, unidade, preco_venda_estimado,
                         warehouse_id, custodia_status, aprovacao_status, exige_garantia, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_investidor_pct,
-                        modelo, piso_pct, piso_dias, custo_ha, produtividade_ha, custo_saca)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
+                        modelo, piso_pct, piso_dias, custo_ha, produtividade_ha, custo_saca,
+                        indice_referencia, base_regional, seguro_seguradora, seguro_apolice, seguro_cobertura_pct)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15, 'pendente', 'pendente', true, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25,
+             $26, $27, $28, $29, $30) RETURNING *`,
     [farm_id, String(nome).trim(), c.grao, c.variedade, c.tipo, c.plantio_ate, c.colheita_prevista, area, safra,
      modelo === "custo" ? custoSaca : cotaValorInicial, c.cotas, modelo === "meta" ? retorno : piso, c.unidade, c.precoVenda, wh.warehouse.id, arm.pagador, arm.quinzenas, perf.pct, arm.investidorPct,
-     modelo, piso, dias, modelo === "custo" ? custoHa : null, modelo === "custo" ? prodHa : null, custoSaca]
+     modelo, piso, dias, modelo === "custo" ? custoHa : null, modelo === "custo" ? prodHa : null, custoSaca,
+     contrato.indice, contrato.base, contrato.seguradora, contrato.apolice, contrato.cobertura]
   );
   const plot = rows[0];
   await notifyWarehouseIndication(wh.warehouse, plot, owned.farm.name);
@@ -418,6 +454,38 @@ router.patch("/:id/progress", requireAuth, requireRole("fazenda", "admin"), asyn
   });
 
   res.json({ plot: rows[0] });
+}));
+
+// QUEBRA DE SAFRA: com sinistro reconhecido pela seguradora, o fundo pode
+// prorrogar o pagamento para a safra seguinte; o mínimo do investidor continua correndo.
+router.patch("/:id/prorrogar", requireAuth, requireRole("admin", "fundo"), asyncHandler(async (req, res) => {
+  const { nova_colheita, motivo } = req.body || {};
+  if (!nova_colheita || !/^\d{4}-\d{2}-\d{2}$/.test(nova_colheita)) return res.status(400).json({ error: "Informe a nova data prevista de colheita (AAAA-MM-DD)." });
+  if (!motivo || String(motivo).trim().length < 10) return res.status(400).json({ error: "Descreva o sinistro reconhecido pela seguradora (nº do aviso, laudo)." });
+  const { rows } = await pool.query("SELECT * FROM plots WHERE id = $1", [req.params.id]);
+  const plot = rows[0];
+  if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
+  if (plot.status === "pago") return res.status(409).json({ error: "Talhão já pago." });
+  const anterior = new Date(plot.colheita_prevista);
+  const nova = new Date(nova_colheita + "T12:00:00Z");
+  const delta = Math.round((nova - anterior) / 86400000);
+  if (delta <= 0) return res.status(400).json({ error: "A nova data precisa ser depois da colheita prevista atual." });
+  const { minimoPct, pisoPct } = require("../piso");
+  const dias = (Number(plot.piso_dias) || 0) + delta;
+  const minimo = plot.modelo === "custo" ? minimoPct(dias) : plot.modelo === "piso" ? pisoPct(dias) : plot.piso_pct;
+  await pool.query(
+    `UPDATE plots SET colheita_prevista = $1, piso_dias = $2, piso_pct = $3, previsao_retorno = COALESCE($3, previsao_retorno),
+       prorrogado_em = now(), prorrogacao_motivo = $4 WHERE id = $5`,
+    [nova_colheita, dias, minimo, String(motivo).trim().slice(0, 500), plot.id]);
+  await pool.query("INSERT INTO progress_updates (plot_id, fase_atual, progresso, nota) VALUES ($1, $2, $3, $4)",
+    [plot.id, plot.fase_atual, plot.progresso, `Pagamento prorrogado para depois de ${nova.toLocaleDateString("pt-BR")} por sinistro reconhecido: ${String(motivo).trim().slice(0, 200)}. O mínimo do investidor continua correndo (${minimo}% no novo prazo).`]);
+  try {
+    const { rows: invs } = await pool.query("SELECT DISTINCT user_id FROM investments WHERE plot_id = $1 AND status = 'ativo'", [plot.id]);
+    const { notifyUsers } = require("../notify");
+    await notifyUsers(pool, invs.map((i) => i.user_id), { senderRole: "sistema", farmId: plot.farm_id, plotId: plot.id, type: "prorrogacao",
+      title: `Pagamento de ${plot.nome} prorrogado`, body: `A lavoura teve sinistro reconhecido pela seguradora. O pagamento passa para a próxima janela, e o seu mínimo continua rendendo: agora ${minimo}% no prazo total.` });
+  } catch (e) { console.error("[aviso] prorrogação:", e.message); }
+  res.json({ ok: true, colheita_prevista: nova_colheita, piso_dias: dias, piso_pct: minimo });
 }));
 
 router.post("/:id/finalize", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {

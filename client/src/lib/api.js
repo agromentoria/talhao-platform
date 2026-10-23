@@ -111,6 +111,8 @@ export const api = {
     request(`/plots/${id}/finalize`, { method: "POST", body: { retorno_final, comprovante_texto, comprovante_imagem } }),
   pendingHarvestRequests: (status) => request(`/admin/harvest-requests${status ? `?status=${status}` : ""}`),
   approveHarvestRequest: (id) => request(`/admin/harvest-requests/${id}/approve`, { method: "POST" }),
+  informarIndice: (id, preco_indice, fonte) => request(`/admin/harvest-requests/${id}/indice`, { method: "PATCH", body: { preco_indice, fonte } }),
+  prorrogarTalhao: (id, nova_colheita, motivo) => request(`/plots/${id}/prorrogar`, { method: "PATCH", body: { nova_colheita, motivo } }),
   rejectHarvestRequest: (id, motivo) => request(`/admin/harvest-requests/${id}/reject`, { method: "POST", body: { motivo } }),
   farmTrackRecord: (farmId) => request(`/farms/track-record/${farmId}`, { auth: false }),
 

@@ -253,13 +253,13 @@ async function limpar(client) {
             `INSERT INTO plots (farm_id, nome, grao, variedade, tipo_producao, plantio_ate, colheita_prevista, area_ha, safra, cota_valor, cotas_totais, cotas_disponiveis,
                previsao_retorno, unidade, preco_venda_estimado, warehouse_id, custodia_status, custodia_em, aprovacao_status, aprovacao_em, aprovacao_por, exige_garantia,
                publicado_em, arm_pagador, arm_quinzenas_previstas, perf_excedente_pct, arm_tarifa_recepcao, arm_tarifa_quinzena, arm_carencia, arm_quebra_pct,
-               modelo, piso_pct, piso_dias, status, fase_atual, progresso, retorno_final, arm_entrada_em, created_at, custo_ha, produtividade_ha, custo_saca)
+               modelo, piso_pct, piso_dias, status, fase_atual, progresso, retorno_final, arm_entrada_em, created_at, custo_ha, produtividade_ha, custo_saca, indice_referencia)
              VALUES ($1,$2,$3,$4,'lavoura',$5,$6,$7,$8,$27,$10,$10,$11,$12,$9,$13,'aceita',$14,'aprovado',$14,$15,true,$14,'fazenda',2,0,$16,$17,$18,$19,
-               'custo',$11,$20,$21,$22,$23,$24,$25,$26,$28,$29,$27) RETURNING *`,
+               'custo',$11,$20,$21,$22,$23,$24,$25,$26,$28,$29,$27,$30) RETURNING *`,
             [fz.id, nome, c.grao, c.variedade, iso(plantio), iso(colheita), area, S.safra, P, cotas, piso, c.unidade, arm.id, pub.toISOString(), aprovador,
              arm.tarifa_recepcao, arm.tarifa_quinzena, arm.carencia_quinzenas, arm.quebra_quinzena_pct, dias,
              S.paga ? "pago" : fase === 0 ? "captacao" : "em_andamento", fase, progresso, retorno, S.paga ? maisDias(colheita, 3).toISOString() : null, maisDias(pub, -int(3, 10)).toISOString(),
-             custoSaca, custoHa, prodHa]);
+             custoSaca, custoHa, prodHa, require("../src/culturas").indiceDe(c.grao)]);
           const plot = np[0]; resumo.talhoes++;
 
           // orçamento e custos lançados

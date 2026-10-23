@@ -1,5 +1,24 @@
 # Registro de mudanças
 
+## 3.3.0 — contrato completo: preço de liquidação, quebra de safra e limites
+
+**Preço de liquidação pela referência pública (a fazenda não escolhe o preço)**
+- Cada talhão "Custo + Lucro" guarda o índice da cultura (soja: B3 SJC / Cepea-Esalq Paranaguá; milho: B3 CCM / Cepea-Esalq Campinas; feijão, algodão, trigo, café, arroz e boi com seus indicadores), a **base regional** (diferença da praça) e a janela (média de 10 pregões a partir de 15 dias após a colheita prevista).
+- A fazenda finaliza informando só a colheita; o **fundo informa a média do índice** (com a fonte), o app soma a base e calcula o preço de liquidação. O pagamento fica bloqueado até isso.
+- A fazenda vende o grão físico quando e para quem quiser.
+
+**Quebra de safra**
+- O talhão só pode oferecer até **80% da produção esperada** (área × produtividade).
+- Seguro agrícola no cadastro (seguradora, apólice, cobertura de 65% a 100%); o fundo vê na aprovação.
+- **Prorrogação por sinistro reconhecido:** o fundo adia o pagamento para a nova colheita; o mínimo do investidor continua correndo e os investidores são avisados.
+- Cascata explicada em cada talhão: limite de 80% → seguro → prorrogação com mínimo correndo → garantias da CPR e grão no armazém.
+
+**Tamanho livre e tetos**
+- O talhão tem a área que a fazenda declarar, com a cultura dele. Teto de **R$ 2,5 mi por talhão** e, para produtor pessoa física, **R$ 2,5 mi por safra** somando os talhões lançados.
+
+**Tela do investidor em sacas**
+- "Você paga · recebe no mínimo · recebe mais se a venda passar de R$ X (30% do lucro) · exemplo".
+
 ## 3.2.0 — duas taxas, simples de explicar
 
 - O app ganha em **dois momentos**: **na entrada, 1% do valor captado** (pago pela fazenda, a cada compra) e **na saída, 5% do lucro da safra**. O lucro fica dividido em investidor 30% · fazenda 65% · app 5%.

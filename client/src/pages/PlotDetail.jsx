@@ -259,7 +259,10 @@ export default function PlotDetail() {
               <>
                 <p className="card-desc" style={{ marginBottom: 12 }}>Você financia o custo de produção e fica com 30% do lucro da safra, com mínimo garantido. Regras validadas pelo fundo.</p>
                 <RegrasCusto custoHa={plot.custo_ha} produtividade={plot.produtividade_ha} precoEsperado={plot.preco_venda_estimado} piso={plot.piso_pct}
-                  pisoDias={plot.piso_dias} publicadoEm={plot.publicado_em} colheitaPrevista={plot.colheita_prevista} unidade={plot.unidade} />
+                  pisoDias={plot.piso_dias} publicadoEm={plot.publicado_em} colheitaPrevista={plot.colheita_prevista} unidade={plot.unidade}
+                  indice={plot.indice_referencia || regras?.indices?.[plot.grao]} base={plot.base_regional} janelaDias={plot.janela_dias} janelaPregoes={plot.janela_pregoes}
+                  seguro={{ seguradora: plot.seguro_seguradora, apolice: plot.seguro_apolice, cobertura: plot.seguro_cobertura_pct }} prorrogacao={plot.prorrogacao_motivo} />
+                {(user?.role === "admin" || user?.role === "fundo") && plot.status !== "pago" && <ProrrogarSinistro plot={plot} onDone={load} />}
               </>
             ) : piso ? (
               <>
@@ -313,7 +316,7 @@ export default function PlotDetail() {
               <>
                 <h2 id="investir-t" className="card-title">Comprar sacas deste talhão</h2>
                 <p className="card-desc" style={{ marginBottom: 16 }}>
-                  {fmtNumber(plot.cotas_disponiveis)} de {fmtNumber(plot.cotas_totais)} {unitPlural(plot.unidade, plot.cotas_totais)} disponíveis{plot.modelo === "piso" ? "" : " nesta fase"}
+                  {fmtNumber(plot.cotas_disponiveis)} de {fmtNumber(plot.cotas_totais)} {unitPlural(plot.unidade, plot.cotas_totais)} disponíveis{plot.modelo === "piso" || plot.modelo === "custo" ? "" : " nesta fase"}
                 </p>
 
                 <ErrorBanner message={error} />
@@ -347,7 +350,19 @@ export default function PlotDetail() {
 
                 <dl className="kv" style={{ margin: "0 0 16px" }}>
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
-                  {piso ? (
+                  {custo ? (() => {
+                    const C = Number(plot.custo_saca), mn = Number(plot.piso_pct) || 0;
+                    const limiar = C * (1 + (mn / 100) / 0.30);
+                    const exemplo = plot.preco_venda_estimado * 1.15;
+                    const recebeEx = Math.max(C * (1 + mn / 100), C + 0.30 * (exemplo - C));
+                    return (
+                      <>
+                        <div className="total"><dt>Recebe no mínimo, na colheita</dt><dd className="text-success">{fmtBRL(qtd * ganhoPiso.minimo)}</dd></div>
+                        <div><dt>Recebe mais se a venda passar de {fmtBRL(limiar)} por {unidade}</dt><dd>30% do lucro</dd></div>
+                        <div><dt>Exemplo: venda a {fmtBRL(exemplo)}</dt><dd>{fmtBRL(qtd * recebeEx)}</dd></div>
+                      </>
+                    );
+                  })() : piso ? (
                     <>
                       <div><dt>Recebimento mínimo garantido</dt><dd>{fmtBRL(qtd * ganhoPiso.minimo)}</dd></div>
                       <div><dt>Esperado, com parte da alta</dt><dd>{fmtBRL(qtd * ganhoPiso.esperado)}</dd></div>
@@ -609,5 +624,32 @@ function FarmTrackRecord({ farmId, farmName }) {
         </>
       )}
     </section>
+  );
+}
+
+// QUEBRA DE SAFRA: o fundo prorroga o pagamento quando o sinistro é reconhecido pela seguradora
+function ProrrogarSinistro({ plot, onDone }) {
+  const [aberto, setAberto] = useState(false);
+  const [data, setData] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [msg, setMsg] = useState("");
+  async function enviar() {
+    try { await api.prorrogarTalhao(plot.id, data, motivo); setMsg("Pagamento prorrogado e investidores avisados."); setAberto(false); onDone?.(); }
+    catch (e) { setMsg(e.message); }
+  }
+  return (
+    <div style={{ marginTop: 12 }}>
+      {!aberto ? <Button variant="ghost" size="sm" onClick={() => setAberto(true)}>Prorrogar por sinistro reconhecido</Button> : (
+        <div className="card card--well" style={{ padding: 12 }}>
+          <p className="text-sm" style={{ marginBottom: 8 }}>Use só com sinistro reconhecido pela seguradora. O mínimo dos investidores continua correndo até a nova data.</p>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <label className="text-sm">Nova colheita prevista<input className="input" type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ display: "block", marginTop: 4 }} /></label>
+            <label className="text-sm" style={{ flex: 1, minWidth: 200 }}>Sinistro (nº do aviso, laudo)<input className="input" value={motivo} onChange={(e) => setMotivo(e.target.value)} style={{ display: "block", width: "100%", marginTop: 4 }} /></label>
+            <Button size="sm" onClick={enviar}>Prorrogar</Button>
+          </div>
+        </div>
+      )}
+      {msg && <p className="text-sm" style={{ marginTop: 6 }}>{msg}</p>}
+    </div>
   );
 }

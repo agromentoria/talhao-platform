@@ -318,7 +318,7 @@ export default function AdminDashboard() {
                 </div>
 
                 <HarvestCustodyInfo r={r} />
-                <HarvestPreview r={r} />
+                <HarvestPreview r={r} onChanged={load} />
 
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <Button variant="danger-ghost" icon={X} onClick={() => rejectHarvest(r.id)} style={{ flex: 1, border: "1px solid var(--danger)" }}>Rejeitar</Button>
@@ -776,6 +776,42 @@ function EntityRow({ icon, iconTone, title, estrelas, lines, metrics, status, ac
 
 // o que o armazém garantidor validou — base para aprovar o pagamento
 // prévia exata do pagamento calculada pelo servidor
+// preço de liquidação pela referência pública: o fundo informa a média do índice na janela
+function LiquidacaoIndice({ r, onChanged }) {
+  const [valor, setValor] = useState(r.preco_indice ?? "");
+  const [fonte, setFonte] = useState(r.fonte_indice ?? "");
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const inicio = new Date(new Date(r.colheita_prevista).getTime() + (r.janela_dias || 15) * 86400000);
+  async function salvar() {
+    setSalvando(true); setErro("");
+    try { await api.informarIndice(r.id, valor, fonte); onChanged?.(); } catch (e) { setErro(e.message); } finally { setSalvando(false); }
+  }
+  return (
+    <div className="card card--well" style={{ padding: 12, marginBottom: 10 }}>
+      <p className="card-title" style={{ marginBottom: 4 }}>Preço de liquidação (referência pública)</p>
+      <p className="text-sm" style={{ marginBottom: 8 }}>
+        Média de {r.janela_pregoes || 10} pregões de <strong>{r.indice_referencia || "referência pública"}</strong> a partir de {inicio.toLocaleDateString("pt-BR")}
+        {r.base_regional ? <>, {r.base_regional > 0 ? "+" : "−"} base regional de {fmtBRL(Math.abs(r.base_regional))}</> : null}.
+        {r.preco_estimado ? <strong className="text-danger"> Ainda não informado: a prévia abaixo usa o preço de referência da abertura.</strong>
+          : <> Liquidação: <strong>{fmtBRL(r.preco_liquidacao)}</strong> (índice {fmtBRL(r.preco_indice)}).</>}
+      </p>
+      <div className="row" style={{ alignItems: "flex-end", gap: 8, flexWrap: "wrap" }}>
+        <label className="text-sm">Média do índice (R$)
+          <input className="input" type="number" step="0.01" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} style={{ width: 140, display: "block", marginTop: 4 }} />
+        </label>
+        <label className="text-sm" style={{ flex: 1, minWidth: 180 }}>Fonte (link ou boletim)
+          <input className="input" value={fonte} onChange={(e) => setFonte(e.target.value)} style={{ display: "block", width: "100%", marginTop: 4 }} />
+        </label>
+        <Button size="sm" onClick={salvar} loading={salvando}>Calcular pagamento</Button>
+      </div>
+      {erro && <p className="text-sm text-danger" style={{ marginTop: 6 }}>{erro}</p>}
+      {(r.seguro_apolice || r.seguro_seguradora) ? <p className="text-xs text-3" style={{ marginTop: 8 }}>Seguro: {r.seguro_seguradora || "—"} · apólice {r.seguro_apolice || "—"}{r.seguro_cobertura_pct ? ` · cobertura de ${r.seguro_cobertura_pct}%` : ""}</p>
+        : <p className="text-xs text-danger" style={{ marginTop: 8 }}>Seguro agrícola não informado neste talhão.</p>}
+    </div>
+  );
+}
+
 // prévia do pagamento no produto com piso (mesma conta do servidor)
 function HarvestPreviewPiso({ r }) {
   const v = r.previa;
@@ -809,10 +845,11 @@ function performanceMotivo(r) {
   return "o lucro do investidor não cobriu o excedente (proteção do investidor)";
 }
 
-function HarvestPreview({ r }) {
+function HarvestPreview({ r, onChanged }) {
   const v = r.previa;
   if (!v) return null;
-  if (r.modelo === "piso" || r.modelo === "custo") return <HarvestPreviewPiso r={r} />;
+  if (r.modelo === "custo") return <><LiquidacaoIndice r={r} onChanged={onChanged} /><HarvestPreviewPiso r={r} /></>;
+  if (r.modelo === "piso") return <HarvestPreviewPiso r={r} />;
   const u = unidadeNome(r.unidade, 1);
   const acima = r.preco_venda_declarado - r.preco_meta;
   return (

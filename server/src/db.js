@@ -551,6 +551,19 @@ ALTER TABLE payouts ADD COLUMN IF NOT EXISTS valor_piso DOUBLE PRECISION;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS custo_ha DOUBLE PRECISION;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS produtividade_ha DOUBLE PRECISION;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS custo_saca DOUBLE PRECISION;
+-- contrato: preço de liquidação por referência pública e regra de quebra de safra
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS indice_referencia TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS base_regional DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS janela_dias INTEGER DEFAULT 15;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS janela_pregoes INTEGER DEFAULT 10;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS seguro_seguradora TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS seguro_apolice TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS seguro_cobertura_pct DOUBLE PRECISION;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS prorrogado_em TIMESTAMPTZ;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS prorrogacao_motivo TEXT;
+ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS preco_indice DOUBLE PRECISION;
+ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS preco_liquidacao DOUBLE PRECISION;
+ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS fonte_indice TEXT;
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS aporte_fazenda DOUBLE PRECISION DEFAULT 0;
 
 -- ===================== Crescimento: lista de espera e indicação =====================

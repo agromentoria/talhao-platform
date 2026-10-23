@@ -10,6 +10,7 @@ import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
 import { dividirPiso } from "../lib/piso";
+import { useRegras } from "../lib/referencias";
 import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasPiso, RegrasCusto } from "../components/domain";
 import { tarifasTexto, quinzenasTexto, armDoTalhao, pagadorTexto } from "../lib/armazenagem";
 
@@ -177,7 +178,8 @@ function CommissionCard({ farm, onSaved, onError }) {
 
 function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreated, setError }) {
   const [warehouseId, setWarehouseId] = useState("");
-  const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "", custo_ha: "", produtividade_ha: "" });
+  const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "", custo_ha: "", produtividade_ha: "", base_regional: "", seguro_seguradora: "", seguro_apolice: "", seguro_cobertura_pct: "" });
+  const regrasApp = useRegras();
   const [cultivo, setCultivo] = useState(emptyCultivo());
   const [arm, setArm] = useState({ pagador: "investidores", quinzenas: 2, investidorPct: 50 });
   const [perf] = useState("0");
@@ -218,8 +220,15 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
       <Field label="Safra / ciclo (ex: 2026/27)" value={form.safra} onChange={(v) => update("safra", v)} required />
       <Field label="Custo de produção por hectare (R$)" type="number" value={form.custo_ha} onChange={(v) => update("custo_ha", v)} required
         hint="Custo operacional efetivo (insumos, operações, mão de obra). Ex.: soja ~R$ 6.100/ha; milho safrinha ~R$ 5.500/ha." />
+      <Field label="Base regional (R$ por unidade)" type="number" value={form.base_regional ?? ""} onChange={(v) => update("base_regional", v)}
+        hint={`Diferença média da sua praça para ${regrasApp?.indices?.[cultivo.grao] || "o índice de referência"}. Negativa se a sua região vende abaixo do índice. O fundo confere.`} />
+      <Field label="Seguradora" value={form.seguro_seguradora ?? ""} onChange={(v) => update("seguro_seguradora", v)} hint="Seguro agrícola é exigido: protege você e os investidores em caso de quebra." />
+      <Field label="Nº da apólice ou proposta" value={form.seguro_apolice ?? ""} onChange={(v) => update("seguro_apolice", v)} />
+      <Field label="Cobertura do seguro (% da produtividade)" type="number" value={form.seguro_cobertura_pct ?? ""} onChange={(v) => update("seguro_cobertura_pct", v)} hint="Mínimo de 65%." />
       <Field label={`Produtividade esperada (${cultivo.unidade === "arroba" ? "arrobas" : "sacas"} por ha)`} type="number" value={form.produtividade_ha} onChange={(v) => update("produtividade_ha", v)} required
-        hint={Number(form.custo_ha) > 0 && Number(form.produtividade_ha) > 0 ? `Custo por unidade: R$ ${(Number(form.custo_ha) / Number(form.produtividade_ha)).toFixed(2).replace(".", ",")} — é o preço que o investidor paga na abertura.` : "Média das últimas safras da área."} />
+        hint={Number(form.custo_ha) > 0 && Number(form.produtividade_ha) > 0
+          ? `Custo por unidade: R$ ${(Number(form.custo_ha) / Number(form.produtividade_ha)).toFixed(2).replace(".", ",")} — é o preço que o investidor paga na abertura.${Number(form.area_ha) > 0 ? ` Você pode oferecer até ${Math.floor(Number(form.area_ha) * Number(form.produtividade_ha) * 0.8).toLocaleString("pt-BR")} unidades (80% da produção esperada).` : ""}`
+          : "Média das últimas safras da área."} />
       <div className="span-all">
         <WarehousePicker warehouses={warehouses} value={warehouseId} onChange={setWarehouseId} />
       </div>
@@ -228,7 +237,8 @@ function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreat
       <div className="span-all card" style={{ padding: 14 }}>
         <p className="card-title" style={{ marginBottom: 8 }}>Resumo das regras deste talhão</p>
         <RegrasCusto custoHa={form.custo_ha} produtividade={form.produtividade_ha} precoEsperado={cultivo.preco} colheitaPrevista={cultivo.colheita_prevista}
-          unidade={cultivo.unidade || "saca"} area={Number(form.area_ha) || 0} paraFazenda />
+          unidade={cultivo.unidade || "saca"} area={Number(form.area_ha) || 0} paraFazenda indice={regrasApp?.indices?.[cultivo.grao]} base={form.base_regional}
+          seguro={{ seguradora: form.seguro_seguradora, cobertura: form.seguro_cobertura_pct }} />
       </div>
       <p className="span-all text-sm text-2">
         Depois de enviar, o talhão passa pela aprovação da administração e pelo aceite do armazém. Ele só aparece para os investidores quando os dois confirmarem.
@@ -346,10 +356,13 @@ function PlotAdminCard({ plot, farmCommission = 0, appPct = 5, references, faseP
     e.preventDefault();
     setSaving(true);
     try {
-      const preco = Number(String(precoVendaReal).replace(",", "."));
-      if (!(preco > 0)) throw new Error("Informe o preço médio de venda por unidade.");
-      // precisão alta: o preço de venda declarado precisa ser reproduzido ao centavo
-      const retornoCalculado = Math.round(((preco / plot.preco_venda_estimado) - 1) * 100 * 1e6) / 1e6;
+      let retornoCalculado = 0;
+      if (plot.modelo !== "custo") {
+        const preco = Number(String(precoVendaReal).replace(",", "."));
+        if (!(preco > 0)) throw new Error("Informe o preço médio de venda por unidade.");
+        // precisão alta: o preço de venda declarado precisa ser reproduzido ao centavo
+        retornoCalculado = Math.round(((preco / plot.preco_venda_estimado) - 1) * 100 * 1e6) / 1e6;
+      }
       await api.finalizeHarvest(plot.id, retornoCalculado, comprovanteTexto, comprovanteImagem);
       setNotice("Solicitação enviada! A administração vai revisar o comprovante antes de liberar o pagamento aos investidores.");
       setShowFinalizeForm(false);
@@ -695,7 +708,8 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
 
 // preço real de venda → retorno calculado e efeito da regra de performance
 function FinalizePreview({ plot, preco, onChange, uid }) {
-  if (plot.modelo === "piso" || plot.modelo === "custo") return <FinalizePreviewPiso plot={plot} preco={preco} onChange={onChange} uid={uid} />;
+  if (plot.modelo === "custo") return <FinalizeLiquidacaoIndice plot={plot} />;
+  if (plot.modelo === "piso") return <FinalizePreviewPiso plot={plot} preco={preco} onChange={onChange} uid={uid} />;
   const u = unitPlural(plot.unidade, 1);
   const p = Number(String(preco).replace(",", "."));
   const meta = plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
@@ -753,6 +767,23 @@ function FinalizePreviewPiso({ plot, preco, onChange, uid }) {
             : <>Venda abaixo do piso: a fazenda completa <strong>{fmtBRL(x.aporteFazenda)}</strong> para garantir o mínimo dos investidores.</>}
         </p>
       )}
+    </div>
+  );
+}
+
+// custo + lucro: a fazenda só informa a colheita; o pagamento usa a referência pública
+function FinalizeLiquidacaoIndice({ plot }) {
+  const u = unitPlural(plot.unidade, 2);
+  const inicio = new Date(new Date(plot.colheita_prevista).getTime() + (plot.janela_dias || 15) * 86400000);
+  return (
+    <div className="card card--well" style={{ padding: 12 }}>
+      <p style={{ fontWeight: 700, marginBottom: 4 }}>Você não precisa informar o preço de venda</p>
+      <p className="text-sm" style={{ lineHeight: 1.5 }}>
+        Você vende o grão quando e para quem quiser. O pagamento aos investidores usa a <strong>média de {plot.janela_pregoes || 10} pregões</strong> de
+        {" "}<strong>{plot.indice_referencia || "referência pública"}</strong> a partir de {inicio.toLocaleDateString("pt-BR")}
+        {Number(plot.base_regional) ? <>, {Number(plot.base_regional) > 0 ? "mais" : "menos"} a base regional de {fmtBRL(Math.abs(Number(plot.base_regional)))}</> : null}.
+        O fundo informa o valor e confere antes de pagar. Descreva abaixo a colheita (quantidade de {u}, armazém e nota de entrada).
+      </p>
     </div>
   );
 }

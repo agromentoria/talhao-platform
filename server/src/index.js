@@ -144,6 +144,8 @@ async function start() {
         niveis: NIVEIS.map(({ id, label, minimo }) => ({ id, label, minimo })),
         piso: require("./piso").REGRAS,
         custo: require("./piso").CUSTO,
+        limites: require("./culturas").LIMITES,
+        indices: require("./culturas").INDICES,
         // taxas de referência para comparar o ganho da safra com o que o mesmo
         // dinheiro renderia no mesmo prazo (ajustáveis por variáveis de ambiente)
         referencias: {

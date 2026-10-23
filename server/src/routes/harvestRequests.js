@@ -46,8 +46,15 @@ router.get("/", asyncHandler(async (req, res) => {
   for (const r of rows) {
     const p = byId[r.plot_id];
     if (!p) { enriched.push(r); continue; }
-    const precoVenda = p.preco_venda_estimado * (1 + Number(r.retorno_final ?? p.previsao_retorno) / 100);
-    const out = { ...r, preco_venda_declarado: precoVenda, preco_meta: p.preco_venda_estimado * (1 + p.previsao_retorno / 100), perf_excedente_pct: p.perf_excedente_pct };
+    // custo + lucro: o preço vem da referência pública informada pelo fundo; antes disso, prévia estimada
+    const custoSemIndice = p.modelo === "custo" && r.preco_liquidacao == null;
+    const precoVenda = p.modelo === "custo"
+      ? Number(r.preco_liquidacao ?? (Number(p.preco_venda_estimado) + Number(p.base_regional || 0)))
+      : p.preco_venda_estimado * (1 + Number(r.retorno_final ?? p.previsao_retorno) / 100);
+    const out = { ...r, preco_estimado: custoSemIndice, indice_referencia: p.indice_referencia, base_regional: Number(p.base_regional || 0),
+      janela_dias: p.janela_dias, janela_pregoes: p.janela_pregoes, colheita_prevista: p.colheita_prevista,
+      seguro_apolice: p.seguro_apolice, seguro_seguradora: p.seguro_seguradora, seguro_cobertura_pct: p.seguro_cobertura_pct,
+      preco_venda_declarado: precoVenda, preco_meta: p.preco_venda_estimado * (1 + p.previsao_retorno / 100), perf_excedente_pct: p.perf_excedente_pct };
     const parteInv = p.warehouse_id ? parteInvestidores(p) : 0;
     if (p.warehouse_id) {
       const vendidas = p.cotas_totais - p.cotas_disponiveis;
@@ -85,6 +92,24 @@ router.get("/", asyncHandler(async (req, res) => {
   res.json({ requests: enriched });
 }));
 
+// o fundo informa a média do índice de referência na janela do contrato;
+// o app soma a base regional e calcula o preço de liquidação
+router.patch("/:id/indice", asyncHandler(async (req, res) => {
+  const media = Number(String(req.body?.preco_indice ?? "").replace(",", "."));
+  if (!(media > 0)) return res.status(400).json({ error: "Informe a média do índice na janela (R$ por unidade)." });
+  const fonte = req.body?.fonte ? String(req.body.fonte).slice(0, 300) : null;
+  const { rows } = await pool.query(
+    "SELECT hr.*, p.preco_venda_estimado, p.base_regional, p.modelo, p.indice_referencia FROM harvest_requests hr JOIN plots p ON p.id = hr.plot_id WHERE hr.id = $1", [req.params.id]);
+  const r = rows[0];
+  if (!r) return res.status(404).json({ error: "Solicitação não encontrada." });
+  if (r.status !== "pendente") return res.status(409).json({ error: "Esta solicitação já foi revisada." });
+  const liquidacao = Math.round((media + Number(r.base_regional || 0)) * 100) / 100;
+  const retorno = (liquidacao / Number(r.preco_venda_estimado) - 1) * 100;
+  await pool.query("UPDATE harvest_requests SET preco_indice = $1, preco_liquidacao = $2, fonte_indice = $3, retorno_final = $4 WHERE id = $5",
+    [media, liquidacao, fonte || r.indice_referencia, retorno, r.id]);
+  res.json({ preco_indice: media, preco_liquidacao: liquidacao, retorno_final: retorno });
+}));
+
 router.post("/:id/approve", asyncHandler(async (req, res) => {
   const { rows: reqRows } = await pool.query("SELECT * FROM harvest_requests WHERE id = $1", [req.params.id]);
   const request = reqRows[0];
@@ -97,6 +122,9 @@ router.post("/:id/approve", asyncHandler(async (req, res) => {
   const plot = plotRows[0];
   if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });
 
+  if (plot.modelo === "custo" && request.preco_liquidacao == null) {
+    return res.status(409).json({ error: "Informe antes a média do índice de referência na janela do contrato: o pagamento usa o preço público, não o declarado pela fazenda." });
+  }
   // com armazém garantidor, o pagamento só sai depois da armazenagem confirmada
   const bloqueio = await harvestBlockReason(pool, plot);
   if (bloqueio) return res.status(409).json({ error: bloqueio });

@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import LegalPage from "./LegalPage";
-import { EMPRESA } from "./empresa";
+import { useEmpresa } from "./empresa";
 
 export default function Terms() {
+  const EMPRESA = useEmpresa();
   return (
     <LegalPage title="Termos de Uso">
       <p>Ao criar uma conta no Meu Talhão você concorda com estes termos, com a <Link to="/privacidade">Política de Privacidade</Link> e com os <Link to="/compliance">avisos de risco</Link>. O app é operado por {EMPRESA.razaoSocial}, CNPJ {EMPRESA.cnpj}.</p>

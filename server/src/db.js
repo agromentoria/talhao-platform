@@ -576,6 +576,8 @@ CREATE INDEX IF NOT EXISTS idx_plot_documents_plot ON plot_documents(plot_id, ti
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS seguro_anexado BOOLEAN DEFAULT false;
 -- LGPD: registro do aceite dos termos e da política (data e versão) e do consentimento de avisos
 ALTER TABLE users ADD COLUMN IF NOT EXISTS termos_aceitos_em TIMESTAMPTZ;
+-- dados da empresa exibidos nas páginas legais (editáveis pela administração)
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS legal_empresa JSONB;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS termos_versao TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS consentimento_avisos BOOLEAN DEFAULT true;
 ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS preco_liquidacao DOUBLE PRECISION;

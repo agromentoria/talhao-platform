@@ -1,7 +1,8 @@
 import LegalPage from "./LegalPage";
-import { EMPRESA } from "./empresa";
+import { useEmpresa } from "./empresa";
 
 export default function Privacy() {
+  const EMPRESA = useEmpresa();
   return (
     <LegalPage title="Política de Privacidade">
       <p>Esta política explica como o Meu Talhão trata os seus dados pessoais, conforme a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>

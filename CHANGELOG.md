@@ -1,5 +1,11 @@
 # Registro de mudanças
 
+## 3.6.1 — dados da empresa editáveis pela administração
+
+- Nova aba **Administração › Dados da empresa** (só perfil admin): razão social, CNPJ, endereço, encarregado de dados (DPO), e-mails de privacidade, compliance e ouvidoria, plataforma CVM parceira e foro. Validação de CNPJ (14 dígitos) e e-mails.
+- Os dados ficam no servidor (`platform_settings.legal_empresa`) e são lidos pela Política de Privacidade, Termos e Compliance (`GET /api/legal/empresa`, público). Enquanto houver campo em branco, as páginas mostram um aviso.
+- `client/src/pages/legal/empresa.js` passa a guardar só os marcadores padrão.
+
 ## 3.6.0 — ajustes finais para ir ao ar
 
 - **Tela de abertura no desktop e tablet:** a arte (desenhada em pé, 9:16) aparece inteira e centralizada em telas largas; no celular continua cobrindo a tela.

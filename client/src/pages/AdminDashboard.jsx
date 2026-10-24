@@ -22,6 +22,7 @@ const TABS = [
   { id: "mercado", label: "Referência de mercado", icon: Wheat },
   { id: "destaques", label: "Pontuação", icon: Star, soAdmin: true },
   { id: "equipe", label: "Equipe do fundo", icon: Users, soAdmin: true },
+  { id: "empresa", label: "Dados da empresa", icon: Building2, soAdmin: true },
 ];
 
 export default function AdminDashboard() {
@@ -335,6 +336,7 @@ export default function AdminDashboard() {
       )}
 
       {tab === "equipe" && isAdmin && <EquipeFundo />}
+      {tab === "empresa" && isAdmin && <DadosEmpresa />}
 
       {tab === "talhoes" && (
         <div className="stack">
@@ -939,3 +941,52 @@ function Stat({ label, value, icon: Icon }) {
   );
 }
 
+
+// Dados da empresa exibidos na Política de Privacidade, nos Termos e em Compliance
+const CAMPOS_EMPRESA = [
+  ["razaoSocial", "Razão social", "Como consta no CNPJ"],
+  ["cnpj", "CNPJ", "Só números ou com pontuação"],
+  ["endereco", "Endereço da sede", "Rua, número, cidade/UF, CEP"],
+  ["encarregado", "Encarregado de dados (DPO)", "Nome da pessoa ou empresa responsável pela LGPD"],
+  ["emailPrivacidade", "E-mail de privacidade", "Para pedidos de titulares (LGPD)"],
+  ["emailCompliance", "E-mail de compliance e denúncias", ""],
+  ["emailOuvidoria", "E-mail da ouvidoria", ""],
+  ["plataformaCvm", "Plataforma CVM parceira", "Nome da plataforma de investimento participativo registrada na CVM que distribui as ofertas"],
+  ["foro", "Foro", "Cidade/UF"],
+];
+function DadosEmpresa() {
+  const toast = useToast();
+  const [form, setForm] = useState(null);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  useEffect(() => { api.empresaAdmin().then((d) => setForm(d.empresa)).catch((e) => setErro(e.message)); }, []);
+  async function salvar() {
+    setSalvando(true); setErro("");
+    try {
+      const d = await api.salvarEmpresa(form); setForm(d.empresa);
+      const { limparCacheEmpresa } = await import("./legal/empresa"); limparCacheEmpresa();
+      toast("Dados da empresa salvos. As páginas legais já mostram os novos dados.");
+    } catch (e) { setErro(e.message); } finally { setSalvando(false); }
+  }
+  if (!form) return <p className="text-sm text-2">{erro || "Carregando…"}</p>;
+  const faltando = CAMPOS_EMPRESA.filter(([k]) => !String(form[k] || "").trim()).length;
+  return (
+    <section className="card" style={{ maxWidth: 760 }}>
+      <h2 className="card-title">Dados da empresa nas páginas legais</h2>
+      <p className="card-desc" style={{ marginBottom: 14 }}>
+        Aparecem na Política de Privacidade (LGPD), nos Termos de uso e em Compliance e avisos de risco. {faltando ? <strong className="text-danger">{faltando} campo(s) em branco: as páginas mostram um aviso até tudo ser preenchido.</strong> : "Tudo preenchido."}
+      </p>
+      <div className="form-grid">
+        {CAMPOS_EMPRESA.map(([k, label, hint]) => (
+          <TextField key={k} label={label} hint={hint} value={form[k] || ""} onChange={(v) => setForm((f) => ({ ...f, [k]: v }))} />
+        ))}
+      </div>
+      {erro && <p className="text-sm text-danger" style={{ marginTop: 8 }}>{erro}</p>}
+      <div className="row" style={{ gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+        <Button onClick={salvar} loading={salvando}>Salvar</Button>
+        <Button variant="ghost" to="/privacidade">Ver Política de Privacidade</Button>
+        <Button variant="ghost" to="/compliance">Ver Compliance</Button>
+      </div>
+    </section>
+  );
+}

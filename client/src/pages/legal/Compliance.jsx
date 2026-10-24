@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import LegalPage from "./LegalPage";
-import { EMPRESA } from "./empresa";
+import { useEmpresa } from "./empresa";
 
 export default function Compliance() {
+  const EMPRESA = useEmpresa();
   return (
     <LegalPage title="Compliance e avisos de risco">
       <h2>Aviso importante</h2>

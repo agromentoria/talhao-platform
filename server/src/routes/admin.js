@@ -14,6 +14,21 @@ const router = express.Router();
 router.use(requireAuth, requireRole("admin", "fundo"));
 const onlyAdmin = (req, res, next) => (req.user.role === "admin" ? next() : res.status(403).json({ error: "Somente a administração pode fazer isso." }));
 
+// dados da empresa nas páginas legais: só a administração da plataforma edita
+router.get("/empresa", asyncHandler(async (req, res) => {
+  res.json({ empresa: await require("../settings").getEmpresa() });
+}));
+router.put("/empresa", requireRole("admin"), asyncHandler(async (req, res) => {
+  const { setEmpresa } = require("../settings");
+  const d = req.body || {};
+  const cnpj = String(d.cnpj || "").replace(/\D/g, "");
+  if (d.cnpj && cnpj.length !== 14) return res.status(400).json({ error: "CNPJ precisa ter 14 dígitos." });
+  for (const k of ["emailPrivacidade", "emailCompliance", "emailOuvidoria"]) {
+    if (d[k] && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d[k])) return res.status(400).json({ error: "Confira os e-mails informados." });
+  }
+  res.json({ empresa: await setEmpresa(d) });
+}));
+
 router.get("/settings", asyncHandler(async (req, res) => {
   const app_commission_pct = await getAppCommissionPct();
   res.json({ app_commission_pct });

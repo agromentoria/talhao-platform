@@ -156,6 +156,8 @@ export const api = {
 
   culturas: () => request("/culturas", { auth: false }),
   regras: () => request("/regras", { auth: false }),
+  taxaInvestidor: () => request("/admin/taxa-investidor"),
+  updateTaxaInvestidor: (body) => request("/admin/taxa-investidor", { method: "PUT", body }),
   plotApprovals: () => request("/admin/plot-approvals"),
   approvePlot: (id) => request(`/admin/plot-approvals/${id}/approve`, { method: "POST" }),
   rejectPlot: (id, motivo) => request(`/admin/plot-approvals/${id}/reject`, { method: "POST", body: { motivo } }),

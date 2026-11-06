@@ -33,8 +33,8 @@ export function Stat({ label, value, icon: Icon, tone, hint }) {
 function agrupar(investments) {
   const porTalhao = new Map();
   for (const i of investments) {
-    const g = porTalhao.get(i.plot_id) || { ...i, cotas: 0, valor_investido: 0, valor_liquido: 0, compras: [] };
-    g.cotas += Number(i.cotas); g.valor_investido += Number(i.valor_investido); g.valor_liquido += Number(i.valor_liquido || 0);
+    const g = porTalhao.get(i.plot_id) || { ...i, cotas: 0, valor_investido: 0, total_pago: 0, valor_liquido: 0, compras: [] };
+    g.cotas += Number(i.cotas); g.valor_investido += Number(i.valor_investido); g.total_pago += Number(i.total_pago ?? i.valor_investido); g.valor_liquido += Number(i.valor_liquido || 0);
     g.compras.push(i);
     if (i.status === "ativo") g.status = "ativo";
     porTalhao.set(i.plot_id, g);
@@ -67,7 +67,7 @@ export default function Portfolio() {
   const naRoca = grupos.filter((g) => g.status === "ativo");
   // totais por unidade (sacas, arrobas, litros…) — não dá para somar boi com soja
   const porUnidade = Object.entries(naRoca.reduce((acc, g) => { acc[g.unidade] = (acc[g.unidade] || 0) + g.cotas; return acc; }, {}));
-  const pagoNaRoca = naRoca.reduce((s, g) => s + g.valor_investido, 0);
+  const pagoNaRoca = naRoca.reduce((s, g) => s + g.total_pago, 0); // preço + taxa de entrada
   const valeHoje = naRoca.reduce((s, g) => s + g.valorHoje, 0);
   const variacao = pagoNaRoca ? ((valeHoje - pagoNaRoca) / pagoNaRoca) * 100 : 0;
   const recebido = grupos.filter((g) => g.status === "pago").reduce((s, g) => s + g.valor_liquido, 0);
@@ -131,7 +131,7 @@ export default function Portfolio() {
           <ul className="stack" style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {filtrados.map((g) => {
               const u = unidadeNome(g.unidade, g.cotas);
-              const ganho = g.valorHoje - g.valor_investido;
+              const ganho = g.valorHoje - g.total_pago;
               return (
                 <li key={g.plot_id} className="card" style={{ padding: 16 }}>
                   <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -154,11 +154,11 @@ export default function Portfolio() {
                       <p className="text-sm" style={{ marginTop: 10 }}>
                         Valem hoje <strong>{fmtBRL(g.valorHoje)}</strong>
                         <span className={ganho >= 0 ? "text-success" : "text-danger"}> ({ganho >= 0 ? "+" : ""}{fmtBRL(ganho)})</span>
-                        <span className="text-3"> · você pagou {fmtBRL(g.valor_investido)}</span>
+                        <span className="text-3"> · você pagou {fmtBRL(g.total_pago)}{g.total_pago - g.valor_investido > 0.004 ? ` (${fmtBRL(g.valor_investido)} + ${fmtBRL(g.total_pago - g.valor_investido)} de taxa de entrada)` : ""}</span>
                       </p>
                     </>
                   ) : (
-                    <p className="text-sm">Colhido e pago: você recebeu <strong className="text-success">{fmtBRL(g.valor_liquido)}</strong> (pagou {fmtBRL(g.valor_investido)}).</p>
+                    <p className="text-sm">Colhido e pago: você recebeu <strong className="text-success">{fmtBRL(g.valor_liquido)}</strong> (pagou {fmtBRL(g.total_pago)}{g.total_pago - g.valor_investido > 0.004 ? `, com a taxa de entrada` : ""}).</p>
                   )}
                   <div className="row" style={{ marginTop: 12 }}>
                     <Button size="sm" variant="secondary" icon={BookOpen} to={`/talhao/${g.plot_id}#diario`}>Diário do talhão</Button>

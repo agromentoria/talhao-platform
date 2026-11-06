@@ -8,7 +8,7 @@ import { fmtBRL, fmtNumber, fmtPct } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/layout/Page";
-import { Stars, RegrasTalhao, RegrasPiso, RegrasCusto } from "../components/domain";
+import { Stars, RegrasTalhao, RegrasPiso, RegrasCusto, PainelTaxaInvestidor } from "../components/domain";
 import { TextField, FilterChips, Button, Banner, ErrorBanner, Tabs, EmptyState, Badge, useDialog, useToast } from "../components/ui";
 
 
@@ -273,6 +273,8 @@ export default function AdminDashboard() {
               </p>
             </div>
           )}
+
+          <PainelTaxaInvestidor editavel={isAdmin} />
 
           <section className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
@@ -857,7 +859,12 @@ function HarvestPreviewPiso({ r }) {
         <div><dt>Investidores · mínimo garantido</dt><dd>{fmtBRL(v.valorPiso)}</dd></div>
         <div><dt>{r.modelo === "custo" ? "Investidores · acima do mínimo (30% do lucro)" : "Investidores · 30% da alta"}</dt><dd>{fmtBRL(Math.max(0, v.investidores - v.valorPiso))}</dd></div>
         <div><dt>Investidores recebem</dt><dd><strong>{fmtBRL(v.investidores)}</strong></dd></div>
-        <div><dt>{r.modelo === "custo" ? "Plataforma · estruturação + 5% do lucro" : "Plataforma · estruturação + 10% da alta"}</dt><dd>{fmtBRL(v.estruturacao)} + {fmtBRL(v.plataformaExcedente)}</dd></div>
+        {r.modelo === "custo"
+          ? <>
+              <div><dt>Plataforma · 5% do lucro (saída)</dt><dd>{fmtBRL(v.plataformaExcedente)}</dd></div>
+              <div><dt>Entradas já cobradas · fazenda {fmtBRL(v.estruturacaoEntrada)} + investidores {fmtBRL(v.taxaInvestidores || 0)}</dt><dd>{fmtBRL((v.estruturacaoEntrada || 0) + (v.taxaInvestidores || 0))}</dd></div>
+            </>
+          : <div><dt>Plataforma · estruturação + 10% da alta</dt><dd>{fmtBRL(v.estruturacao)} + {fmtBRL(v.plataformaExcedente)}</dd></div>}
         <div><dt>Armazém · custódia + armazenagem</dt><dd>{fmtBRL(v.custodia)} + {fmtBRL(v.armazenagem)}</dd></div>
         <div><dt>Fundo · gestão</dt><dd>{fmtBRL(v.fundo)}</dd></div>
         <div className="total"><dt>{v.fazendaLiquido >= 0 ? (r.modelo === "custo" ? "Fazenda fica com (lucro − taxas)" : "Fazenda fica com (60% da alta − taxas)") : "Aporte da fazenda"}</dt>

@@ -14,3 +14,4 @@ export { default as BoasVindas } from "./BoasVindas";
 export { ListaDeEspera, IndiqueEGanhe } from "./Crescimento";
 export { default as RegrasPiso } from "./RegrasPiso";
 export { default as RegrasCusto } from "./RegrasCusto";
+export { default as PainelTaxaInvestidor } from "./PainelTaxaInvestidor";

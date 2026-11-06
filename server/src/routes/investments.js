@@ -77,14 +77,25 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     const precoUnit = plot.modelo === "piso" || plot.modelo === "custo" ? require("../piso").precoAtualPiso(plot) : Number(plot.cota_valor);
     const valorInvestido = qtd * precoUnit;
 
+    // Taxa de entrada do investidor (plano v9): vale o degrau do dia da compra e
+    // fica congelada até a liquidação. Só no modelo Custo + Lucro.
+    let taxaPct = 0, taxaValor = 0;
+    if (plot.modelo === "custo") {
+      const { taxaInvestidorAtual } = require("../taxaInvestidor");
+      const { taxaInvestidorValor } = require("../piso");
+      taxaPct = (await taxaInvestidorAtual(client)).pct;
+      taxaValor = taxaInvestidorValor(valorInvestido, taxaPct);
+    }
+    const totalPago = Math.round((valorInvestido + taxaValor) * 100) / 100;
+
     await client.query(
       "UPDATE plots SET cotas_disponiveis = cotas_disponiveis - $1 WHERE id = $2",
       [qtd, plot.id]
     );
 
     const { rows: invRows } = await client.query(
-      "INSERT INTO investments (user_id, plot_id, cotas, valor_investido, preco_unitario) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [req.user.id, plot.id, qtd, valorInvestido, precoUnit]
+      "INSERT INTO investments (user_id, plot_id, cotas, valor_investido, preco_unitario, taxa_investidor_pct, taxa_investidor, total_pago) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+      [req.user.id, plot.id, qtd, valorInvestido, precoUnit, taxaPct, taxaValor, totalPago]
     );
     const investment = invRows[0];
 
@@ -103,6 +114,21 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
       paymentMethodId: paymentMethod ? paymentMethod.id : null,
       description: `Compra de ${qtd} ${unidadeTexto(plot.unidade, qtd)} em ${plot.nome}`,
     });
+    // ENTRADA do investidor: cobrada junto, na mesma transação da compra
+    if (taxaValor > 0) {
+      await recordTransaction(client, {
+        type: "taxa_investidor",
+        status: "aprovado",
+        userId: req.user.id,
+        farmId: plot.farm_id,
+        plotId: plot.id,
+        investmentId: investment.id,
+        amount: taxaValor,
+        paymentMethodType: payment_method_type,
+        paymentMethodId: paymentMethod ? paymentMethod.id : null,
+        description: `Taxa de entrada do investidor: ${taxaPct}% sobre ${fmtBRL(valorInvestido)} em ${plot.nome} (congelada até a liquidação)`,
+      });
+    }
 
     await client.query("COMMIT");
     // devolve a conexão ANTES dos avisos: eles usam outras conexões do pool e,
@@ -138,7 +164,7 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
         plotId: plot.id,
         type: "compra_confirmada",
         title: "Compra confirmada",
-        body: `Sua compra de ${qtd} ${unidadeTexto(plot.unidade, qtd)} em ${plot.nome} foi confirmada. Valor: ${fmtBRL(valorInvestido)}.`,
+        body: `Sua compra de ${qtd} ${unidadeTexto(plot.unidade, qtd)} em ${plot.nome} foi confirmada. Valor: ${fmtBRL(valorInvestido)}${taxaValor > 0 ? ` + taxa de entrada de ${fmtBRL(taxaValor)} (${taxaPct}%), total de ${fmtBRL(totalPago)}` : ""}.`,
       });
 
       if (farm.owner_user_id) {

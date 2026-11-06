@@ -1,5 +1,16 @@
 # Registro de mudanças
 
+## 3.7.0 — plano v9: taxa de entrada do investidor em degraus
+
+- **Taxa de entrada do investidor** (modelo Custo + Lucro): 0,5% até 5 mil ha contratados e retenção de investidores acima de 60%; 0,75% até 24 mil ha; 1% depois, só com margem positiva medida por talhão. Paga por cima do preço das sacas.
+- **Taxa congelada na compra:** cada investimento grava `taxa_investidor_pct`, `taxa_investidor` (R$) e `total_pago`; a taxa nunca é recalculada pelo degrau vigente. Nova transação `taxa_investidor` no livro-razão, gravada na mesma transação da compra.
+- **Mínimo sobre o total pago:** o mínimo de 95% do CDI passa a valer sobre preço + taxa (`custo × (1 + mínimo%) × (1 + taxa%)` por saca). Limiar em que o investidor passa a dividir o lucro (30%) sobe junto (R$ 126,27 / 127,18 / 128,08 no exemplo de R$ 102,15 por saca e 6,55% no prazo).
+- **Piso de entrada da fazenda:** talhões com menos de 100 ha pagam taxa de entrada mínima de R$ 4,9 mil; o complemento sobre o 1% já cobrado é lançado no pagamento da colheita.
+- **Administração:** novo painel *Taxa de entrada do investidor* (hectares contratados, retenção automática ou medida, confirmação de margem positiva, taxa fixada em exceção) — `GET/PUT /api/admin/taxa-investidor`. Financeiro separa *entrada da fazenda* e *entrada do investidor*; prévia de pagamento mostra as entradas já cobradas.
+- **Telas:** compra mostra preço + taxa + total a pagar; quadro de regras e *Como funciona* explicam degraus, congelamento e o mínimo sobre o total pago; carteira mostra o total pago e o ganho sobre ele; Termos de uso atualizados. `/api/regras` devolve o degrau vigente (`taxa_investidor`).
+- **Carga de demonstração** grava a taxa congelada (degrau 1) e usa o total pago nos resultados.
+- Banco: colunas novas em `investments` e `platform_settings` (migração automática; compras antigas ficam com taxa 0).
+
 ## 3.6.1 — dados da empresa editáveis pela administração
 
 - Nova aba **Administração › Dados da empresa** (só perfil admin): razão social, CNPJ, endereço, encarregado de dados (DPO), e-mails de privacidade, compliance e ouvidoria, plataforma CVM parceira e foro. Validação de CNPJ (14 dígitos) e e-mails.

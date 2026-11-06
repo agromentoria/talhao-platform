@@ -24,6 +24,7 @@
 const bcrypt = require("bcryptjs");
 const { pool } = require("../src/db");
 const { minimoPct, calcularPagamentoCusto, REGRAS, CUSTO } = require("../src/piso");
+const TAXA_DEMO_PCT = require("../src/piso").TAXA_INVESTIDOR.degrau1_pct; // dados de demonstração: degrau 1 do plano v9
 const { despesaPrevista } = require("../src/storageFees");
 
 const D_FAZ = "carga-safrinha.meutalhao.com.br";      // mesmo domínio da carga anterior (é limpa junto)
@@ -315,13 +316,14 @@ async function limpar(client) {
             const preco = c2(custoSaca * Math.pow(1 + piso / 100, Math.min(1, diasEntre(pub, quando) / dias))); // preço do dia sobre o custo
             let q = Math.max(1, Math.round((v.ana ? entre(1500, 6000) : ticket()) / preco));
             q = Math.min(q, alvo - vendidas); if (q <= 0) break;
-            compras.push({ user: v.id, q, preco, valor: c2(q * preco), quando, v });
+            const valor = c2(q * preco), taxa = TAXA_DEMO_PCT, taxaValor = c2(valor * taxa / 100); // degrau 1 (0,5%), congelada na compra
+            compras.push({ user: v.id, q, preco, valor, taxa, taxaValor, total: c2(valor + taxaValor), quando, v });
             vendidas += q; v.compras++;
           }
           const iids = await ids(client, "investments_id_seq", compras.length);
           compras.forEach((x, k) => { x.id = iids[k]; });
-          await bulk(client, "investments", ["id", "user_id", "plot_id", "cotas", "valor_investido", "preco_unitario", "status", "created_at"],
-            compras.map((x) => [x.id, x.user, plot.id, x.q, x.valor, x.preco, S.paga ? "pago" : "ativo", x.quando.toISOString()]));
+          await bulk(client, "investments", ["id", "user_id", "plot_id", "cotas", "valor_investido", "preco_unitario", "taxa_investidor_pct", "taxa_investidor", "total_pago", "status", "created_at"],
+            compras.map((x) => [x.id, x.user, plot.id, x.q, x.valor, x.preco, x.taxa, x.taxaValor, x.total, S.paga ? "pago" : "ativo", x.quando.toISOString()]));
           await bulk(client, "transactions", ["type", "status", "user_id", "farm_id", "plot_id", "investment_id", "amount", "payment_method_type", "description", "created_at"],
             compras.map((x) => ["compra_cota", "aprovado", x.user, fz.id, plot.id, x.id, x.valor, rnd() < 0.85 ? "pix" : "cartao", `Compra de ${x.q} ${c.unidade}s de ${c.grao} em ${nome}`, x.quando.toISOString()]));
           await client.query("UPDATE plots SET cotas_disponiveis = cotas_totais - $1 WHERE id = $2", [vendidas, plot.id]);
@@ -329,7 +331,11 @@ async function limpar(client) {
           await bulk(client, "transactions", ["type", "status", "user_id", "farm_id", "plot_id", "investment_id", "amount", "description", "created_at"],
             compras.map((x) => ["taxa_estruturacao", "aprovado", null, fz.id, plot.id, x.id, c2(x.valor * CUSTO.estruturacao_pct / 100),
               `Taxa de entrada do app: ${CUSTO.estruturacao_pct}% sobre a captação de ${nome} (paga pela fazenda)`, x.quando.toISOString()]));
-          resumo.entrada = (resumo.entrada || 0) + compras.reduce((s, x) => s + x.valor, 0) * CUSTO.estruturacao_pct / 100;
+          // ENTRADA do investidor (plano v9): taxa congelada de cada compra
+          await bulk(client, "transactions", ["type", "status", "user_id", "farm_id", "plot_id", "investment_id", "amount", "description", "created_at"],
+            compras.map((x) => ["taxa_investidor", "aprovado", x.user, fz.id, plot.id, x.id, x.taxaValor,
+              `Taxa de entrada do investidor: ${x.taxa}% sobre ${x.valor.toFixed(2)} em ${nome} (congelada até a liquidação)`, x.quando.toISOString()]));
+          resumo.entrada = (resumo.entrada || 0) + compras.reduce((s, x) => s + x.valor, 0) * CUSTO.estruturacao_pct / 100 + compras.reduce((s, x) => s + x.taxaValor, 0);
           resumo.compras += compras.length; resumo.gmv += compras.reduce((s, x) => s + x.valor, 0);
           // indicação: a 1ª compra de quem foi indicado gera o bônus
           const rec = [];
@@ -342,7 +348,7 @@ async function limpar(client) {
           if (S.paga && compras.length) {
             const pagoEm = maisDias(colheita, int(28, 40));
             const desp = despesaPrevista(plot, { unidades: vendidas, precoVenda }).total;
-            const r = calcularPagamentoCusto(plot, compras.map((x) => ({ id: x.id, user_id: x.user, cotas: x.q, valor_investido: x.valor })), precoVenda, { despesaArmazenagem: desp });
+            const r = calcularPagamentoCusto(plot, compras.map((x) => ({ id: x.id, user_id: x.user, cotas: x.q, valor_investido: x.valor, taxa_investidor_pct: x.taxa, taxa_investidor: x.taxaValor })), precoVenda, { despesaArmazenagem: desp });
             await client.query(`INSERT INTO harvest_requests (plot_id, farm_id, retorno_final, comprovante_texto, status, requested_by, reviewed_by, created_at, reviewed_at)
               VALUES ($1,$2,$3,$4,'aprovado',$5,$6,$7,$8)`, [plot.id, fz.id, retorno, `Venda de ${vendidas.toLocaleString("pt-BR")} ${c.unidade}s a R$ ${precoVenda.toFixed(2).replace(".", ",")} (nota fiscal anexada).`,
               fz.owner, aprovador, maisDias(pagoEm, -5).toISOString(), pagoEm.toISOString()]);
@@ -363,7 +369,7 @@ async function limpar(client) {
             await bulk(client, "notifications", ["recipient_user_id", "sender_role", "farm_id", "plot_id", "type", "title", "body", "read_at", "created_at"],
               Object.entries(porUser).map(([u, v]) => [Number(u), "sistema", fz.id, plot.id, "pagamento_recebido", "Você recebeu um pagamento",
                 `A colheita de ${nome} foi paga. Você recebeu R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`, rnd() < 0.85 ? pagoEm.toISOString() : null, pagoEm.toISOString()]));
-            resumo.pagos++; resumo.invRecebido += r.investidores; resumo.invAplicado += r.captado; resumo.fazAlta += r.fazendaExcedente;
+            resumo.pagos++; resumo.invRecebido += r.investidores; resumo.invAplicado += r.captado + r.taxaInvestidores; // total pago: preço + taxa de entrada resumo.fazAlta += r.fazendaExcedente;
             resumo.fazCusto += r.fazendaLiquido - r.captado * CUSTO.estruturacao_pct / 100; resumo.plataforma += r.plataforma; resumo.armazem += r.armazem;
             resumo.fazLucroBanco = (resumo.fazLucroBanco || 0) + (r.valorVenda - r.captado - r.captado * (Math.pow(1.18, dias / 365) - 1)) - r.armazenagem;
           }
@@ -384,8 +390,8 @@ async function limpar(client) {
     console.log(`Armazéns: ${armazens.map((a) => a.name).join(" · ")}`);
     console.log(`Fazendas: 20 · talhões: ${resumo.talhoes} (${resumo.pagos} colhidos e pagos) · compras: ${f(resumo.compras)} · GMV do ano: R$ ${f(resumo.gmv)}`);
     console.log(`Investidores: ${f(invs.length)} cadastrados, ${f(ativos)} compraram, ${f(recompra)} compraram mais de uma vez · ${novasRecompensas.size} chegaram por indicação`);
-    console.log(`Safras pagas: investidores aplicaram R$ ${f(resumo.invAplicado)} e receberam R$ ${f(resumo.invRecebido)} (+${((resumo.invRecebido / resumo.invAplicado - 1) * 100).toFixed(2)}%)`);
-    console.log(`Fazendas: lucro de R$ ${f(resumo.fazCusto)} nas sacas financiadas (com crédito bancário a 18% a.a. seria R$ ${f(resumo.fazLucroBanco)}) · plataforma: entrada R$ ${f(resumo.entrada || 0)} (todas as safras) + saída R$ ${f(resumo.plataforma)} (safras pagas) · armazéns R$ ${f(resumo.armazem)}`);
+    console.log(`Safras pagas: investidores pagaram (preço + taxa de entrada) R$ ${f(resumo.invAplicado)} e receberam R$ ${f(resumo.invRecebido)} (+${((resumo.invRecebido / resumo.invAplicado - 1) * 100).toFixed(2)}%)`);
+    console.log(`Fazendas: lucro de R$ ${f(resumo.fazCusto)} nas sacas financiadas (com crédito bancário a 18% a.a. seria R$ ${f(resumo.fazLucroBanco)}) · plataforma: entradas de fazenda e investidor R$ ${f(resumo.entrada || 0)} (todas as safras) + saída R$ ${f(resumo.plataforma)} (safras pagas) · armazéns R$ ${f(resumo.armazem)}`);
     console.log(`Logins de demonstração (senha ${SENHA}): fazendas <nome>@${D_FAZ} · investidores <nome.sobrenome>@${D_INV} · armazéns <nome>@${D_ARM}`);
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});

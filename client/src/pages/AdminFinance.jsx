@@ -17,7 +17,8 @@ const TIPOS = {
   performance_fazenda: { label: "Performance da fazenda", curto: "Performance", cor: "#D9822B", tone: "info" },
   aporte_fazenda: { label: "Aporte da fazenda (piso)", curto: "Aporte", cor: "#A33A1E", tone: "warning" },
   gestao_fundo: { label: "Gestão do fundo", curto: "Fundo", cor: "#2F4318", tone: "info" },
-  taxa_estruturacao: { label: "Taxa de entrada (1% do captado)", curto: "Entrada", cor: "#D9A400", tone: "success" },
+  taxa_estruturacao: { label: "Taxa de entrada da fazenda (1% do captado)", curto: "Entrada fazenda", cor: "#D9A400", tone: "success" },
+  taxa_investidor: { label: "Taxa de entrada do investidor (0,5% a 1%)", curto: "Entrada investidor", cor: "#E8B923", tone: "success" },
   tarifa_armazem: { label: "Tarifa de armazenagem", curto: "Armazenagem", cor: "#6B8CAE", tone: undefined },
   comissao_plataforma: { label: "Comissão da plataforma", curto: "Plataforma", cor: "#C9A227", tone: "warning" },
 };

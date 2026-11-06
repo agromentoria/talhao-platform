@@ -110,7 +110,7 @@ export default function FarmWallet() {
               );
             }
             const titulo = t.type === "compra_cota" ? "Venda antecipada" : t.type === "performance_fazenda" ? "Performance acima da meta"
-              : t.type === "aporte_fazenda" ? "Piso dos investidores e taxas" : t.type === "taxa_estruturacao" ? "Taxa de entrada do app (1%)" : t.plot_modelo === "piso" || /alta/.test(t.description || "") ? "Sua parte da alta" : "Comissão até a meta";
+              : t.type === "aporte_fazenda" ? "Piso dos investidores e taxas" : t.type === "taxa_estruturacao" ? "Taxa de entrada do app" : t.plot_modelo === "piso" || /alta/.test(t.description || "") ? "Sua parte da alta" : "Comissão até a meta";
             const saida = t.type === "aporte_fazenda" || t.type === "taxa_estruturacao";
             return (
               <li key={t.id} className="list-item">

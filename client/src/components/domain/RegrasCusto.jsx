@@ -3,14 +3,17 @@ import { Sprout, Info } from "lucide-react";
 import { fmtBRL, fmtPct, fmtNumber } from "../../lib/format";
 import { unidadeNome } from "../../config/culturas";
 import { useRegras, rendimentoNoPrazo, REFERENCIAS_PADRAO } from "../../lib/referencias";
-import { prazoDias, diasDesde, precoNoDia, CUSTO_PADRAO, minimoPct as calcMin, ganhoInvestidorCusto, recebeCusto } from "../../lib/piso";
+import { prazoDias, diasDesde, precoNoDia, CUSTO_PADRAO, TAXA_INVESTIDOR_PADRAO, minimoPct as calcMin, ganhoInvestidorCusto, recebeCusto, limiarCusto, minimoPorSaca } from "../../lib/piso";
 
 // Quadro do modelo "Custo + Lucro": o investidor paga o custo de produção e
 // fica com 30% do lucro; a fazenda fica com 65% e com a boa safra.
 export default function RegrasCusto({ custoHa, produtividade, precoEsperado, piso, pisoDias, publicadoEm, colheitaPrevista, unidade = "saca", area, paraFazenda = false,
-  indice, base, janelaDias = 15, janelaPregoes = 10, seguro, prorrogacao }) {
+  indice, base, janelaDias = 15, janelaPregoes = 10, seguro, prorrogacao, taxaInvestidorPct }) {
   const regras = useRegras();
   const R = regras?.custo || CUSTO_PADRAO;
+  // taxa de entrada do investidor: a congelada de uma compra já feita, ou o degrau vigente hoje
+  const TI = regras?.taxa_investidor || TAXA_INVESTIDOR_PADRAO;
+  const taxa = taxaInvestidorPct != null && taxaInvestidorPct !== "" ? Number(taxaInvestidorPct) : Number(TI.pct);
   const ref = regras?.referencias || REFERENCIAS_PADRAO;
   const ch = Number(custoHa) || 0, pr = Number(produtividade) || 0, M = Number(precoEsperado) || 0;
   if (!(ch > 0 && pr > 0 && M > 0)) return <p className="text-sm text-2">Informe o custo por hectare, a produtividade e o preço esperado de venda para ver a divisão.</p>;
@@ -22,15 +25,15 @@ export default function RegrasCusto({ custoHa, produtividade, precoEsperado, pis
   const margem = (M / C - 1) * 100;
   const alt = rendimentoNoPrazo(restantes, ref);
   const precoHoje = precoNoDia(C, mn, total, decorridos);
-  const g = ganhoInvestidorCusto({ custoSaca: C, precoPago: precoHoje, minPct: mn, precoEsperado: M, dias: restantes }, R);
-  const insuficiente = M <= C * (1 + mn / 100);
+  const g = ganhoInvestidorCusto({ custoSaca: C, precoPago: precoHoje, minPct: mn, precoEsperado: M, dias: restantes, taxaPct: taxa }, R);
+  const insuficiente = M <= minimoPorSaca(C, mn, taxa);
   const cenarios = [-0.1, 0, 0.1, 0.2].map((d) => {
-    const pv = M * (1 + d), inv = recebeCusto(C, mn, pv, R), lucro = Math.max(0, pv - C);
-    const minimo = C * (1 + mn / 100), bruto = Math.max(minimo, C + lucro * R.lucro_investidor_pct / 100);
+    const pv = M * (1 + d), inv = recebeCusto(C, mn, pv, R, taxa), lucro = Math.max(0, pv - C);
+    const minimo = minimoPorSaca(C, mn, taxa), bruto = Math.max(minimo, C + lucro * R.lucro_investidor_pct / 100);
     const desempenho = Math.max(0, bruto - minimo) * (R.desempenho_pct ?? 0) / 100;
     const faz = pv - bruto - lucro * R.lucro_plataforma_pct / 100 - C * (R.estruturacao_pct + R.custodia_armazem_pct + R.gestao_fundo_pct) / 100;
-    const app = C * R.estruturacao_pct / 100 + lucro * R.lucro_plataforma_pct / 100 + desempenho;
-    return { pv, invPct: (inv / C - 1) * 100, fazHa: faz * pr, appPct: app / C * 100 };
+    const app = C * (R.estruturacao_pct + taxa) / 100 + lucro * R.lucro_plataforma_pct / 100 + desempenho;
+    return { pv, invPct: (inv / (C * (1 + taxa / 100)) - 1) * 100, fazHa: faz * pr, appPct: app / C * 100 };
   });
   return (
     <div className="regras">
@@ -41,7 +44,7 @@ export default function RegrasCusto({ custoHa, produtividade, precoEsperado, pis
       </div>
       {insuficiente && <p className="text-sm text-danger" style={{ fontWeight: 600 }}>Margem insuficiente: o preço esperado não cobre o custo mais o mínimo do investidor. O fundo não deve aprovar este talhão.</p>}
       <div className="regras-comparacao">
-        <p className="label-xs">Quem compra hoje (R$ {precoHoje.toFixed(2).replace(".", ",")} por {u}) e recebe em ~{restantes} dias</p>
+        <p className="label-xs">Quem compra hoje (R$ {precoHoje.toFixed(2).replace(".", ",")} por {u} + {fmtPct(taxa, 2)} de entrada) e recebe em ~{restantes} dias</p>
         <div className="regras-comparacao-linhas">
           <span><b className="text-success">{fmtPct(g.minimoPct, 2)}</b> mínimo garantido</span>
           <span><b className="text-success">{fmtPct(g.esperadoPct, 2)}</b> esperado</span>
@@ -58,7 +61,8 @@ export default function RegrasCusto({ custoHa, produtividade, precoEsperado, pis
           <li><span>App</span><strong>{fmtPct(R.lucro_plataforma_pct)}</strong></li>
         </ul></div>
         <div><p className="label-xs">Como o app ganha</p><ul>
-          <li><span>Na entrada (paga pela fazenda)</span><strong>{fmtPct(R.estruturacao_pct)} do captado</strong></li>
+          <li><span>Entrada da fazenda</span><strong>{fmtPct(R.estruturacao_pct)} do captado</strong></li>
+          <li><span>Entrada do investidor</span><strong>{fmtPct(taxa, 2)} do aporte</strong></li>
           <li><span>Na saída</span><strong>{fmtPct(R.lucro_plataforma_pct)} do lucro</strong></li>
           <li><span>Custódia (armazém) · gestão (fundo)</span><strong>{fmtPct(R.custodia_armazem_pct + R.gestao_fundo_pct, 2)}</strong></li>
           <li><span>Toda saca além das financiadas</span><strong>é da fazenda</strong></li>
@@ -77,9 +81,10 @@ export default function RegrasCusto({ custoHa, produtividade, precoEsperado, pis
             </tr>))}</tbody>
         </table>
       </div>
-      <p className="text-xs text-3">* O investidor não paga taxa para entrar nem para sair.</p>
+      <p className="text-xs text-3">* Retorno sobre o total pago: preço da {u} mais a taxa de entrada de {fmtPct(taxa, 2)}, que fica congelada na data da compra até o pagamento. O investidor não paga taxa para sair. O mínimo de {R.min_pct_cdi}% do CDI vale sobre esse total.</p>
+      {R.talhao_min_ha ? <p className="text-xs text-3">Talhões com menos de {fmtNumber(R.talhao_min_ha)} ha pagam, pela fazenda, uma taxa de entrada mínima de {fmtBRL(R.estruturacao_minima_brl)}.</p> : null}
       {paraFazenda && <p className="text-xs text-3">Resultado da fazenda sobre as sacas financiadas, já descontados o mínimo do investidor (quando acionado), a parte do lucro e as taxas; a armazenagem também fica com a fazenda. Produzindo acima de {fmtNumber(pr)} {unidadeNome(unidade, 2)}/ha, o excedente é todo da fazenda.</p>}
-      <p className="regras-sub">Por {u}: você paga {fmtBRL(C)}, recebe no mínimo {fmtBRL(C * (1 + mn / 100))} e recebe mais quando a venda passa de {fmtBRL(C * (1 + (mn / 100) / (R.lucro_investidor_pct / 100)))} (aí vale 30% do lucro).</p>
+      <p className="regras-sub">Por {u}: você paga {fmtBRL(C)} mais {fmtBRL(C * taxa / 100)} de entrada, recebe no mínimo {fmtBRL(minimoPorSaca(C, mn, taxa))} e recebe mais quando a venda passa de {fmtBRL(limiarCusto(C, mn, taxa, R))} (aí vale {R.lucro_investidor_pct}% do lucro).</p>
       <div className="regras-divisao">
         <div>
           <p className="label-xs">Como é calculado o pagamento</p>

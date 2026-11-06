@@ -204,6 +204,14 @@ CREATE INDEX IF NOT EXISTS idx_harvest_requests_status ON harvest_requests(statu
 ALTER TABLE investments ADD COLUMN IF NOT EXISTS preco_unitario REAL;
 UPDATE investments SET preco_unitario = valor_investido / NULLIF(cotas, 0) WHERE preco_unitario IS NULL;
 
+-- Taxa de entrada do investidor (plano v9): percentual CONGELADO na data da
+-- compra, valor em reais e total pago (preço + taxa). O mínimo de 95% do CDI
+-- é calculado sobre o total pago. Compras antigas ficam com taxa 0.
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS taxa_investidor_pct REAL NOT NULL DEFAULT 0;
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS taxa_investidor REAL NOT NULL DEFAULT 0;
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS total_pago REAL;
+UPDATE investments SET total_pago = valor_investido + taxa_investidor WHERE total_pago IS NULL;
+
 -- Multiplicador de preço por fase da safra (0 = Preparo do solo, mais
 -- barato; 4 = Ponto de colheita, mais caro e mais perto do preço de
 -- venda estimado). A fase 5 (Colheita) não é vendável. Editável pela
@@ -367,6 +375,14 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (id = 1)
 );
+
+-- Degraus da taxa do investidor (plano v9). Os hectares contratados são
+-- calculados dos talhões; retenção e margem por talhão são confirmadas pela
+-- administração (retencao_pct_manual vazio = usa o cálculo automático).
+-- taxa_investidor_forcada_pct preenchido = fixa a taxa, ignorando os degraus.
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS retencao_pct_manual REAL;
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS margem_positiva_medida BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS taxa_investidor_forcada_pct REAL;
 
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS unidade TEXT;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ;

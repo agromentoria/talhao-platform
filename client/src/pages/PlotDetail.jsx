@@ -12,7 +12,7 @@ import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
 import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, RegrasPiso, RegrasCusto, PilhaDeSacas, ListaDeEspera } from "../components/domain";
-import { ehPiso, ehCusto, ganhoInvestidor, ganhoInvestidorCusto, prazoDias } from "../lib/piso";
+import { ehPiso, ehCusto, ganhoInvestidor, ganhoInvestidorCusto, prazoDias, limiarCusto, recebeCusto } from "../lib/piso";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -96,13 +96,17 @@ export default function PlotDetail() {
   const ciclo = cicloLabels(plot);
   const maxCotas = Math.max(1, plot.cotas_disponiveis);
   const qtd = Math.min(Math.max(1, cotas), maxCotas);
-  const custoTotal = qtd * plot.cota_valor;
+  const precoSacas = qtd * plot.cota_valor;
+  // taxa de entrada do investidor (só no Custo + Lucro): vale o degrau de hoje e fica congelada na compra
+  const taxaPct = plot.modelo === "custo" ? Number(regras?.taxa_investidor?.pct ?? 0.5) : 0;
+  const taxaEntrada = Math.round(precoSacas * taxaPct) / 100;
+  const custoTotal = Math.round((precoSacas + taxaEntrada) * 100) / 100; // total a pagar (preço + taxa)
   // mesmo cálculo do pagamento real no servidor (harvestPayout.js):
   // preço de venda projetado = preço de referência × (1 + retorno estimado)
   const custo = ehCusto(plot);
   const piso = ehPiso(plot) || custo;
   const ganhoPiso = custo ? ganhoInvestidorCusto({ custoSaca: Number(plot.custo_saca), precoPago: plot.cota_valor, minPct: Number(plot.piso_pct) || 0,
-    precoEsperado: plot.preco_venda_estimado, dias: plot.piso_dias_restantes || 150 }, regras?.custo) : piso ? ganhoInvestidor({ precoReferencia: plot.preco_venda_estimado, precoPago: plot.cota_valor, piso: Number(plot.piso_pct) || 0,
+    precoEsperado: plot.preco_venda_estimado, dias: plot.piso_dias_restantes || 150, taxaPct }, regras?.custo) : piso ? ganhoInvestidor({ precoReferencia: plot.preco_venda_estimado, precoPago: plot.cota_valor, piso: Number(plot.piso_pct) || 0,
     dias: plot.piso_dias_restantes || prazoDias(plot.colheita_prevista, regras?.piso) || 150 }, regras?.piso) : null;
   const precoVendaProjetado = piso ? ganhoPiso.minimo : plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
   const margemPorUnidade = precoVendaProjetado - plot.cota_valor;
@@ -131,7 +135,7 @@ export default function PlotDetail() {
     const card = cards.find((c) => c.id === selectedCardId);
     const ok = await dialog.confirm({
       title: "Confirmar compra das sacas",
-      message: `${qtd} ${unitPlural(plot.unidade, qtd)} de ${plot.grao} em ${plot.nome} por ${fmtBRL(custoTotal)}, pagos ${paymentType === "pix" ? "via Pix" : `no cartão ${card?.brand} final ${card?.last4}`}. ${piso ? `Renda mínima garantida pela fazenda: ${fmtBRL(qtd * ganhoPiso.minimo)} (${fmtPct(ganhoPiso.minimoPct, 2)}), mais 30% da alta do preço.` : "Os valores de retorno são estimativas."}${Number(plot.perf_excedente_pct) > 0 ? ` Acima da meta de ${fmtPct(plot.previsao_retorno)}, a fazenda fica com ${plot.perf_excedente_pct}% do lucro excedente.` : ""}`,
+      message: `${qtd} ${unitPlural(plot.unidade, qtd)} de ${plot.grao} em ${plot.nome} por ${fmtBRL(precoSacas)}${taxaEntrada > 0 ? ` + ${fmtBRL(taxaEntrada)} de taxa de entrada (${fmtPct(taxaPct, 2)}, congelada até o pagamento), total de ${fmtBRL(custoTotal)}` : ""}, pagos ${paymentType === "pix" ? "via Pix" : `no cartão ${card?.brand} final ${card?.last4}`}. ${piso ? `Renda mínima garantida pela fazenda: ${fmtBRL(qtd * ganhoPiso.minimo)} (${fmtPct(ganhoPiso.minimoPct, 2)}), mais 30% da alta do preço.` : "Os valores de retorno são estimativas."}${Number(plot.perf_excedente_pct) > 0 ? ` Acima da meta de ${fmtPct(plot.previsao_retorno)}, a fazenda fica com ${plot.perf_excedente_pct}% do lucro excedente.` : ""}`,
       confirmLabel: `Pagar ${fmtBRL(custoTotal)}`,
     });
     if (!ok) return;
@@ -349,15 +353,17 @@ export default function PlotDetail() {
                 <div style={{ marginBottom: 14, minHeight: 30 }}><PilhaDeSacas quantidade={qtd} unidade={plot.unidade} grao={plot.grao} size={28} /></div>
 
                 <dl className="kv" style={{ margin: "0 0 16px" }}>
+                  {taxaEntrada > 0 && <div><dt>{qtd} {unitPlural(plot.unidade, qtd)}</dt><dd>{fmtBRL(precoSacas)}</dd></div>}
+                  {taxaEntrada > 0 && <div><dt>Taxa de entrada de {fmtPct(taxaPct, 2)} · congelada na compra</dt><dd>{fmtBRL(taxaEntrada)}</dd></div>}
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
                   {custo ? (() => {
                     const C = Number(plot.custo_saca), mn = Number(plot.piso_pct) || 0;
-                    const limiar = C * (1 + (mn / 100) / 0.30);
+                    const limiar = limiarCusto(C, mn, taxaPct, regras?.custo);
                     const exemplo = plot.preco_venda_estimado * 1.15;
-                    const recebeEx = Math.max(C * (1 + mn / 100), C + 0.30 * (exemplo - C));
+                    const recebeEx = recebeCusto(C, mn, exemplo, regras?.custo, taxaPct);
                     return (
                       <>
-                        <div className="total"><dt>Recebe no mínimo, na colheita</dt><dd className="text-success">{fmtBRL(qtd * ganhoPiso.minimo)}</dd></div>
+                        <div className="total"><dt>Recebe no mínimo, na colheita ({fmtPct(ganhoPiso.minimoPct, 2)} sobre o total pago)</dt><dd className="text-success">{fmtBRL(qtd * ganhoPiso.minimo)}</dd></div>
                         <div><dt>Recebe mais se a venda passar de {fmtBRL(limiar)} por {unidade}</dt><dd>30% do lucro</dd></div>
                         <div><dt>Exemplo: venda a {fmtBRL(exemplo)}</dt><dd>{fmtBRL(qtd * recebeEx)}</dd></div>
                       </>

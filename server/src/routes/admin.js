@@ -43,6 +43,36 @@ router.put("/settings", asyncHandler(async (req, res) => {
   res.json({ app_commission_pct: settings.app_commission_pct });
 }));
 
+// Degraus da taxa do investidor (plano v9): marcos medidos e confirmações da administração
+router.get("/taxa-investidor", asyncHandler(async (req, res) => {
+  const { taxaInvestidorAtual } = require("../taxaInvestidor");
+  res.json(await taxaInvestidorAtual());
+}));
+
+router.put("/taxa-investidor", requireRole("admin"), asyncHandler(async (req, res) => {
+  const { retencao_pct_manual, margem_positiva_medida, taxa_investidor_forcada_pct } = req.body || {};
+  const vazio = (v) => v === null || v === undefined || v === "";
+  const pct = (v, nome, max) => {
+    if (vazio(v)) return null;
+    const n = Number(v);
+    if (Number.isNaN(n) || n < 0 || n > max) throw Object.assign(new Error(`${nome} inválido.`), { status: 400 });
+    return n;
+  };
+  try {
+    const ret = pct(retencao_pct_manual, "Retenção", 100);
+    const forc = pct(taxa_investidor_forcada_pct, "Taxa", 5);
+    await pool.query(
+      `UPDATE platform_settings SET retencao_pct_manual = $1, margem_positiva_medida = $2, taxa_investidor_forcada_pct = $3, updated_at = now() WHERE id = 1`,
+      [ret, !!margem_positiva_medida, forc]
+    );
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    throw e;
+  }
+  const { taxaInvestidorAtual } = require("../taxaInvestidor");
+  res.json(await taxaInvestidorAtual());
+}));
+
 router.get("/overview", asyncHandler(async (req, res) => {
   const totalCaptado = (await pool.query("SELECT COALESCE(SUM(valor_investido), 0) as total FROM investments")).rows[0].total;
   const comissaoAppAcumulada = (await pool.query("SELECT COALESCE(SUM(comissao_app), 0) as total FROM payouts")).rows[0].total;

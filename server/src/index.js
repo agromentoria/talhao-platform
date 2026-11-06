@@ -148,6 +148,11 @@ async function start() {
         niveis: NIVEIS.map(({ id, label, minimo }) => ({ id, label, minimo })),
         piso: require("./piso").REGRAS,
         custo: require("./piso").CUSTO,
+        // taxa de entrada do investidor: degrau vigente e marcos (hoje cobrada na compra e congelada)
+        taxa_investidor: await (async () => {
+          const t = await require("./taxaInvestidor").taxaInvestidorAtual();
+          return { pct: t.pct, degrau: t.degrau, motivo: t.motivo, degraus: t.degraus, ha_contratados: t.haContratados, retencao_pct: t.retencaoPct };
+        })(),
         limites: require("./culturas").LIMITES,
         indices: require("./culturas").INDICES,
         // taxas de referência para comparar o ganho da safra com o que o mesmo

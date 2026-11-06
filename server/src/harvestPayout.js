@@ -214,6 +214,15 @@ async function executePisoPayout({ plot, farm, retorno }) {
           ? `${plot.nome}: saída — 5% do lucro da safra (${fmtBRL(r.plataformaExcedente)})`
           : `${plot.nome}: estruturação de ${REGRAS.estruturacao_pct}% (${fmtBRL(r.estruturacao)})${r.plataformaExcedente > 0 ? ` + ${REGRAS.excedente_plataforma_pct}% da alta (${fmtBRL(r.plataformaExcedente)})` : ""}` });
     }
+    // talhão com menos de 100 ha: a taxa de entrada da fazenda tem piso em reais; o que faltar sobre o 1% já cobrado nas compras sai agora
+    if (r.modelo === "custo" && r.estruturacaoEntrada > 0.004) {
+      const { rows: jaCobrado } = await client.query("SELECT COALESCE(SUM(amount), 0)::float8 AS total FROM transactions WHERE plot_id = $1 AND type = 'taxa_estruturacao'", [plot.id]);
+      const complemento = r.estruturacaoEntrada - jaCobrado[0].total;
+      if (complemento > 0.004) {
+        await tx({ type: "taxa_estruturacao", userId: null, amount: complemento,
+          description: `${plot.nome}: complemento da taxa mínima de entrada (talhão abaixo de ${require("./piso").CUSTO.talhao_min_ha} ha — mínimo de ${fmtBRL(require("./piso").CUSTO.estruturacao_minima_brl)})` });
+      }
+    }
     if (plot.warehouse_id && r.armazem > 0.004) {
       const { rows: wh } = await client.query("SELECT owner_user_id, name FROM warehouses WHERE id = $1", [plot.warehouse_id]);
       await tx({ type: "tarifa_armazem", userId: wh[0]?.owner_user_id || null, amount: r.armazem,

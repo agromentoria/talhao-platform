@@ -16,7 +16,8 @@ const TIPOS = {
   performance_fazenda: { label: "Performance da fazenda", sentido: "saida" },
   aporte_fazenda: { label: "Aporte da fazenda para o piso", sentido: "entrada" },
   gestao_fundo: { label: "Gestão do fundo", sentido: "saida" },
-  taxa_estruturacao: { label: "Taxa de entrada (1% do captado)", sentido: "receita" },
+  taxa_estruturacao: { label: "Taxa de entrada da fazenda (1% do captado)", sentido: "receita" },
+  taxa_investidor: { label: "Taxa de entrada do investidor (0,5% a 1%)", sentido: "receita" },
   tarifa_armazem: { label: "Tarifa de armazenagem", sentido: "saida" },
   comissao_plataforma: { label: "Comissão da plataforma", sentido: "receita" },
 };
@@ -94,8 +95,10 @@ async function summary(filters) {
     quantidade: rows.reduce((s, r) => s + r.n, 0),
     entradas: soma(["compra_cota", "aporte_fazenda"]),
     saidas: soma(["pagamento_investidor", "repasse_fazenda", "performance_fazenda", "tarifa_armazem", "gestao_fundo"]),
-    receitaPlataforma: soma(["comissao_plataforma", "taxa_estruturacao"]),
-    receitaEntrada: soma(["taxa_estruturacao"]),
+    receitaPlataforma: soma(["comissao_plataforma", "taxa_estruturacao", "taxa_investidor"]),
+    receitaEntrada: soma(["taxa_estruturacao", "taxa_investidor"]),
+    receitaEntradaFazenda: soma(["taxa_estruturacao"]),
+    receitaEntradaInvestidor: soma(["taxa_investidor"]),
     receitaSaida: soma(["comissao_plataforma"]),
   };
 }
@@ -177,6 +180,7 @@ const GROUPS = {
       armazenagem: "SUM(CASE WHEN t.type = 'tarifa_armazem' THEN t.amount ELSE 0 END)",
       comissao_plataforma: "SUM(CASE WHEN t.type = 'comissao_plataforma' THEN t.amount ELSE 0 END)",
       taxa_estruturacao: "SUM(CASE WHEN t.type = 'taxa_estruturacao' THEN t.amount ELSE 0 END)",
+      taxa_investidor: "SUM(CASE WHEN t.type = 'taxa_investidor' THEN t.amount ELSE 0 END)",
     },
   },
   armazem: {
@@ -203,6 +207,7 @@ const GROUPS = {
       armazenagem: "SUM(CASE WHEN t.type = 'tarifa_armazem' THEN t.amount ELSE 0 END)",
       comissao_plataforma: "SUM(CASE WHEN t.type = 'comissao_plataforma' THEN t.amount ELSE 0 END)",
       taxa_estruturacao: "SUM(CASE WHEN t.type = 'taxa_estruturacao' THEN t.amount ELSE 0 END)",
+      taxa_investidor: "SUM(CASE WHEN t.type = 'taxa_investidor' THEN t.amount ELSE 0 END)",
     },
   },
   mes: {
@@ -213,13 +218,13 @@ const GROUPS = {
     cols: {
       entradas: "SUM(CASE WHEN t.type = 'compra_cota' THEN t.amount ELSE 0 END)",
       saidas: "SUM(CASE WHEN t.type IN ('pagamento_investidor','repasse_fazenda','performance_fazenda','tarifa_armazem') THEN t.amount ELSE 0 END)",
-      receita_plataforma: "SUM(CASE WHEN t.type IN ('comissao_plataforma', 'taxa_estruturacao') THEN t.amount ELSE 0 END)",
+      receita_plataforma: "SUM(CASE WHEN t.type IN ('comissao_plataforma', 'taxa_estruturacao', 'taxa_investidor') THEN t.amount ELSE 0 END)",
     },
   },
 };
 const COL_LABEL = {
   investido: "Investido", recebido: "Recebido", captado: "Captado", pago_investidores: "Pago a investidores",
-  comissao_fazenda: "Comissão da fazenda", performance_fazenda: "Performance da fazenda", custos_lancados: "Custos lançados", armazenagem: "Armazenagem", comissao_plataforma: "Comissão da plataforma",
+  comissao_fazenda: "Comissão da fazenda", performance_fazenda: "Performance da fazenda", custos_lancados: "Custos lançados", armazenagem: "Armazenagem", comissao_plataforma: "Comissão da plataforma", taxa_estruturacao: "Taxa de entrada da fazenda", taxa_investidor: "Taxa de entrada do investidor",
   captado_garantido: "Captação garantida", tarifas: "Tarifas recebidas", entradas: "Entradas", saidas: "Saídas",
   receita_plataforma: "Receita da plataforma", quantidade: "Transações",
 };

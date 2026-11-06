@@ -16,14 +16,15 @@ export default function Terms() {
         <li>Você compra sacas de um talhão pelo <strong>custo de produção da saca</strong> informado pela fazenda e conferido pelo fundo gestor. O preço sobe com o tempo para quem compra depois.</li>
         <li>Na colheita, recebe <strong>no mínimo 95% do CDI no prazo da safra</strong>, obrigação assumida pela fazenda na CPR. Quando a venda passa do valor indicado no talhão, recebe o custo mais <strong>30% do lucro</strong> de cada saca.</li>
         <li>O pagamento usa o <strong>preço público de referência</strong> da cultura (B3 ou Cepea), na janela e com a base regional definidas no talhão — não o preço que a fazenda declara.</li>
-        <li>Você não paga taxa para comprar nem para receber.</li>
+        <li>Você paga uma <strong>taxa de entrada de 0,5% a 1% do valor das sacas</strong>, somada ao preço no momento da compra. A taxa sobe em degraus conforme a plataforma cresce e <strong>fica congelada na data da sua compra</strong> até o pagamento. Não há taxa para receber nem para sair.</li>
+        <li>O mínimo de 95% do CDI é calculado sobre o <strong>total pago</strong> (preço das sacas mais a taxa de entrada).</li>
       </ul>
 
       <h2>Como funciona para a fazenda</h2>
       <ul>
         <li>Declara o talhão (área, cultura, custo por hectare, produtividade) e pode oferecer até 80% da produção esperada, com seguro agrícola e apólice anexada.</li>
         <li>Recebe os recursos antes do plantio, garante o mínimo dos investidores e fica com 65% do lucro e toda a produção que não vendeu.</li>
-        <li>Paga ao app 1% do valor captado (na entrada) e 5% do lucro (na saída), além de custódia e gestão (0,15% cada) e da armazenagem.</li>
+        <li>Paga ao app 1% do valor captado (na entrada; talhões abaixo de 100 ha pagam uma taxa mínima de R$ 4,9 mil) e 5% do lucro (na saída), além de custódia e gestão (0,15% cada) e da armazenagem. A análise do talhão não é cobrada.</li>
         <li>Em quebra de safra com sinistro reconhecido pela seguradora, o pagamento pode ser prorrogado, com o mínimo continuando a correr; sem sinistro, a obrigação continua sendo da fazenda.</li>
       </ul>
 

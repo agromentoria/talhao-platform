@@ -6,7 +6,7 @@ import { Page, PageHeader } from "../components/layout/Page";
 import { TextField, Banner } from "../components/ui";
 import { RegrasPiso } from "../components/domain";
 import { rendimentoNoPrazo, REFERENCIAS_PADRAO } from "../lib/referencias";
-import { PISO_PADRAO, pisoPct, dividirPiso, taxasFazendaPct } from "../lib/piso";
+import { PISO_PADRAO, CUSTO_PADRAO, TAXA_INVESTIDOR_PADRAO, pisoPct, dividirPiso, taxasFazendaPct } from "../lib/piso";
 
 // Regras do produto com renda mínima (piso) explicadas para todos, com simulador.
 export default function ComoFunciona() {
@@ -23,6 +23,9 @@ export default function ComoFunciona() {
   const alt = rendimentoNoPrazo(dias, regras?.referencias || REFERENCIAS_PADRAO);
   const colheita = new Date(Date.now() + Math.max(1, dias - R.dias_pos_colheita) * 86400000).toISOString().slice(0, 10);
   const taxas = inv * taxasFazendaPct(R) / 100;
+  const C = regras?.custo || CUSTO_PADRAO;
+  const TI = regras?.taxa_investidor || TAXA_INVESTIDOR_PADRAO;
+  const D = TI.degraus;
 
   return (
     <Page title="Como funciona" back="/" width="medium">
@@ -50,6 +53,16 @@ export default function ComoFunciona() {
         <p>Sobre o valor captado: {fmtPct(R.estruturacao_pct)} de estruturação (plataforma), {fmtPct(R.custodia_armazem_pct)} de custódia (armazém) e {fmtPct(R.gestao_fundo_pct)} de gestão (fundo). A armazenagem também fica com a fazenda — o investidor recebe sem desconto.</p>
         <h3 style={{ fontSize: "var(--fs-md)", margin: "14px 0 4px" }}>5. Pagamento</h3>
         <p>Depois da colheita, o armazém confirma a quantidade guardada, a fazenda informa o preço de venda com comprovante e o fundo confere a prévia exata e aprova. Todos recebem ao mesmo tempo.</p>
+      </section>
+
+      <section className="card legal" style={{ marginBottom: 16 }} aria-labelledby="custo-t">
+        <h2 id="custo-t" className="card-title">Talhões "Custo + Lucro": o que cada um paga</h2>
+        <h3 style={{ fontSize: "var(--fs-md)", margin: "14px 0 4px" }}>Investidor: taxa de entrada de {fmtPct(D.degrau1_pct, 2)} a {fmtPct(D.degrau3_pct, 2)}</h3>
+        <p>Hoje a taxa é de <strong>{fmtPct(TI.pct, 2)}</strong> sobre o valor das sacas, paga por cima do preço. Ela sobe em degraus conforme a plataforma cresce: {fmtPct(D.degrau1_pct, 2)} até {Number(D.marco1_ha).toLocaleString("pt-BR")} ha contratados (e retenção de investidores acima de {D.marco1_retencao_pct}%), {fmtPct(D.degrau2_pct, 2)} até {Number(D.marco2_ha).toLocaleString("pt-BR")} ha e {fmtPct(D.degrau3_pct, 2)} depois, só com margem positiva medida por talhão. <strong>A taxa da sua compra fica congelada na data em que você compra</strong> e não muda até o pagamento. Não há taxa para sair.</p>
+        <h3 style={{ fontSize: "var(--fs-md)", margin: "14px 0 4px" }}>Mínimo de {C.min_pct_cdi}% do CDI sobre o total pago</h3>
+        <p>O mínimo garantido pela fazenda é calculado sobre tudo o que você pagou (preço das sacas mais a taxa de entrada). Assim, a taxa nunca tira você do mínimo prometido.</p>
+        <h3 style={{ fontSize: "var(--fs-md)", margin: "14px 0 4px" }}>Fazenda</h3>
+        <p>{fmtPct(C.estruturacao_pct)} de entrada sobre o captado, {fmtPct(C.custodia_armazem_pct, 2)} de custódia e {fmtPct(C.gestao_fundo_pct, 2)} de gestão. Talhões com menos de {C.talhao_min_ha} ha pagam uma taxa de entrada mínima de {fmtBRL(C.estruturacao_minima_brl)}. A análise do talhão não é cobrada. Na saída, a plataforma fica com {fmtPct(C.lucro_plataforma_pct)} do lucro (a divisão é {C.lucro_fazenda_pct}% fazenda, {C.lucro_investidor_pct}% investidor, {C.lucro_plataforma_pct}% plataforma).</p>
       </section>
 
       <section className="card" style={{ marginBottom: 16 }} aria-labelledby="sim-t">

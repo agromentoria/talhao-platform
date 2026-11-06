@@ -117,14 +117,69 @@ const CUSTO = {
   desempenho_pct: num("CUSTO_DESEMPENHO_PCT", 0),
   custodia_armazem_pct: num("CUSTO_CUSTODIA_ARMAZEM_PCT", 0.15),
   gestao_fundo_pct: num("CUSTO_GESTAO_FUNDO_PCT", 0.15),
+  // Talhão pequeno: abaixo de 100 ha a taxa de entrada da fazenda tem piso em reais
+  // (equivale à taxa de 100 ha, ~R$ 4,9 mil), para o talhão não custar mais que rende.
+  talhao_min_ha: num("CUSTO_TALHAO_MIN_HA", 100),
+  estruturacao_minima_brl: num("CUSTO_ESTRUTURACAO_MINIMA_BRL", 4900),
 };
+
+// TAXA DE ENTRADA DO INVESTIDOR (plano v9), em degraus por marcos. Ela é paga
+// por cima do preço, congelada na data da compra e vale até a liquidação.
+const TAXA_INVESTIDOR = {
+  degrau1_pct: num("TAXA_INV_DEGRAU1_PCT", 0.5),
+  degrau2_pct: num("TAXA_INV_DEGRAU2_PCT", 0.75),
+  degrau3_pct: num("TAXA_INV_DEGRAU3_PCT", 1.0),
+  marco1_ha: num("TAXA_INV_MARCO1_HA", 5000),   // até aqui (e retenção > marco1_retencao_pct): 0,5%
+  marco1_retencao_pct: num("TAXA_INV_MARCO1_RETENCAO_PCT", 60),
+  marco2_ha: num("TAXA_INV_MARCO2_HA", 24000),  // até aqui: 0,75%; depois, 1% só com margem positiva medida
+};
+
+// Degrau vigente a partir dos marcos. Entradas: hectares contratados, retenção
+// de investidores (%), se a margem por talhão medida é positiva, e uma taxa
+// forçada pela administração (opcional).
+function taxaInvestidorVigente({ haContratados = 0, retencaoPct = 0, margemPositiva = false, forcadaPct = null } = {}) {
+  const T = TAXA_INVESTIDOR;
+  if (forcadaPct !== null && forcadaPct !== undefined && !Number.isNaN(Number(forcadaPct))) {
+    return { pct: Number(forcadaPct), degrau: 0, motivo: "Taxa fixada pela administração" };
+  }
+  const ha = Number(haContratados) || 0, ret = Number(retencaoPct) || 0;
+  if (ha < T.marco1_ha || ret <= T.marco1_retencao_pct) {
+    return { pct: T.degrau1_pct, degrau: 1, motivo: ha < T.marco1_ha ? `Até ${T.marco1_ha} ha contratados` : `Retenção de investidores ainda não passou de ${T.marco1_retencao_pct}%` };
+  }
+  if (ha < T.marco2_ha || !margemPositiva) {
+    return { pct: T.degrau2_pct, degrau: 2, motivo: ha < T.marco2_ha ? `Até ${T.marco2_ha} ha contratados` : "Margem positiva por talhão ainda não medida" };
+  }
+  return { pct: T.degrau3_pct, degrau: 3, motivo: "Acima de 24 mil ha com margem positiva medida por talhão" };
+}
+
+// taxa do investidor em reais, arredondada em centavos
+const taxaInvestidorValor = (valor, pct) => Math.round(Number(valor) * Number(pct || 0)) / 100;
+
+// Preço de venda por saca a partir do qual o investidor passa do mínimo e
+// começa a dividir o lucro (30%). Mínimo por saca com taxa congelada:
+// custo × (1 + mínimo%) × (1 + taxa%).
+function limiarLucro({ custoSaca, minimoPct: mn, taxaPct = 0 }) {
+  const c = Number(custoSaca);
+  const minSaca = c * (1 + mn / 100) * (1 + taxaPct / 100);
+  return c + (minSaca - c) / (CUSTO.lucro_investidor_pct / 100);
+}
+
+// taxa de entrada da fazenda de um talhão: 1% do captado, com piso em reais
+// para talhões abaixo de 100 ha
+function estruturacaoFazenda(captado, areaHa) {
+  const pct = captado * CUSTO.estruturacao_pct / 100;
+  const pequeno = Number(areaHa) > 0 && Number(areaHa) < CUSTO.talhao_min_ha;
+  return pequeno && captado > 0 ? Math.max(pct, CUSTO.estruturacao_minima_brl) : pct;
+}
+
 function minimoPct(dias) {
   const taxa = (CUSTO.min_pct_cdi / 100) * REGRAS.cdi_aa;
   return Math.round(((Math.pow(1 + taxa / 100, dias / 365) - 1) * 100) * 100) / 100;
 }
-function dividirCusto({ cotas, custoSaca, minimoPct: mn, precoVenda }) {
+function dividirCusto({ cotas, custoSaca, minimoPct: mn, precoVenda, taxaInvestidorPct = 0 }) {
   const base = cotas * custoSaca;
-  const valorMinimo = base * (1 + mn / 100);
+  // o mínimo de 95% do CDI vale sobre o TOTAL PAGO (preço + taxa de entrada congelada)
+  const valorMinimo = base * (1 + mn / 100) * (1 + taxaInvestidorPct / 100);
   const valorVenda = cotas * precoVenda;
   const lucro = Math.max(0, valorVenda - base);
   const porLucro = base + lucro * CUSTO.lucro_investidor_pct / 100;
@@ -132,15 +187,17 @@ function dividirCusto({ cotas, custoSaca, minimoPct: mn, precoVenda }) {
   const desempenho = Math.max(0, bruto - valorMinimo) * CUSTO.desempenho_pct / 100; // só acima do mínimo
   const investidor = bruto - desempenho;
   const plataforma = lucro * CUSTO.lucro_plataforma_pct / 100 + desempenho;
-  return { base, valorMinimo, valorVenda, lucro, investidor, plataforma, desempenho, plataformaLucro: lucro * CUSTO.lucro_plataforma_pct / 100, minimoAtivo: valorMinimo >= porLucro };
+  return { base, taxaInvestidorPct, valorMinimo, valorVenda, lucro, investidor, plataforma, desempenho, plataformaLucro: lucro * CUSTO.lucro_plataforma_pct / 100, minimoAtivo: valorMinimo >= porLucro };
 }
 function calcularPagamentoCusto(plot, investments, precoVenda, { despesaArmazenagem = 0 } = {}) {
   const custoSaca = Number(plot.custo_saca) || Number(plot.preco_venda_estimado);
-  const linhas = investments.map((inv) => ({ inv, ...dividirCusto({ cotas: Number(inv.cotas), custoSaca, minimoPct: Number(plot.piso_pct) || 0, precoVenda }) }));
+  const linhas = investments.map((inv) => ({ inv, ...dividirCusto({ cotas: Number(inv.cotas), custoSaca, minimoPct: Number(plot.piso_pct) || 0, precoVenda, taxaInvestidorPct: Number(inv.taxa_investidor_pct) || 0 }) }));
   const soma = (k) => linhas.reduce((s, l) => s + l[k], 0);
   const captado = investments.reduce((s, i) => s + Number(i.valor_investido), 0);
-  // a estruturação (entrada) já foi cobrada nas compras; aqui só o que acontece na saída
-  const estruturacao = 0, estruturacaoEntrada = captado * CUSTO.estruturacao_pct / 100;
+  // taxa de entrada do investidor: já foi paga na compra (receita da plataforma, fora da divisão da venda)
+  const taxaInvestidores = investments.reduce((s, i) => s + (Number(i.taxa_investidor) || 0), 0);
+  // a estruturação (entrada da fazenda) já foi cobrada nas compras; aqui só o que acontece na saída
+  const estruturacao = 0, estruturacaoEntrada = estruturacaoFazenda(captado, plot.area_ha);
   const custodia = captado * CUSTO.custodia_armazem_pct / 100;
   const gestao = captado * CUSTO.gestao_fundo_pct / 100;
   const investidores = soma("investidor"), plataformaLucro = soma("plataforma"), valorVenda = soma("valorVenda");
@@ -149,9 +206,9 @@ function calcularPagamentoCusto(plot, investments, precoVenda, { despesaArmazena
   for (const l of linhas) { l.valorPiso = l.valorMinimo; l.excedente = l.lucro; l.fazendaExcedente = l.lucro * CUSTO.lucro_fazenda_pct / 100; l.aporteFazenda = 0; }
   return {
     modelo: "custo", linhas, captado, valorVenda, valorPiso: soma("valorMinimo"), excedente: soma("lucro"),
-    investidores, plataforma: plataformaLucro, plataformaExcedente: soma("plataformaLucro"), desempenho: soma("desempenho"), estruturacao, estruturacaoEntrada,
+    investidores, plataforma: plataformaLucro, plataformaExcedente: soma("plataformaLucro"), desempenho: soma("desempenho"), estruturacao, estruturacaoEntrada, taxaInvestidores,
     armazem: custodia + despesaArmazenagem, custodia, armazenagem: despesaArmazenagem, fundo: gestao,
     fazendaExcedente: soma("lucro") * CUSTO.lucro_fazenda_pct / 100, aportePiso: Math.max(0, -fazendaLiquido), fazendaLiquido,
   };
 }
-Object.assign(module.exports, { CUSTO, minimoPct, dividirCusto, calcularPagamentoCusto });
+Object.assign(module.exports, { CUSTO, TAXA_INVESTIDOR, minimoPct, dividirCusto, calcularPagamentoCusto, taxaInvestidorVigente, taxaInvestidorValor, limiarLucro, estruturacaoFazenda });

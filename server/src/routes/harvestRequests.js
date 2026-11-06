@@ -62,7 +62,7 @@ router.get("/", asyncHandler(async (req, res) => {
       out.armazenagem = { ...d, pagador: p.arm_pagador, parte_investidores: parteInv, pagador_texto: pagadorTexto(p), entrada_em: p.arm_entrada_em };
     }
     // prévia exata do pagamento (mesma conta do harvestPayout), para conferir antes de aprovar
-    const { rows: invs } = await pool.query("SELECT cotas, valor_investido FROM investments WHERE plot_id = $1 AND status = 'ativo'", [p.id]);
+    const { rows: invs } = await pool.query("SELECT cotas, valor_investido, taxa_investidor_pct, taxa_investidor FROM investments WHERE plot_id = $1 AND status = 'ativo'", [p.id]);
     if (p.modelo === "piso" || p.modelo === "custo") {
       const { calcularPagamentoPiso: cp, calcularPagamentoCusto } = require("../piso");
       const calcularPagamentoPiso = p.modelo === "custo" ? calcularPagamentoCusto : cp;

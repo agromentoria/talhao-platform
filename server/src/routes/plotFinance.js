@@ -37,7 +37,7 @@ router.get("/:id/demonstrativo", asyncHandler(async (req, res) => {
   const [{ rows: orc }, { rows: custos }, { rows: invs }, { rows: tx }, appPct] = await Promise.all([
     pool.query("SELECT categoria, valor FROM plot_budget WHERE plot_id = $1", [plot.id]),
     pool.query("SELECT id, categoria, descricao, valor, data, created_at FROM plot_costs WHERE plot_id = $1 ORDER BY data, id", [plot.id]),
-    pool.query("SELECT cotas, valor_investido, status FROM investments WHERE plot_id = $1 AND status IN ('ativo', 'pago')", [plot.id]),
+    pool.query("SELECT cotas, valor_investido, taxa_investidor_pct, taxa_investidor, status FROM investments WHERE plot_id = $1 AND status IN ('ativo', 'pago')", [plot.id]),
     pool.query("SELECT type, COALESCE(SUM(amount), 0)::float8 AS total FROM transactions WHERE plot_id = $1 GROUP BY type", [plot.id]),
     getAppCommissionPct(),
   ]);
@@ -100,7 +100,7 @@ router.get("/:id/demonstrativo", asyncHandler(async (req, res) => {
   }
 
   const recebidoFazenda = distribuicao.comissaoFazenda + distribuicao.performanceFazenda;
-  const taxaEntrada = plot.modelo === "custo" ? captado * require("../piso").CUSTO.estruturacao_pct / 100 : 0;
+  const taxaEntrada = plot.modelo === "custo" ? require("../piso").estruturacaoFazenda(captado, plot.area_ha) : 0;
   const resultadoFazenda = plot.modelo === "piso" || plot.modelo === "custo"
     ? captado - taxaEntrada - totalRealizado + recebidoFazenda
     : captado - totalRealizado + recebidoFazenda

@@ -14,6 +14,7 @@ export default function AdminMarketplace({ isAdmin }) {
   return (
     <div className="stack">
       <Chaves cfg={cfg} setCfg={setCfg} podeEditar={isAdmin} />
+      <LimitesCompra podeEditar={isAdmin} />
       <Segmented label="Marketplace" value={aba} onChange={setAba} options={[{ id: "cadastros", label: "Fornecedores e tradings" }, { id: "catalogo", label: "Catálogo e doses" }, ...(cfg?.insumos_ativo ? [{ id: "planos", label: "Planos e pagamentos" }] : [])]} />
       {aba === "cadastros" ? <Cadastros /> : aba === "catalogo" ? <Catalogo podeEditar={isAdmin} /> : <PlanosPagamentos />}
     </div>
@@ -193,5 +194,33 @@ function PlanosPagamentos() {
         )}
       </section>
     </>
+  );
+}
+
+function LimitesCompra({ podeEditar }) {
+  const toast = useToast();
+  const [v, setV] = useState(null);
+  const [erro, setErro] = useState("");
+  useEffect(() => { api.limitesAdmin().then((d) => setV({ pct_talhao: String(d.pct_talhao), anual: String(d.anual) })).catch((e) => setErro(e.message)); }, []);
+  if (!v) return erro ? <ErrorBanner message={erro} /> : null;
+  async function salvar() {
+    try { const d = await api.salvarLimites({ pct_talhao: v.pct_talhao, anual: v.anual }); setV({ pct_talhao: String(d.pct_talhao), anual: String(d.anual) }); toast("Limites salvos"); } catch (e) { setErro(e.message); }
+  }
+  return (
+    <section className="card">
+      <h2 className="card-title">Limites de compra por investidor</h2>
+      <p className="card-desc">Evitam que um único investidor concentre um talhão e reduzem o risco de fraude. Valem para todas as compras novas.</p>
+      <ErrorBanner message={erro} />
+      <div className="row" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <label className="text-sm" style={{ flex: "1 1 220px" }}>Máximo por talhão (% das sacas)
+          <input className="input" inputMode="decimal" value={v.pct_talhao} onChange={(e) => setV({ ...v, pct_talhao: e.target.value })} disabled={!podeEditar} style={{ display: "block", width: "100%", marginTop: 4 }} />
+        </label>
+        <label className="text-sm" style={{ flex: "1 1 220px" }}>Teto anual do investidor não qualificado (R$)
+          <input className="input" inputMode="decimal" value={v.anual} onChange={(e) => setV({ ...v, anual: e.target.value })} disabled={!podeEditar} style={{ display: "block", width: "100%", marginTop: 4 }} />
+        </label>
+        {podeEditar && <Button onClick={salvar}>Salvar</Button>}
+      </div>
+      <p className="text-xs text-3" style={{ marginTop: 8 }}>O teto anual segue a regra de investimento participativo da CVM (R$ 20 mil por ano para investidor não qualificado). Investidores qualificados comprovados são marcados em Usuários › Investidores e ficam sem teto anual; o limite por talhão continua valendo para todos.</p>
+    </section>
   );
 }

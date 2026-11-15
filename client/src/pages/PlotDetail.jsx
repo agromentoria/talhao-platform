@@ -42,7 +42,9 @@ export default function PlotDetail() {
   const [paymentType, setPaymentType] = useState("pix");
   const [selectedCardId, setSelectedCardId] = useState(null);
 
+  const [limites, setLimites] = useState(null);
   const load = useCallback(() => {
+    if (user?.role === "investidor") api.limitesCompra(id).then(setLimites).catch(() => setLimites(null));
     return api.getPlot(id).then((data) => {
       setPlot(data.plot);
       // a API devolve as fotos fora do objeto do talhão (antes elas nunca apareciam)
@@ -56,7 +58,7 @@ export default function PlotDetail() {
       setPendencias(data.pendencias || []);
       setAppCommission(data.app_commission_pct);
     }).catch((err) => setLoadError(err.message));
-  }, [id]);
+  }, [id, user?.role]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.regras().then(setRegras).catch(() => {}); }, []);
@@ -94,7 +96,9 @@ export default function PlotDetail() {
   const doCiclo = `${fem ? "da" : "do"} ${cicloNome}`;
   const oCiclo = `${fem ? "a" : "o"} ${cicloNome}`;
   const ciclo = cicloLabels(plot);
-  const maxCotas = Math.max(1, plot.cotas_disponiveis);
+  // limite por investidor (% do talhão e teto anual) vem do servidor; o máximo da tela respeita os dois
+  const porAno = limites?.disponivel_ano != null && plot.cota_valor > 0 ? Math.floor(limites.disponivel_ano / (plot.cota_valor * 1.01)) : Infinity;
+  const maxCotas = Math.max(1, Math.min(plot.cotas_disponiveis, limites ? limites.disponivel_talhao : Infinity, porAno));
   const qtd = Math.min(Math.max(1, cotas), maxCotas);
   const precoSacas = qtd * plot.cota_valor;
   // taxa de entrada do investidor (só no Custo + Lucro): vale o degrau de hoje e fica congelada na compra
@@ -324,6 +328,14 @@ export default function PlotDetail() {
                 </p>
 
                 <ErrorBanner message={error} />
+                {limites && (
+                  <p className="text-xs text-3" style={{ margin: "0 0 12px", lineHeight: 1.5 }}>
+                    Limite por investidor: até <strong>{fmtNumber(limites.max_sacas_talhao)} {unitPlural(plot.unidade, 2)}</strong> neste talhão ({limites.pct_talhao}% do total)
+                    {limites.sacas_no_talhao ? `, você já tem ${fmtNumber(limites.sacas_no_talhao)}` : ""}
+                    {limites.limite_anual != null ? <> · até <strong>{fmtBRL(limites.limite_anual)}</strong> por ano em todas as compras (restam {fmtBRL(limites.disponivel_ano)})</> : " · investidor qualificado, sem teto anual"}.
+                    {(limites.disponivel_talhao <= 0 || (limites.disponivel_ano != null && porAno <= 0)) && <strong className="text-danger"> Você atingiu o limite.</strong>}
+                  </p>
+                )}
 
                 <p className="field-label" id="qtd-label" style={{ marginBottom: 6 }}>Quantidade de {unitPlural(plot.unidade, 2)}</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }} role="group" aria-labelledby="qtd-label">

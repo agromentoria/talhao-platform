@@ -7,7 +7,7 @@ import { api } from "../lib/api";
 import { readImageFile } from "../lib/files";
 import { maskCNPJ, isValidCNPJ } from "../lib/validators";
 import { Page } from "../components/layout/Page";
-import { Button, Banner, ErrorBanner, TextField, Segmented } from "../components/ui";
+import { Button, Banner, ErrorBanner, TextField } from "../components/ui";
 import { CityStateSelect } from "../components/domain";
 
 export default function Register() {
@@ -15,6 +15,7 @@ export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
   const [role, setRole] = useState("investidor");
+  const [verSenha, setVerSenha] = useState(false);
   // código de indicação vindo do link de convite (/cadastro?indicacao=MT12ABC)
   const indicacao = new URLSearchParams(window.location.search).get("indicacao") || "";
   const [cadastroAberto, setCadastroAberto] = useState(false);
@@ -92,20 +93,25 @@ export default function Register() {
           {avatarError && <p className="text-xs" style={{ color: "#FFD7D7", marginTop: 6 }}>{avatarError}</p>}
 
           <h1 style={{ color: "#fff", fontSize: "var(--fs-2xl)", margin: "16px 0 4px" }}>Criar sua conta</h1>
-          <p className="text-sm" style={{ opacity: 0.92, marginBottom: 18 }}>Como você vai usar o Meu Talhão?</p>
+          <p className="text-sm" style={{ opacity: 0.92, marginBottom: 14 }}>Como você vai usar o Meu Talhão?</p>
         </div>
 
-        <Segmented
-          label="Tipo de conta"
-          value={role}
-          onChange={setRole}
-          options={[
-            { id: "investidor", label: "Investidor", icon: TrendingUp },
-            { id: "fazenda", label: "Fazenda", icon: Tractor },
-            { id: "armazem", label: "Armazém", icon: Warehouse },
-            ...(cadastroAberto ? [{ id: "fornecedor", label: "Fornecedor", icon: Package }, { id: "trading", label: "Trading", icon: Ship }] : []),
-          ]}
-        />
+        <div className="perfis" role="radiogroup" aria-label="Tipo de conta">
+          {[
+            { id: "investidor", label: "Investidor", icon: TrendingUp, desc: "Compro sacas e acompanho a safra" },
+            { id: "fazenda", label: "Fazenda", icon: Tractor, desc: "Cadastro talhões e financio a lavoura" },
+            { id: "armazem", label: "Armazém", icon: Warehouse, desc: "Guardo o grão e valido a safra" },
+            ...(cadastroAberto ? [
+              { id: "fornecedor", label: "Fornecedor", icon: Package, desc: "Vendo insumos, sementes e serviços" },
+              { id: "trading", label: "Trading", icon: Ship, desc: "Compro o grão dos talhões" },
+            ] : []),
+          ].map(({ id, label, icon: Icone, desc }) => (
+            <button key={id} type="button" role="radio" aria-checked={role === id} className="perfil" onClick={() => setRole(id)}>
+              <Icone size={20} aria-hidden />
+              <span><strong>{label}</strong><small>{desc}</small></span>
+            </button>
+          ))}
+        </div>
 
         <div style={{ height: 18 }} />
         <ErrorBanner message={error} />
@@ -123,9 +129,14 @@ export default function Register() {
               trading: "Acompanhe a produção em andamento e compre o grão direto dos talhões, com armazém garantidor.",
             }[role]}{" "}<Link to="/como-funciona" style={{ color: "#fff", fontWeight: 700 }}>Como funciona</Link>
           </p>
-          <TextField label={role === "armazem" ? "Nome do responsável" : "Nome completo"} value={form.name} onChange={update("name")} required autoComplete="name" autoCapitalize="words" />
+          <p className="register-sec">Seus dados</p>
+          <TextField label={role === "armazem" || role === "fornecedor" || role === "trading" ? "Nome do responsável" : "Nome completo"} value={form.name} onChange={update("name")} required autoComplete="name" autoCapitalize="words" />
           <TextField label="E-mail" type="email" value={form.email} onChange={update("email")} required autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} />
-          <TextField label="Senha" hint="Mínimo de 8 caracteres." type="password" value={form.password} onChange={update("password")} required minLength={8} autoComplete="new-password" />
+          <TextField label="Senha" hint="Mínimo de 8 caracteres." type={verSenha ? "text" : "password"} value={form.password} onChange={update("password")} required minLength={8} autoComplete="new-password" />
+          <label className="text-sm" style={{ display: "inline-flex", gap: 8, alignItems: "center", marginTop: -6, width: "auto" }}>
+            <input type="checkbox" checked={verSenha} onChange={(e) => setVerSenha(e.target.checked)} style={{ margin: 0 }} /> Mostrar senha
+          </label>
+          {role !== "investidor" && <p className="register-sec">{{ fazenda: "Dados da fazenda", armazem: "Dados do armazém", fornecedor: "Dados da empresa", trading: "Dados da empresa" }[role]}</p>}
 
           {role === "fazenda" && (
             <>
@@ -164,7 +175,7 @@ export default function Register() {
                     const campo = role === "fornecedor" ? "empresaCategorias" : "empresaCulturas";
                     const marcado = form[campo].includes(id);
                     return (
-                      <label key={id} className={`chip ${marcado ? "chip--on" : ""}`} style={{ cursor: "pointer", display: "inline-flex", gap: 6, alignItems: "center", padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,.6)", background: marcado ? "rgba(255,255,255,.25)" : "transparent", fontSize: "var(--fs-sm)" }}>
+                      <label key={id} className={`chip ${marcado ? "chip--on" : ""}`} style={{ cursor: "pointer", display: "inline-flex", flex: "0 0 auto", width: "auto", gap: 6, alignItems: "center", padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,.6)", background: marcado ? "rgba(255,255,255,.25)" : "transparent", fontSize: "var(--fs-sm)" }}>
                         <input type="checkbox" checked={marcado} onChange={() => setForm((f) => ({ ...f, [campo]: marcado ? f[campo].filter((x) => x !== id) : [...f[campo], id] }))} style={{ margin: 0 }} />
                         {nome}
                       </label>

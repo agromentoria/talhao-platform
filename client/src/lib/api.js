@@ -86,6 +86,10 @@ export const api = {
   salvarDose: (dados) => request("/admin/catalog/doses", { method: "PUT", body: dados }),
   // compra de insumos pelo fundo (v4.1)
   configMarketplace: () => request("/marketplace/config", { auth: false }),
+  limitesCompra: (plotId) => request(`/investments/limites/${plotId}`),
+  limitesAdmin: () => request("/admin/limites-compra"),
+  salvarLimites: (dados) => request("/admin/limites-compra", { method: "PUT", body: dados }),
+  marcarQualificado: (userId, qualificado) => request(`/admin/users/${userId}/qualificado`, { method: "PUT", body: { qualificado } }),
   salvarConfigMarketplace: (dados) => request("/admin/marketplace/config", { method: "PUT", body: dados }),
   plano: (plotId) => request(`/plots/${plotId}/plano`),
   salvarPlano: (plotId, itens) => request(`/plots/${plotId}/plano`, { method: "PUT", body: { itens } }),

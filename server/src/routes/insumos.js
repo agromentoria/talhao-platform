@@ -36,6 +36,19 @@ async function avisarFundo(title, body, plotId, farmId) {
 
 // ---------------- chaves ----------------
 router.get("/marketplace/config", asyncHandler(async (req, res) => res.json(await config())));
+router.get("/admin/limites-compra", requireAuth, requireRole("admin", "fundo"), asyncHandler(async (req, res) => res.json(await require("../limitesCompra").limitesConfig())));
+router.put("/admin/limites-compra", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
+  const pct = num(req.body?.pct_talhao), anual = num(req.body?.anual);
+  if (pct != null && (pct < 1 || pct > 100)) return res.status(400).json({ error: "O limite por talhão deve ficar entre 1% e 100%." });
+  if (anual != null && anual < 0) return res.status(400).json({ error: "Limite anual inválido." });
+  await pool.query("UPDATE platform_settings SET limite_pct_talhao = COALESCE($1, limite_pct_talhao), limite_anual_investidor = COALESCE($2, limite_anual_investidor) WHERE id = 1", [pct, anual]);
+  res.json(await require("../limitesCompra").limitesConfig());
+}));
+router.put("/admin/users/:id/qualificado", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
+  const { rows } = await pool.query("UPDATE users SET investidor_qualificado = $1 WHERE id = $2 AND role = 'investidor' RETURNING id, name, investidor_qualificado", [!!req.body?.qualificado, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: "Investidor não encontrado." });
+  res.json({ usuario: rows[0] });
+}));
 router.put("/admin/marketplace/config", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
   const b = req.body || {};
   await pool.query(

@@ -1,5 +1,24 @@
 # Registro de mudanças
 
+## 4.2.0 — limites de compra, orçamento claro, cadastro novo e revisão de telas
+
+**Limites de compra por investidor (no servidor, não dá para contornar pelo app)**
+- Cada investidor pode ter no máximo **10% das sacas de um talhão** (configurável).
+- Investidor não qualificado: até **R$ 20 mil por ano-calendário** somando todas as compras (regra de investimento participativo da CVM; configurável). A administração marca investidores qualificados em Usuários › Investidores (sem teto anual; o limite por talhão continua).
+- Tela de compra mostra o limite, quanto já tem e quanto ainda pode comprar; a quantidade não passa do limite. Mensagens claras quando o limite é atingido.
+- Administração › Marketplace › "Limites de compra por investidor" para ajustar os dois valores.
+
+**Orçamento previsto da safra**
+- Agora é uma tabela: a fazenda digita **R$ por hectare** em cada categoria e o app mostra o total do talhão, o percentual de cada categoria e o total geral.
+- Compara com o custo por hectare informado no cadastro do talhão e avisa diferenças acima de 15%.
+
+**Cadastro**
+- Escolha de perfil em **cartões** (Investidor, Fazenda, Armazém, Fornecedor, Trading), cada um com uma frase de para quem é; colunas se ajustam ao espaço (celular, tablet, desktop).
+- Formulário em seções ("Seus dados" e "Dados da fazenda / do armazém / da empresa"); opção "Mostrar senha"; seleção de categorias e culturas em etiquetas.
+
+**Revisão de telas**
+- Varredura automática de 21 telas de todos os perfis em celular, tablet e desktop: nenhum erro no navegador e nenhuma rolagem lateral; corrigida a linha do tempo do talhão que passava da borda no celular.
+
 ## 4.1.0 — compra de insumos pelo fundo (instalada, ligada pela administração)
 
 - **Chaves em Administração › Marketplace › Funções do marketplace** (só perfil admin): "Cadastro de fornecedores e tradings" e **"Compra de insumos pelo fundo" (começa desligada)**. Desligada, tudo funciona como antes: a fazenda recebe a captação em dinheiro.

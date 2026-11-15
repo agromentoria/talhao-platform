@@ -33,7 +33,7 @@ const TIPOS = {
       ), rec AS (
         SELECT user_id, SUM(amount) AS recebido FROM transactions WHERE type = 'pagamento_investidor' GROUP BY user_id
       )
-      SELECT u.id, u.name AS nome, u.email, u.phone, u.created_at, u.last_login_at, u.suspended_at,
+      SELECT u.id, u.name AS nome, u.email, u.phone, u.created_at, u.last_login_at, u.suspended_at, u.investidor_qualificado,
              u.endereco_cidade AS cidade, u.endereco_uf AS uf,
              CASE WHEN u.suspended_at IS NOT NULL THEN 'suspenso' ELSE 'ativo' END AS situacao,
              COALESCE(inv.investido, 0)::float8 AS investido, COALESCE(inv.em_andamento, 0)::float8 AS em_andamento,

@@ -77,6 +77,14 @@ router.post("/", requireAuth, requireRole("investidor"), asyncHandler(async (req
     const precoUnit = plot.modelo === "piso" || plot.modelo === "custo" ? require("../piso").precoAtualPiso(plot) : Number(plot.cota_valor);
     const valorInvestido = qtd * precoUnit;
 
+    // limites por investidor: % do talhão e teto anual (investidor não qualificado)
+    {
+      const lim = require("../limitesCompra");
+      const sit = await lim.situacao(client, req.user.id, plot);
+      const erroLimite = lim.validar(sit, qtd, valorInvestido);
+      if (erroLimite) throw new AppError(409, erroLimite);
+    }
+
     // Taxa de entrada do investidor (plano v9): vale o degrau do dia da compra e
     // fica congelada até a liquidação. Só no modelo Custo + Lucro.
     let taxaPct = 0, taxaValor = 0;
@@ -239,6 +247,13 @@ router.get("/plot/:plotId", requireAuth, requireRole("fazenda", "admin"), asyncH
     [req.params.plotId]
   );
   res.json({ investments: rows });
+}));
+
+// quanto o investidor logado ainda pode comprar neste talhão e no ano
+router.get("/limites/:plotId", requireAuth, asyncHandler(async (req, res) => {
+  const { rows } = await pool.query("SELECT id, cotas_totais FROM plots WHERE id = $1", [req.params.plotId]);
+  if (!rows[0]) return res.status(404).json({ error: "Talhão não encontrado." });
+  res.json(await require("../limitesCompra").situacao(pool, req.user.id, rows[0]));
 }));
 
 module.exports = router;

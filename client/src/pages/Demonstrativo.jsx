@@ -6,7 +6,7 @@ import { fmtBRL, fmtNumber, fmtPct } from "../lib/format";
 import { culturaTexto, fmtData, unidadeNome } from "../config/culturas";
 import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
-import { Button, IconButton, Banner, ErrorBanner, Loading, EmptyState, Dialog, TextField, SelectField, ProgressBar, useDialog, useToast } from "../components/ui";
+import { MoneyField, Button, IconButton, Banner, ErrorBanner, Loading, EmptyState, Dialog, TextField, SelectField, ProgressBar, useDialog, useToast } from "../components/ui";
 import { GrainThumb } from "../components/domain";
 import { Stat } from "./Portfolio";
 
@@ -201,7 +201,7 @@ export default function Demonstrativo() {
       </section>
 
       {podeEditar && <CustoDialog custo={custoEdit} plotId={t.id} categorias={d.categorias} onClose={() => setCustoEdit(null)} onSaved={() => { setCustoEdit(null); toast("Custo salvo"); load(); }} />}
-      {podeEditar && <OrcamentoDialog open={orcOpen} plotId={t.id} itens={d.porCategoria} area={t.area_ha} onClose={() => setOrcOpen(false)} onSaved={() => { setOrcOpen(false); toast("Orçamento salvo"); load(); }} />}
+      {podeEditar && <OrcamentoDialog open={orcOpen} plotId={t.id} itens={d.porCategoria} area={t.area_ha} custoHa={t.custo_ha} onClose={() => setOrcOpen(false)} onSaved={() => { setOrcOpen(false); toast("Orçamento salvo"); load(); }} />}
     </Page>
   );
 }
@@ -250,32 +250,63 @@ function CustoDialog({ custo, plotId, categorias, onClose, onSaved }) {
   );
 }
 
-function OrcamentoDialog({ open, plotId, itens, area, onClose, onSaved }) {
-  const [vals, setVals] = useState({});
+// Orçamento previsto da safra: quanto a fazenda planeja gastar em cada categoria
+// no talhão inteiro. A pessoa digita por hectare (como pensa o produtor) ou o
+// total; o app mostra os dois, o percentual e compara com o custo/ha do talhão.
+function OrcamentoDialog({ open, plotId, itens, area, custoHa, onClose, onSaved }) {
+  const [porHa, setPorHa] = useState({}); // valores por hectare, em texto
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const linhas = itens.filter((c) => !c.id.startsWith("_"));
+  const a = Number(area) || 0;
   useEffect(() => {
-    if (open) { setError(""); setVals(Object.fromEntries(itens.map((c) => [c.id, c.previsto ? String(c.previsto) : ""]))); }
-  }, [open, itens]);
-  const total = Object.values(vals).reduce((s, v) => s + (Number(v) || 0), 0);
+    if (open) { setError(""); setPorHa(Object.fromEntries(linhas.map((c) => [c.id, c.previsto && a ? (Number(c.previsto) / a).toFixed(2) : ""]))); }
+  }, [open, itens]); // eslint-disable-line react-hooks/exhaustive-deps
+  const totalHa = Object.values(porHa).reduce((s, v) => s + (Number(v) || 0), 0);
+  const total = totalHa * a;
+  const ref = Number(custoHa) || 0;
+  const diferenca = ref ? (totalHa / ref - 1) * 100 : 0;
 
   async function save() {
     setSaving(true); setError("");
-    try { await api.setOrcamento(plotId, vals); onSaved(); } catch (e) { setError(e.message); } finally { setSaving(false); }
+    try {
+      // o servidor guarda o total previsto de cada categoria no talhão
+      await api.setOrcamento(plotId, Object.fromEntries(linhas.map((c) => [c.id, porHa[c.id] ? String(Math.round(Number(porHa[c.id]) * a * 100) / 100) : ""])));
+      onSaved();
+    } catch (e) { setError(e.message); } finally { setSaving(false); }
   }
   return (
-    <Dialog open={open} onClose={onClose} title="Orçamento previsto da safra" width={600}
+    <Dialog open={open} onClose={onClose} title="Orçamento previsto da safra" width={760}
       actions={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button onClick={save} loading={saving}>Salvar orçamento</Button></>}>
-      <p style={{ marginBottom: 12 }}>Quanto a fazenda planeja gastar em cada etapa. O investidor compara com o que for lançado ao longo da safra.</p>
+      <p style={{ marginBottom: 6 }}>Informe <strong>quanto a fazenda planeja gastar por hectare</strong> em cada categoria nesta safra. O app calcula o total do talhão ({fmtNumber(a)} ha).</p>
+      <p className="text-sm text-3" style={{ marginBottom: 12 }}>O investidor acompanha o previsto contra o que for lançado ao longo da safra. Deixe em branco o que não se aplica.</p>
       <ErrorBanner message={error} />
-      <div className="form-grid">
-        {itens.filter((c) => !c.id.startsWith("_")).map((c) => (
-          <TextField key={c.id} label={c.label} type="number" inputMode="decimal" min={0} step="0.01" value={vals[c.id] ?? ""}
-            onChange={(v) => setVals((s) => ({ ...s, [c.id]: v }))}
-            hint={Number(vals[c.id]) > 0 && area ? `${fmtBRL(Number(vals[c.id]) / area)} por ha` : undefined} />
-        ))}
+      <div className="fin-table-wrap" style={{ display: "block" }}>
+        <table className="fin-table orcamento-tabela">
+          <thead><tr><th>Categoria</th><th className="num">R$ por hectare</th><th className="num">Total no talhão</th><th className="num hide-sm">% do total</th></tr></thead>
+          <tbody>{linhas.map((c) => {
+            const vHa = Number(porHa[c.id]) || 0;
+            return (
+              <tr key={c.id} style={{ cursor: "default" }}>
+                <td className="text-sm">{c.label}</td>
+                <td className="num" style={{ width: 170 }}>
+                  <MoneyField label="" aria-label={`${c.label}: reais por hectare`} value={porHa[c.id] ?? ""} onChange={(v) => setPorHa((x) => ({ ...x, [c.id]: v }))} style={{ margin: 0 }} />
+                </td>
+                <td className="num">{vHa ? fmtBRL(vHa * a) : "—"}</td>
+                <td className="num hide-sm text-sm text-3">{vHa && totalHa ? `${Math.round((vHa / totalHa) * 100)}%` : ""}</td>
+              </tr>
+            );
+          })}</tbody>
+          <tfoot><tr><th>Total</th><th className="num">{fmtBRL(totalHa)}/ha</th><th className="num">{fmtBRL(total)}</th><th className="hide-sm" /></tr></tfoot>
+        </table>
       </div>
-      <Banner tone="info" style={{ marginTop: 12 }}>Total previsto: <strong>{fmtBRL(total)}</strong>{area ? ` · ${fmtBRL(total / area)} por hectare` : ""}</Banner>
+      {ref > 0 && totalHa > 0 && (
+        <Banner tone={Math.abs(diferenca) > 15 ? "warning" : "info"} style={{ marginTop: 12 }}>
+          No cadastro do talhão você informou <strong>{fmtBRL(ref)}/ha</strong> de custo de produção. Este orçamento soma <strong>{fmtBRL(totalHa)}/ha</strong>
+          {Math.abs(diferenca) > 1 ? ` (${diferenca > 0 ? "+" : ""}${Math.round(diferenca)}%)` : ", igual ao cadastro"}.
+          {Math.abs(diferenca) > 15 ? " Confira: uma diferença grande chama a atenção do fundo e dos investidores." : ""}
+        </Banner>
+      )}
     </Dialog>
   );
 }

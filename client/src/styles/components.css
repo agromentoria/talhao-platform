@@ -299,7 +299,7 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .step.is-current .step-dot { border-color: var(--brand-orange); background: #fff; box-shadow: 0 0 0 4px rgba(221, 130, 9, 0.18); }
 .step-label { font-size: 11.5px; line-height: 1.25; color: var(--text-2); max-width: 88px; }
 .step.is-current .step-label { color: var(--text); font-weight: 700; }
-@media (max-width: 599px) { .step { flex-basis: 58px; } .step-dot { width: 42px; height: 42px; } .step + .step::before { top: 20px; } .step-dot img { width: 24px; height: 24px; } }
+@media (max-width: 599px) { .step { flex: 1 1 0; min-width: 0; } .step-dot { width: 42px; height: 42px; } .step + .step::before { top: 20px; } .step-dot img { width: 24px; height: 24px; } }
 
 /* ---------- chat ---------- */
 .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) 0 var(--sp-3); overscroll-behavior: contain; }
@@ -507,3 +507,18 @@ a.list-item:hover, button.list-item:hover { background: var(--surface-raised); }
 .sidebar-legal { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: rgba(255,255,255,.72); text-align: center; }
 .sidebar-legal a { color: rgba(255,255,255,.88); text-decoration: underline; }
 .shell .sidebar[data-collapsed] .sidebar-legal, .sidebar--rail .sidebar-legal { display: none; }
+
+/* cadastro: cartões de perfil */
+.perfis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.perfil { display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 10px 12px; border-radius: 14px; cursor: pointer;
+  border: 1.5px solid rgba(255, 255, 255, .45); background: rgba(255, 255, 255, .08); color: #fff; font: inherit; min-height: 64px; }
+.perfil:hover { background: rgba(255, 255, 255, .16); }
+.perfil[aria-checked="true"] { background: #fff; color: var(--text, #2B2220); border-color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, .15); }
+.perfil strong { display: block; font-size: var(--fs-sm, 14px); line-height: 1.2; }
+.perfil small { display: block; font-size: 12px; line-height: 1.35; opacity: .85; margin-top: 2px; }
+.perfil:focus-visible { outline: 3px solid #F2C46B; outline-offset: 2px; }
+.register-sec { margin: 8px 0 -4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+/* tabelas: números alinhados e campos compactos dentro de tabela */
+.fin-table td .field, .fin-table td .field-shell { margin: 0; }
+.orcamento-tabela td { vertical-align: middle; }
+.orcamento-tabela tfoot th { padding-top: 10px; border-top: 2px solid var(--border-strong, #cdbfa6); }

@@ -679,6 +679,10 @@ CREATE INDEX IF NOT EXISTS idx_offers_item ON supplier_offers(catalog_item_id) W
 -- chaves: o app pode ir ao ar com a fazenda recebendo o dinheiro e ligar depois a compra de insumos pelo fundo
 ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS mp_cadastro_aberto BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS mp_insumos_ativo BOOLEAN NOT NULL DEFAULT false;
+-- limites de compra por investidor (evitam concentração e reduzem risco de fraude)
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS limite_pct_talhao DOUBLE PRECISION NOT NULL DEFAULT 10;
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS limite_anual_investidor DOUBLE PRECISION NOT NULL DEFAULT 20000;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS investidor_qualificado BOOLEAN NOT NULL DEFAULT false;
 -- 'dinheiro' = a fazenda recebe a captação (como sempre); 'insumos' = o fundo compra os itens do plano
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS financiamento TEXT NOT NULL DEFAULT 'dinheiro';
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS plano_status TEXT;

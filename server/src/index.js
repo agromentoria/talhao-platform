@@ -123,6 +123,7 @@ async function start() {
   app.get("/api/legal/empresa", async (req, res) => {
     try { res.json({ empresa: await require("./settings").getEmpresa() }); } catch (e) { res.status(500).json({ error: "Falha ao carregar." }); }
   });
+  app.use("/api", require("./routes/marketplace")); // marketplace: catálogo, fornecedores, tradings (v4.0)
   app.use("/api/admin", adminRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/conversations", conversationRoutes);

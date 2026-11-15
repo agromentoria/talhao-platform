@@ -29,6 +29,8 @@ const ChatView = lazy(() => import("../pages/ChatView"));
 const PaymentMethods = lazy(() => import("../pages/PaymentMethods"));
 const ComoFunciona = lazy(() => import("../pages/ComoFunciona"));
 const Privacy = lazy(() => import("../pages/legal/Privacy"));
+const SupplierDashboard = lazy(() => import("../pages/SupplierDashboard"));
+const TradingDashboard = lazy(() => import("../pages/TradingDashboard"));
 const Compliance = lazy(() => import("../pages/legal/Compliance"));
 const Terms = lazy(() => import("../pages/legal/Terms"));
 
@@ -80,6 +82,8 @@ export default function App() {
             <Route path="/fazenda" element={<RequireAuth role="fazenda"><FarmDashboard /></RequireAuth>} />
             <Route path="/fazenda/carteira" element={<RequireAuth role="fazenda"><FarmWallet /></RequireAuth>} />
             <Route path="/armazem" element={<RequireAuth role="armazem"><WarehouseDashboard /></RequireAuth>} />
+            <Route path="/fornecedor" element={<RequireAuth role="fornecedor"><SupplierDashboard /></RequireAuth>} />
+            <Route path="/trading" element={<RequireAuth role="trading"><TradingDashboard /></RequireAuth>} />
             <Route path="/admin/usuarios" element={<RequireAuth role="admin"><AdminUsers /></RequireAuth>} />
             <Route path="/admin/financeiro" element={<RequireAuth role={["admin", "fundo"]}><AdminFinance /></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth role={["admin", "fundo"]}><AdminDashboard /></RequireAuth>} />

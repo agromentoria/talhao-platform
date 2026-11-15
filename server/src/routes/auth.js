@@ -40,7 +40,8 @@ function publicUser(user) {
 }
 
 router.post("/register", asyncHandler(async (req, res) => {
-  const { name, email, password, role, farmName, farmLocation, avatar, warehouseName, warehouseLocation, warehouseCnpj, indicacao, aceite_termos, termos_versao } = req.body || {};
+  const { name, email, password, role, farmName, farmLocation, avatar, warehouseName, warehouseLocation, warehouseCnpj, indicacao, aceite_termos, termos_versao,
+    empresaNome, empresaCnpj, empresaLocal, empresaRegioes, empresaCulturas, empresaCategorias } = req.body || {};
   if (aceite_termos !== true) return res.status(400).json({ error: "Para criar a conta, aceite os Termos de uso e a Política de privacidade." });
 
   if (!name || !email || !password || !role) {
@@ -52,7 +53,7 @@ router.post("/register", asyncHandler(async (req, res) => {
   if (String(password).length < 8) {
     return res.status(400).json({ error: "A senha precisa ter pelo menos 8 caracteres." });
   }
-  if (!["investidor", "fazenda", "armazem"].includes(role)) {
+  if (!["investidor", "fazenda", "armazem", "fornecedor", "trading"].includes(role)) {
     return res.status(400).json({ error: "Tipo de conta inválido." });
   }
   if (role === "armazem") {
@@ -62,6 +63,10 @@ router.post("/register", asyncHandler(async (req, res) => {
     if (!isValidCNPJ(warehouseCnpj || "")) {
       return res.status(400).json({ error: "CNPJ do armazém inválido." });
     }
+  }
+  if (role === "fornecedor" || role === "trading") {
+    if (!empresaNome || !String(empresaNome).trim() || !empresaLocal) return res.status(400).json({ error: "Informe a razão social e a cidade/UF da empresa." });
+    if (!isValidCNPJ(empresaCnpj || "")) return res.status(400).json({ error: "CNPJ da empresa inválido." });
   }
   if (role === "fazenda" && (!farmName || !farmLocation)) {
     return res.status(400).json({ error: "Informe o nome e a localização da fazenda." });
@@ -122,6 +127,27 @@ router.post("/register", asyncHandler(async (req, res) => {
       const warehouseId = whResult.rows[0].id;
       await client.query("UPDATE users SET warehouse_id = $1 WHERE id = $2", [warehouseId, user.id]);
       user = { ...user, warehouse_id: warehouseId };
+    }
+
+    if (role === "fornecedor" || role === "trading") {
+      const { UFS, CATEGORIAS } = require("./marketplace");
+      const ufs = (v) => [...new Set((Array.isArray(v) ? v : String(v || "").split(/[,\s]+/)).map((x) => String(x).trim().toUpperCase()).filter((x) => UFS.includes(x)))];
+      const [cidade, uf] = String(empresaLocal).split(",").map((x) => x.trim());
+      if (role === "fornecedor") {
+        const r = await client.query(
+          "INSERT INTO suppliers (owner_user_id, razao_social, cnpj, cidade, uf, regioes, categorias) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+          [user.id, String(empresaNome).trim(), onlyDigits(empresaCnpj), cidade || null, (uf || "").toUpperCase() || null, ufs(empresaRegioes).length ? ufs(empresaRegioes) : (uf ? [uf.toUpperCase()] : []),
+           (Array.isArray(empresaCategorias) ? empresaCategorias : []).filter((c) => CATEGORIAS.includes(c))]);
+        await client.query("UPDATE users SET supplier_id = $1 WHERE id = $2", [r.rows[0].id, user.id]);
+        user = { ...user, supplier_id: r.rows[0].id };
+      } else {
+        const r = await client.query(
+          "INSERT INTO traders (owner_user_id, razao_social, cnpj, cidade, uf, pracas, culturas) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+          [user.id, String(empresaNome).trim(), onlyDigits(empresaCnpj), cidade || null, (uf || "").toUpperCase() || null, ufs(empresaRegioes).length ? ufs(empresaRegioes) : (uf ? [uf.toUpperCase()] : []),
+           Array.isArray(empresaCulturas) ? empresaCulturas.slice(0, 10) : []]);
+        await client.query("UPDATE users SET trader_id = $1 WHERE id = $2", [r.rows[0].id, user.id]);
+        user = { ...user, trader_id: r.rows[0].id };
+      }
     }
 
     await client.query("COMMIT");

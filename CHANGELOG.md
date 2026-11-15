@@ -1,5 +1,17 @@
 # Registro de mudanças
 
+## 4.0.0 — marketplace, etapa 1: fornecedores, tradings e catálogo
+
+- **Novos perfis:** `fornecedor` (revendas de corretivos, adubos, nutritivos, defensivos, sementes, diesel e serviços) e `trading` (compra do grão). Cadastro com razão social, CNPJ validado, cidade/UF, estados atendidos e o que vende / culturas que compra; entram como **pendentes** até a administração aprovar.
+- **Catálogo padronizado** (`catalog_items`): 23 itens em 7 categorias, com unidade da dose (t, kg, L, ha, saca), conversão para t/m³ e marcação de receita agronômica obrigatória (defensivos).
+- **Doses de referência por cultura** (`reference_doses`) para soja, milho e feijão: mínimo, referência, máximo, nº de aplicações e safras de efeito (calcário e gesso: 3). Ilustrativas e editáveis.
+- **Fornecedor › Meu catálogo:** ofertas por item (marca, embalagem, preço por unidade da dose entregue na fazenda, estados, prazo, validade, estoque); estados de entrega padrão; aviso da comissão de 0,5% retida pelo fundo.
+- **Trading › Produção:** produção em andamento por cultura e estado (talhões, área, sacas previstas, colheita), visível só depois da aprovação; praças de compra.
+- **Administração › Marketplace:** aprovar/suspender fornecedores e tradings (com aviso ao cadastrado); catálogo com doses editáveis por cultura.
+- `GET /api/catalog/offers?uf=&item=`: ofertas ativas de fornecedores aprovados por estado (base do plano de compras da 4.1).
+- **Carga de demonstração** `npm run carga:marketplace`: 7 fornecedores (57 ofertas, preços ilustrativos) e 2 tradings, aprovados. `REMOVER=1` apaga.
+- Correção preventiva: a regra antiga de perfis no banco passou a aceitar os sete perfis (evita falha na inicialização com contas novas).
+
 ## 3.7.0 — plano v9: taxa de entrada do investidor em degraus
 
 - **Taxa de entrada do investidor** (modelo Custo + Lucro): 0,5% até 5 mil ha contratados e retenção de investidores acima de 60%; 0,75% até 24 mil ha; 1% depois, só com margem positiva medida por talhão. Paga por cima do preço das sacas.

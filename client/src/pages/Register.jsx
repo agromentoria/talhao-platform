@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { Camera, TrendingUp, Tractor, Warehouse } from "lucide-react";
+import { Camera, TrendingUp, Tractor, Warehouse, Package, Ship } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { homeFor } from "../config/navigation";
 import { readImageFile } from "../lib/files";
@@ -16,7 +16,8 @@ export default function Register() {
   const [role, setRole] = useState("investidor");
   // código de indicação vindo do link de convite (/cadastro?indicacao=MT12ABC)
   const indicacao = new URLSearchParams(window.location.search).get("indicacao") || "";
-  const [form, setForm] = useState({ name: "", email: "", password: "", farmName: "", farmLocation: "", warehouseName: "", warehouseLocation: "", warehouseCnpj: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", farmName: "", farmLocation: "", warehouseName: "", warehouseLocation: "", warehouseCnpj: "",
+    empresaNome: "", empresaCnpj: "", empresaLocal: "", empresaRegioes: "", empresaCategorias: [], empresaCulturas: [] });
   const [avatar, setAvatar] = useState(null);
   const [avatarError, setAvatarError] = useState("");
   const [aceite, setAceite] = useState(false);
@@ -48,6 +49,10 @@ export default function Register() {
     if (role === "armazem") {
       if (!form.warehouseLocation) { setError("Escolha o estado e a cidade do armazém."); return; }
       if (!isValidCNPJ(form.warehouseCnpj)) { setError("CNPJ do armazém inválido. Confira os números."); return; }
+    }
+    if (role === "fornecedor" || role === "trading") {
+      if (!form.empresaLocal) { setError("Escolha o estado e a cidade da empresa."); return; }
+      if (!isValidCNPJ(form.empresaCnpj)) { setError("CNPJ da empresa inválido. Confira os números."); return; }
     }
     setLoading(true);
     try {
@@ -95,6 +100,8 @@ export default function Register() {
             { id: "investidor", label: "Investidor", icon: TrendingUp },
             { id: "fazenda", label: "Fazenda", icon: Tractor },
             { id: "armazem", label: "Armazém", icon: Warehouse },
+            { id: "fornecedor", label: "Fornecedor", icon: Package },
+            { id: "trading", label: "Trading", icon: Ship },
           ]}
         />
 
@@ -110,6 +117,8 @@ export default function Register() {
               investidor: "Compre parte da produção de talhões e acompanhe a safra até a colheita.",
               fazenda: "Publique talhões e receba investimento para a safra.",
               armazem: "Seja o garantidor: valide plantio, colheita e armazenagem dos talhões que as fazendas indicarem.",
+              fornecedor: "Venda sementes, corretivos, adubos, defensivos, diesel e serviços para as fazendas do app. O fundo paga.",
+              trading: "Acompanhe a produção em andamento e compre o grão direto dos talhões, com armazém garantidor.",
             }[role]}{" "}<Link to="/como-funciona" style={{ color: "#fff", fontWeight: 700 }}>Como funciona</Link>
           </p>
           <TextField label={role === "armazem" ? "Nome do responsável" : "Nome completo"} value={form.name} onChange={update("name")} required autoComplete="name" autoCapitalize="words" />
@@ -133,6 +142,36 @@ export default function Register() {
               <CityStateSelect value={form.warehouseLocation} onChange={update("warehouseLocation")} required />
               <p className="text-xs" style={{ opacity: 0.92, lineHeight: 1.5 }}>
                 A administração confere o CNPJ e credencia o armazém antes de ele poder assumir custódias.
+              </p>
+            </>
+          )}
+
+          {(role === "fornecedor" || role === "trading") && (
+            <>
+              <TextField label="Razão social da empresa" value={form.empresaNome} onChange={update("empresaNome")} required autoComplete="organization" />
+              <TextField label="CNPJ" value={form.empresaCnpj} onChange={(v) => update("empresaCnpj")(maskCNPJ(v))} placeholder="00.000.000/0000-00" required inputMode="numeric" />
+              <CityStateSelect value={form.empresaLocal} onChange={update("empresaLocal")} required />
+              <TextField label={role === "fornecedor" ? "Estados onde você entrega (siglas)" : "Estados onde você compra (siglas)"} value={form.empresaRegioes}
+                onChange={(v) => update("empresaRegioes")(v.toUpperCase())} placeholder="GO, MT, MS" hint="Separe por vírgula. Dá para mudar depois." />
+              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend className="text-sm" style={{ fontWeight: 600, marginBottom: 6 }}>{role === "fornecedor" ? "O que você vende" : "Culturas que você compra"}</legend>
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  {(role === "fornecedor"
+                    ? [["corretivo", "Corretivos"], ["fertilizante", "Adubos e fertilizantes"], ["nutritivo", "Nutritivos"], ["defensivo", "Defensivos"], ["semente", "Sementes"], ["combustivel", "Diesel"], ["servico", "Serviços"]]
+                    : [["Soja", "Soja"], ["Milho", "Milho"], ["Feijão", "Feijão"], ["Algodão", "Algodão"], ["Trigo", "Trigo"], ["Café", "Café"]]).map(([id, nome]) => {
+                    const campo = role === "fornecedor" ? "empresaCategorias" : "empresaCulturas";
+                    const marcado = form[campo].includes(id);
+                    return (
+                      <label key={id} className={`chip ${marcado ? "chip--on" : ""}`} style={{ cursor: "pointer", display: "inline-flex", gap: 6, alignItems: "center", padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,.6)", background: marcado ? "rgba(255,255,255,.25)" : "transparent", fontSize: "var(--fs-sm)" }}>
+                        <input type="checkbox" checked={marcado} onChange={() => setForm((f) => ({ ...f, [campo]: marcado ? f[campo].filter((x) => x !== id) : [...f[campo], id] }))} style={{ margin: 0 }} />
+                        {nome}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <p className="text-xs" style={{ opacity: 0.92, lineHeight: 1.5 }}>
+                A administração confere o CNPJ antes de {role === "fornecedor" ? "suas ofertas aparecerem para as fazendas" : "liberar a produção em andamento"}.
               </p>
             </>
           )}

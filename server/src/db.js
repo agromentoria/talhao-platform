@@ -424,9 +424,9 @@ CREATE TABLE IF NOT EXISTS warehouses (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS warehouse_id INTEGER REFERENCES warehouses(id);
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','fazenda','investidor','armazem','fundo'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','fazenda','investidor','armazem','fundo','fornecedor','trading'));
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_sender_role_check;
-ALTER TABLE notifications ADD CONSTRAINT notifications_sender_role_check CHECK (sender_role IN ('sistema','fazenda','admin','armazem','fundo'));
+ALTER TABLE notifications ADD CONSTRAINT notifications_sender_role_check CHECK (sender_role IN ('sistema','fazenda','admin','armazem','fundo','fornecedor','trading'));
 
 -- custódia: a fazenda indica o armazém ao publicar o talhão; o armazém
 -- aceita (passa a validar e garantir) ou recusa (com motivo)
@@ -596,6 +596,84 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS termos_aceitos_em TIMESTAMPTZ;
 ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS legal_empresa JSONB;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS termos_versao TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS consentimento_avisos BOOLEAN DEFAULT true;
+
+-- ===================== MARKETPLACE (v4.0) =====================
+-- novos perfis: fornecedor (revendas de insumos, sementes, diesel, serviços) e trading (compra do grão)
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','fazenda','investidor','armazem','fundo','fornecedor','trading'));
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_sender_role_check;
+ALTER TABLE notifications ADD CONSTRAINT notifications_sender_role_check CHECK (sender_role IN ('sistema','fazenda','admin','armazem','fundo','fornecedor','trading'));
+CREATE TABLE IF NOT EXISTS suppliers (
+  id SERIAL PRIMARY KEY,
+  owner_user_id INTEGER REFERENCES users(id),
+  razao_social TEXT NOT NULL,
+  cnpj TEXT,
+  cidade TEXT,
+  uf TEXT,
+  telefone TEXT,
+  regioes TEXT[] NOT NULL DEFAULT '{}',
+  categorias TEXT[] NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','aprovado','suspenso')),
+  comissao_pct DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS traders (
+  id SERIAL PRIMARY KEY,
+  owner_user_id INTEGER REFERENCES users(id),
+  razao_social TEXT NOT NULL,
+  cnpj TEXT,
+  cidade TEXT,
+  uf TEXT,
+  telefone TEXT,
+  pracas TEXT[] NOT NULL DEFAULT '{}',
+  culturas TEXT[] NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','aprovado','suspenso')),
+  comissao_pct DOUBLE PRECISION NOT NULL DEFAULT 0.3,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trader_id INTEGER REFERENCES traders(id);
+CREATE TABLE IF NOT EXISTS catalog_items (
+  id SERIAL PRIMARY KEY,
+  categoria TEXT NOT NULL CHECK (categoria IN ('corretivo','fertilizante','nutritivo','defensivo','semente','combustivel','servico')),
+  nome TEXT NOT NULL,
+  detalhe TEXT,
+  unidade_dose TEXT NOT NULL CHECK (unidade_dose IN ('t','kg','L','ha','saca','un')),
+  unidade_compra TEXT,
+  fator_t DOUBLE PRECISION NOT NULL DEFAULT 1,
+  exige_receita BOOLEAN NOT NULL DEFAULT false,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (categoria, nome)
+);
+CREATE TABLE IF NOT EXISTS reference_doses (
+  id SERIAL PRIMARY KEY,
+  catalog_item_id INTEGER NOT NULL REFERENCES catalog_items(id) ON DELETE CASCADE,
+  cultura TEXT NOT NULL,
+  uf TEXT NOT NULL DEFAULT 'BR',
+  dose_min DOUBLE PRECISION,
+  dose_ref DOUBLE PRECISION NOT NULL,
+  dose_max DOUBLE PRECISION,
+  aplicacoes INTEGER NOT NULL DEFAULT 1,
+  safras_efeito INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (catalog_item_id, cultura, uf)
+);
+CREATE TABLE IF NOT EXISTS supplier_offers (
+  id SERIAL PRIMARY KEY,
+  supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  catalog_item_id INTEGER NOT NULL REFERENCES catalog_items(id),
+  marca TEXT,
+  embalagem TEXT,
+  preco DOUBLE PRECISION NOT NULL CHECK (preco > 0),
+  regioes TEXT[] NOT NULL DEFAULT '{}',
+  prazo_dias INTEGER NOT NULL DEFAULT 7,
+  validade_ate DATE,
+  estoque DOUBLE PRECISION,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_offers_item ON supplier_offers(catalog_item_id) WHERE ativo;
 ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS preco_liquidacao DOUBLE PRECISION;
 ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS fonte_indice TEXT;
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS aporte_fazenda DOUBLE PRECISION DEFAULT 0;
@@ -802,6 +880,7 @@ async function initDb() {
   await ensureFasePricing();
   await ensureFarmCharacteristics();
   await ensureWarehouseCharacteristics();
+  await require("./catalogo").seedCatalogo(pool); // catálogo inicial do marketplace (só se vazio)
 }
 
 module.exports = { pool, initDb };

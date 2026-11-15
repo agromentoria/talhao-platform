@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
+import { Store, Warehouse as WarehouseIcon, ShieldCheck, Coins, Percent, Warehouse, Building2, Users, Clock, Receipt, TrendingUp, LayoutGrid, Wheat, ClipboardCheck, Check, X, FileText, Star } from "lucide-react";
 import { COLORS, UNIT_LABEL, FASES, ICONS } from "../config/theme";
 import { culturaIcone, culturaTexto, cicloLabels, fmtData, unidadeNome, TIPOS, fasesDe } from "../config/culturas";
 import { fmtBRL, fmtNumber, fmtPct } from "../lib/format";
 import { maskCNPJ } from "../lib/validators";
 import { api } from "../lib/api";
+import AdminMarketplace from "./AdminMarketplace";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Stars, RegrasTalhao, RegrasPiso, RegrasCusto, PainelTaxaInvestidor } from "../components/domain";
 import { TextField, FilterChips, Button, Banner, ErrorBanner, Tabs, EmptyState, Badge, useDialog, useToast } from "../components/ui";
@@ -20,6 +21,7 @@ const TABS = [
   { id: "armazens", label: "Armazéns", icon: WarehouseIcon },
   { id: "fases", label: "Preço por fase", icon: TrendingUp },
   { id: "mercado", label: "Referência de mercado", icon: Wheat },
+  { id: "marketplace", label: "Marketplace", icon: Store },
   { id: "destaques", label: "Pontuação", icon: Star, soAdmin: true },
   { id: "equipe", label: "Equipe do fundo", icon: Users, soAdmin: true },
   { id: "empresa", label: "Dados da empresa", icon: Building2, soAdmin: true },
@@ -338,6 +340,7 @@ export default function AdminDashboard() {
       )}
 
       {tab === "equipe" && isAdmin && <EquipeFundo />}
+      {tab === "marketplace" && <AdminMarketplace isAdmin={isAdmin} />}
       {tab === "empresa" && isAdmin && <DadosEmpresa />}
 
       {tab === "talhoes" && (

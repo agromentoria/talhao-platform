@@ -1,5 +1,9 @@
 # Registro de mudanças
 
+## 4.0.1 — inicialização à prova de perfis antigos
+
+- As regras de perfil (`users_role_check` e `notifications_sender_role_check`) passam a ser criadas com `NOT VALID`: continuam valendo para toda conta nova ou alterada, mas não reexaminam as linhas antigas a cada inicialização. Um perfil inesperado no banco não derruba mais o servidor.
+
 ## 4.0.0 — marketplace, etapa 1: fornecedores, tradings e catálogo
 
 - **Novos perfis:** `fornecedor` (revendas de corretivos, adubos, nutritivos, defensivos, sementes, diesel e serviços) e `trading` (compra do grão). Cadastro com razão social, CNPJ validado, cidade/UF, estados atendidos e o que vende / culturas que compra; entram como **pendentes** até a administração aprovar.

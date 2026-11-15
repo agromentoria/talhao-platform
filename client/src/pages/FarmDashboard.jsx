@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import NovoTalhao from "./NovoTalhao";
+import PlanoCompras from "./PlanoCompras";
 import { Warehouse, Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText, Image as ImageIcon } from "lucide-react";
 import { COLORS, GRAIN_COLORS, ICONS } from "../config/theme";
 import { fasesDe, culturaTexto, cicloLabels, fmtData } from "../config/culturas";
@@ -189,6 +190,7 @@ const STATUS_LABEL = {
 const MAX_PLOT_PHOTOS = 6;
 
 function PlotAdminCard({ plot, farmCommission = 0, appPct = 5, references, fasePricing, warehouses = [], onChanged, setNotice, setError }) {
+  const [planoAberto, setPlanoAberto] = useState(false);
   const uid = useId();
   const dialog = useDialog();
   const color = GRAIN_COLORS[plot.grao] || COLORS.leaf;
@@ -358,8 +360,12 @@ function PlotAdminCard({ plot, farmCommission = 0, appPct = 5, references, faseP
             </p>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {plot.financiamento === "insumos" && <Button size="sm" variant="success" onClick={() => setPlanoAberto(true)}>Plano de compras{plot.plano_status === "devolvido" ? " · ajustar" : ""}</Button>}
             <Button size="sm" variant="secondary" icon={FileText} to={`/talhao/${plot.id}/demonstrativo`}>Demonstrativo e custos</Button>
             <Button size="sm" variant="ghost" to={`/talhao/${plot.id}`}>Ver página pública</Button>
+            <Dialog open={planoAberto} onClose={() => { setPlanoAberto(false); onChanged?.(); }} title="Plano de compras" width={880}>
+              {planoAberto && <PlanoCompras plotId={plot.id} />}
+            </Dialog>
           </div>
           <CustodySection plot={plot} warehouses={warehouses} onChanged={onChanged} setNotice={setNotice} setError={setError} />
           <div style={{ marginTop: 14 }}><ProgressBar value={progresso} color={color} /></div>

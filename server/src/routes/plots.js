@@ -315,6 +315,11 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
       }
     }
   }
+  let financiamento = "dinheiro";
+  if (req.body?.financiamento === "insumos") {
+    if (!(await require("./insumos").config()).insumos_ativo) return res.status(400).json({ error: "A compra de insumos pelo fundo ainda não está ativa: o talhão recebe o financiamento em dinheiro." });
+    financiamento = "insumos";
+  }
   const seguroCob = Number(req.body?.seguro_cobertura_pct) || null;
   if (seguroCob != null && (seguroCob < LIMITES.cobertura_min_seguro || seguroCob > 100)) {
     return res.status(400).json({ error: "A cobertura do seguro agrícola deve ficar entre 65% e 100% da produtividade esperada." });
@@ -356,6 +361,10 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
      contrato.indice, contrato.base, contrato.seguradora, contrato.apolice, contrato.cobertura, !!arquivo]
   );
   const plot = rows[0];
+  if (financiamento === "insumos") {
+    await pool.query("UPDATE plots SET financiamento = 'insumos', plano_status = 'rascunho' WHERE id = $1", [plot.id]);
+    plot.financiamento = "insumos"; plot.plano_status = "rascunho";
+  }
   if (arquivo) {
     await pool.query("INSERT INTO plot_documents (plot_id, tipo, nome, conteudo, enviado_por) VALUES ($1, 'apolice', $2, $3, $4)",
       [plot.id, String(req.body?.seguro_arquivo_nome || "apolice").slice(0, 120), arquivo, req.user.id]);

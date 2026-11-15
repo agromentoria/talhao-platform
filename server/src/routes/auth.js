@@ -64,6 +64,9 @@ router.post("/register", asyncHandler(async (req, res) => {
       return res.status(400).json({ error: "CNPJ do armazém inválido." });
     }
   }
+  if ((role === "fornecedor" || role === "trading") && !(await require("./insumos").config()).cadastro_aberto) {
+    return res.status(403).json({ error: "O cadastro de fornecedores e tradings ainda não está aberto." });
+  }
   if (role === "fornecedor" || role === "trading") {
     if (!empresaNome || !String(empresaNome).trim() || !empresaLocal) return res.status(400).json({ error: "Informe a razão social e a cidade/UF da empresa." });
     if (!isValidCNPJ(empresaCnpj || "")) return res.status(400).json({ error: "CNPJ da empresa inválido." });

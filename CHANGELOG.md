@@ -1,5 +1,15 @@
 # Registro de mudanças
 
+## 4.1.0 — compra de insumos pelo fundo (instalada, ligada pela administração)
+
+- **Chaves em Administração › Marketplace › Funções do marketplace** (só perfil admin): "Cadastro de fornecedores e tradings" e **"Compra de insumos pelo fundo" (começa desligada)**. Desligada, tudo funciona como antes: a fazenda recebe a captação em dinheiro.
+- **Com a chave ligada**, o assistente de cadastro pergunta: "Dinheiro na conta da fazenda" ou **"O fundo compra os insumos"**.
+- **Plano de compras do talhão** (botão no card do talhão): itens sugeridos pelas doses de referência da cultura e pela oferta mais barata do estado; a fazenda ajusta dose/ha e aplicações, troca o fornecedor por item; totais ao vivo (compras, custo da safra com corretivos divididos pelas safras de efeito, por ha e por saca); aviso de dose fora de ±30% da referência; anexos de análise de solo e receita agronômica com ART (obrigatórios para enviar).
+- **Fundo** (Marketplace › Planos e pagamentos): vê o plano, aprova (gera um pedido por fornecedor automaticamente) ou devolve com o motivo; paga cada pedido depois do recebimento, retendo a comissão do fornecedor (0,5%). Lançamentos `pagamento_fornecedor` e `comissao_fundo_compra`.
+- **Fornecedor** (Meu catálogo › Pedidos): aceita, abre a receita agronômica do talhão, registra a entrega com a nota fiscal; vê o valor líquido pago.
+- **Fazenda**: confirma o recebimento de cada pedido ou recusa com o motivo (o fornecedor corrige e reenvia).
+- Avisos no app para cada etapa (fundo, fornecedor e fazenda). Talhões em dinheiro não mudam.
+
 ## 4.0.2 — cadastro de talhão em 4 passos, sem erros escondidos
 
 - **Assistente "Cadastrar talhão"** substitui o formulário único: 1) Talhão (nome, área, cultura, variedade, safra, datas), 2) Produção e custo, 3) Armazém e seguro, 4) Revisão. Cada passo valida antes de avançar, com o campo destacado e a explicação.

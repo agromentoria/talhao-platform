@@ -44,8 +44,9 @@ export default function NovoTalhao({ farm, warehouses: todos = [], references = 
   const safras = useMemo(() => opcoesSafra(), []);
   const vazio = { nome: "", area_ha: "", cultura: "Soja", variedade: "", safra: safras[0]?.rotulo || "", plantio_ate: "", colheita_prevista: "",
     produtividade_ha: "", custo_ha: "", preco: "", pct_venda: 80, warehouse_id: warehouses[0] && (warehouses.length === 1 || ufDe(warehouses[0]) === uf) ? String(warehouses[0].id) : "",
-    base_regional: "", tem_seguro: "nao", seguro_seguradora: "", seguro_apolice: "", seguro_cobertura_pct: "70", seguro_arquivo: "", seguro_arquivo_nome: "" };
+    base_regional: "", financiamento: "dinheiro", tem_seguro: "nao", seguro_seguradora: "", seguro_apolice: "", seguro_cobertura_pct: "70", seguro_arquivo: "", seguro_arquivo_nome: "" };
   const [catalogo, setCatalogo] = useState([]);
+  const [insumosAtivo, setInsumosAtivo] = useState(false);
   const [f, setF] = useState(vazio);
   const [passo, setPasso] = useState(0);
   const [tentou, setTentou] = useState(false);
@@ -55,6 +56,7 @@ export default function NovoTalhao({ farm, warehouses: todos = [], references = 
   const topo = useRef(null);
 
   useEffect(() => { api.culturas().then((d) => setCatalogo(d.culturas || d || [])).catch(() => setCatalogo([])); }, []);
+  useEffect(() => { api.configMarketplace().then((c) => setInsumosAtivo(!!c.insumos_ativo)).catch(() => {}); }, []);
   useEffect(() => { try { const r = JSON.parse(localStorage.getItem(chave) || "null"); if (r?.f?.area_ha || r?.f?.nome) setRascunho(r); } catch { /* sem rascunho */ } }, [chave]);
   useEffect(() => { try { if (f.area_ha || f.nome) localStorage.setItem(chave, JSON.stringify({ f: { ...f, seguro_arquivo: "" }, passo })); } catch { /* armazenamento indisponível */ } }, [f, passo, chave]);
   useEffect(() => { topo.current?.scrollIntoView({ block: "start" }); }, [passo]);
@@ -142,6 +144,7 @@ export default function NovoTalhao({ farm, warehouses: todos = [], references = 
         plantio_ate: f.plantio_ate, colheita_prevista: f.colheita_prevista, preco_venda_estimado: preco, cotas_totais: sacas,
         custo_ha: custoHa, produtividade_ha: prod, base_regional: n(f.base_regional), warehouse_id: Number(f.warehouse_id),
         arm_pagador: "fazenda", arm_quinzenas_previstas: 2, arm_investidor_pct: 0, perf_excedente_pct: 0,
+        financiamento: insumosAtivo ? f.financiamento : "dinheiro",
         ...(f.tem_seguro === "sim" ? { seguro_seguradora: f.seguro_seguradora.trim(), seguro_apolice: f.seguro_apolice.trim(), seguro_cobertura_pct: n(f.seguro_cobertura_pct),
           seguro_arquivo: f.seguro_arquivo, seguro_arquivo_nome: f.seguro_arquivo_nome } : {}),
       });
@@ -222,6 +225,16 @@ export default function NovoTalhao({ farm, warehouses: todos = [], references = 
             <p className="field-hint">Até 80%: o restante é margem de segurança para quebra de safra e continua seu.</p>
             {msg("pct_venda") && <p className="text-sm text-danger">{msg("pct_venda")}</p>}
           </div>
+          {insumosAtivo && (
+            <div className="span-all">
+              <p className="field-label">Como você quer receber o financiamento</p>
+              <div className="row" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button type="button" variant={f.financiamento === "dinheiro" ? "primary" : "secondary"} onClick={() => set("financiamento")("dinheiro")}>Dinheiro na conta da fazenda</Button>
+                <Button type="button" variant={f.financiamento === "insumos" ? "primary" : "secondary"} onClick={() => set("financiamento")("insumos")}>O fundo compra os insumos</Button>
+              </div>
+              <p className="field-hint">{f.financiamento === "insumos" ? "Depois de cadastrar, você monta o plano de compras (sementes, corretivos, adubos, defensivos, diesel, serviços), escolhe os fornecedores e o fundo paga direto a eles." : "Você recebe a captação e compra os insumos por conta própria."}</p>
+            </div>
+          )}
           <div className="span-all card card--well" style={{ padding: 14 }}>
             <dl className="kv" style={{ margin: 0 }}>
               <div><dt>Produção esperada</dt><dd>{fmtNumber(Math.round(producao))} {u}s</dd></div>
@@ -280,6 +293,7 @@ export default function NovoTalhao({ farm, warehouses: todos = [], references = 
               <div><dt>{u === "arroba" ? "Arrobas" : "Sacas"} à venda</dt><dd>{fmtNumber(sacas)} de {fmtNumber(Math.round(producao))} ({f.pct_venda}%)</dd></div>
               <div><dt>Custo por {u}</dt><dd>{fmtBRL(custoSaca)}</dd></div>
               <div><dt>Armazém</dt><dd>{warehouses.find((w) => String(w.id) === f.warehouse_id)?.name}</dd></div>
+              {insumosAtivo && <div><dt>Financiamento</dt><dd>{f.financiamento === "insumos" ? "o fundo compra os insumos (plano de compras a seguir)" : "dinheiro na conta da fazenda"}</dd></div>}
               <div><dt>Seguro</dt><dd>{f.tem_seguro === "sim" ? `${f.seguro_seguradora} · ${f.seguro_cobertura_pct}% · apólice anexada` : "a enviar depois"}</dd></div>
               <div className="total"><dt>Você recebe antes do plantio</dt><dd className="text-success">{fmtBRL(captacao)}</dd></div>
             </dl>

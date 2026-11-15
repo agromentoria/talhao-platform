@@ -674,6 +674,53 @@ CREATE TABLE IF NOT EXISTS supplier_offers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_offers_item ON supplier_offers(catalog_item_id) WHERE ativo;
+
+-- ===================== MARKETPLACE (v4.1): plano de compras e pedidos =====================
+-- chaves: o app pode ir ao ar com a fazenda recebendo o dinheiro e ligar depois a compra de insumos pelo fundo
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS mp_cadastro_aberto BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS mp_insumos_ativo BOOLEAN NOT NULL DEFAULT false;
+-- 'dinheiro' = a fazenda recebe a captação (como sempre); 'insumos' = o fundo compra os itens do plano
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS financiamento TEXT NOT NULL DEFAULT 'dinheiro';
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS plano_status TEXT;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS plano_custo DOUBLE PRECISION;
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS plano_obs TEXT;
+CREATE TABLE IF NOT EXISTS plot_plan_items (
+  id SERIAL PRIMARY KEY,
+  plot_id INTEGER NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+  catalog_item_id INTEGER NOT NULL REFERENCES catalog_items(id),
+  dose_ha DOUBLE PRECISION NOT NULL,
+  aplicacoes INTEGER NOT NULL DEFAULT 1,
+  quantidade DOUBLE PRECISION NOT NULL,
+  dose_t_ha DOUBLE PRECISION,
+  offer_id INTEGER REFERENCES supplier_offers(id),
+  preco_unit DOUBLE PRECISION,
+  valor_total DOUBLE PRECISION,
+  safras_efeito INTEGER NOT NULL DEFAULT 1,
+  valor_safra DOUBLE PRECISION,
+  UNIQUE (plot_id, catalog_item_id)
+);
+CREATE TABLE IF NOT EXISTS purchase_orders (
+  id SERIAL PRIMARY KEY,
+  plot_id INTEGER NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+  supplier_id INTEGER NOT NULL REFERENCES suppliers(id),
+  status TEXT NOT NULL DEFAULT 'emitido' CHECK (status IN ('emitido','aceito','entregue','recebido','recusado','pago')),
+  valor_total DOUBLE PRECISION NOT NULL,
+  comissao_pct DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+  comissao_fundo DOUBLE PRECISION,
+  nf_numero TEXT,
+  recusa_motivo TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  aceito_em TIMESTAMPTZ, entregue_em TIMESTAMPTZ, recebido_em TIMESTAMPTZ, pago_em TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+  id SERIAL PRIMARY KEY,
+  order_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+  plan_item_id INTEGER REFERENCES plot_plan_items(id) ON DELETE SET NULL,
+  catalog_item_id INTEGER NOT NULL REFERENCES catalog_items(id),
+  quantidade DOUBLE PRECISION NOT NULL,
+  preco_unit DOUBLE PRECISION NOT NULL,
+  valor DOUBLE PRECISION NOT NULL
+);
 ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS preco_liquidacao DOUBLE PRECISION;
 ALTER TABLE harvest_requests ADD COLUMN IF NOT EXISTS fonte_indice TEXT;
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS aporte_fazenda DOUBLE PRECISION DEFAULT 0;

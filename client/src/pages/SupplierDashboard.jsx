@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
-import { fmtBRL } from "../lib/format";
+import { fmtBRL, fmtNumber } from "../lib/format";
+import { abrirDataUrl } from "../lib/arquivo";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, Banner, ErrorBanner, Loading, EmptyState, Dialog, TextField, MoneyField, SelectField, Badge, useToast } from "../components/ui";
 
@@ -16,8 +17,10 @@ export default function SupplierDashboard() {
   const [erro, setErro] = useState("");
   const [editando, setEditando] = useState(null); // null | {} (nova) | oferta
   const [regioes, setRegioes] = useState("");
+  const [pedidos, setPedidos] = useState([]);
 
   const carregar = useCallback(() => {
+    api.pedidosFornecedor().then((p) => setPedidos(p.pedidos)).catch(() => setPedidos([]));
     Promise.all([api.minhasOfertas(), api.catalogo()]).then(([o, c]) => {
       setDados(o); setItens(c.itens); setRegioes((o.fornecedor.regioes || []).join(", "));
     }).catch((e) => setErro(e.message));
@@ -60,6 +63,8 @@ export default function SupplierDashboard() {
         </div>
         <p className="text-xs text-3" style={{ marginTop: 8 }}>O fundo paga cada pedido depois que a fazenda confirma o recebimento, retendo a comissão de {f.comissao_pct}% sobre o valor.</p>
       </section>
+
+      {pedidos.length > 0 && <Pedidos pedidos={pedidos} onMudou={carregar} setErro={setErro} />}
 
       {!dados.ofertas.length ? (
         <EmptyState title="Nenhuma oferta ainda" action={<Button icon={Plus} onClick={() => setEditando({})}>Cadastrar a primeira oferta</Button>}>
@@ -129,5 +134,44 @@ function FormOferta({ oferta, itens, regioesPadrao, onSalvo }) {
       {erro && <div className="span-all"><ErrorBanner message={erro} /></div>}
       <div className="span-all"><Button type="submit" loading={salvando}>Salvar oferta</Button></div>
     </form>
+  );
+}
+
+const ST = { emitido: ["Novo · aceite", "warning"], aceito: ["Aceito · registre a entrega", "info"], entregue: ["Entregue · aguardando a fazenda", "info"], recebido: ["Recebido · aguardando pagamento", "success"], recusado: ["Recusado pela fazenda · reenvie", "danger"], pago: ["Pago", "success"] };
+function Pedidos({ pedidos, onMudou, setErro }) {
+  const toast = useToast();
+  async function aceitar(p) { try { await api.aceitarPedido(p.id); toast("Pedido aceito"); onMudou(); } catch (e) { setErro(e.message); } }
+  async function entregar(p) {
+    const nf = window.prompt("Número da nota fiscal emitida em nome da fazenda:");
+    if (!nf) return;
+    try { await api.entregarPedido(p.id, nf); toast("Entrega registrada"); onMudou(); } catch (e) { setErro(e.message); }
+  }
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <h2 className="card-title">Pedidos <span className="text-sm text-3">({pedidos.length})</span></h2>
+      <p className="card-desc">O fundo paga depois que a fazenda confirma o recebimento, já descontando a comissão.</p>
+      {pedidos.map((p) => {
+        const [rot, tom] = ST[p.status] || [p.status, "info"];
+        const temReceita = p.itens.some((x) => x.exige_receita);
+        return (
+          <div key={p.id} style={{ borderTop: "1px solid var(--border, #e5dccb)", padding: "10px 0" }}>
+            <div className="row" style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              <span className="text-sm"><strong>#{p.id} · {p.fazenda}</strong> · {p.talhao} · {p.fazenda_local}</span>
+              <Badge tone={tom}>{rot}</Badge>
+            </div>
+            <p className="text-xs text-3" style={{ margin: "4px 0" }}>{p.itens.map((x) => `${x.item}: ${fmtNumber(Math.round(x.quantidade * 100) / 100)} ${x.unidade} × ${fmtBRL(x.preco)}`).join(" · ")}</p>
+            <div className="row" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <strong className="text-sm">{fmtBRL(p.valor_total)}</strong>
+              {p.status === "pago" && <span className="text-xs text-3">líquido {fmtBRL(p.valor_total - (p.comissao_fundo || 0))}</span>}
+              {p.nf_numero && <span className="text-xs text-3">NF {p.nf_numero}</span>}
+              {p.status === "recusado" && p.recusa_motivo && <span className="text-xs text-danger">Motivo: {p.recusa_motivo}</span>}
+              {temReceita && p.receita_id && <Button size="sm" variant="ghost" onClick={async () => abrirDataUrl((await api.documento(p.plot_id, p.receita_id)).conteudo)}>Ver receita agronômica</Button>}
+              {p.status === "emitido" && <Button size="sm" onClick={() => aceitar(p)}>Aceitar pedido</Button>}
+              {(p.status === "aceito" || p.status === "recusado") && <Button size="sm" variant="success" onClick={() => entregar(p)}>Registrar entrega (NF)</Button>}
+            </div>
+          </div>
+        );
+      })}
+    </section>
   );
 }

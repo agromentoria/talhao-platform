@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Camera, TrendingUp, Tractor, Warehouse, Package, Ship } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { homeFor } from "../config/navigation";
+import { api } from "../lib/api";
 import { readImageFile } from "../lib/files";
 import { maskCNPJ, isValidCNPJ } from "../lib/validators";
 import { Page } from "../components/layout/Page";
@@ -16,6 +17,8 @@ export default function Register() {
   const [role, setRole] = useState("investidor");
   // código de indicação vindo do link de convite (/cadastro?indicacao=MT12ABC)
   const indicacao = new URLSearchParams(window.location.search).get("indicacao") || "";
+  const [cadastroAberto, setCadastroAberto] = useState(false);
+  useEffect(() => { api.configMarketplace().then((c) => setCadastroAberto(!!c.cadastro_aberto)).catch(() => {}); }, []);
   const [form, setForm] = useState({ name: "", email: "", password: "", farmName: "", farmLocation: "", warehouseName: "", warehouseLocation: "", warehouseCnpj: "",
     empresaNome: "", empresaCnpj: "", empresaLocal: "", empresaRegioes: "", empresaCategorias: [], empresaCulturas: [] });
   const [avatar, setAvatar] = useState(null);
@@ -100,8 +103,7 @@ export default function Register() {
             { id: "investidor", label: "Investidor", icon: TrendingUp },
             { id: "fazenda", label: "Fazenda", icon: Tractor },
             { id: "armazem", label: "Armazém", icon: Warehouse },
-            { id: "fornecedor", label: "Fornecedor", icon: Package },
-            { id: "trading", label: "Trading", icon: Ship },
+            ...(cadastroAberto ? [{ id: "fornecedor", label: "Fornecedor", icon: Package }, { id: "trading", label: "Trading", icon: Ship }] : []),
           ]}
         />
 

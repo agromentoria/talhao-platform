@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
+import NovoTalhao from "./NovoTalhao";
 import { Warehouse, Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText, Image as ImageIcon } from "lucide-react";
 import { COLORS, GRAIN_COLORS, ICONS } from "../config/theme";
 import { fasesDe, culturaTexto, cicloLabels, fmtData } from "../config/culturas";
@@ -8,10 +9,9 @@ import { readImageFile } from "../lib/files";
 import { useAuth } from "../context/AuthContext";
 import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from "../lib/validators";
 import { Page, PageHeader } from "../components/layout/Page";
-import { MoneyField, Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
+import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
 import { dividirPiso } from "../lib/piso";
-import { useRegras } from "../lib/referencias";
-import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasPiso, RegrasCusto } from "../components/domain";
+import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasPiso } from "../components/domain";
 import { tarifasTexto, quinzenasTexto, armDoTalhao, pagadorTexto } from "../lib/armazenagem";
 
 const STATUS_FILTERS = [
@@ -100,14 +100,14 @@ export default function FarmDashboard() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "28px 0 12px" }}>
         <h2 className="section-title">Seus talhões</h2>
-        <Button icon={Plus} variant="success" onClick={() => setShowForm(true)} disabled={!aprovada} title={aprovada ? undefined : "Disponível depois da aprovação da fazenda"}>
+        <Button icon={Plus} variant="success" onClick={() => setShowForm(true)}>
           Novo talhão
         </Button>
       </div>
 
-      <Dialog open={showForm} onClose={() => setShowForm(false)} title="Publicar novo talhão" width={680}>
-        <NewPlotForm farmId={farm.id} farmCommission={farm.commission_pct} appPct={appPct} references={references} fasePricing={fasePricing} warehouses={warehouses}
-          onCreated={() => { setShowForm(false); toast("Talhão publicado"); load(); }} setError={setError} />
+      <Dialog open={showForm} onClose={() => setShowForm(false)} title="Cadastrar talhão" width={720}>
+        <NovoTalhao farm={farm} references={references} warehouses={warehouses}
+          onCreated={() => { setShowForm(false); toast("Talhão enviado para aprovação"); load(); }} />
       </Dialog>
 
       <div style={{ marginBottom: 14 }}>
@@ -176,95 +176,6 @@ function CommissionCard({ farm, onSaved, onError }) {
   );
 }
 
-function NewPlotForm({ farmId, references, fasePricing, warehouses = [], onCreated, setError }) {
-  const [warehouseId, setWarehouseId] = useState("");
-  const [form, setForm] = useState({ nome: "", area_ha: "", safra: "", previsao_retorno: "", custo_ha: "", produtividade_ha: "", base_regional: "", seguro_seguradora: "", seguro_apolice: "", seguro_cobertura_pct: "" });
-  const regrasApp = useRegras();
-  const [cultivo, setCultivo] = useState(emptyCultivo());
-  const [arm, setArm] = useState({ pagador: "investidores", quinzenas: 2, investidorPct: 50 });
-  const [perf] = useState("0");
-  const [saving, setSaving] = useState(false);
-  const warehouse = warehouses.find((w) => String(w.id) === String(warehouseId));
-
-  function update(field, value) { setForm((f) => ({ ...f, [field]: value })); }
-
-  async function submit(e) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.createPlot({
-        farm_id: farmId, ...form, ...cultivoPayload(cultivo), warehouse_id: warehouseId ? Number(warehouseId) : null,
-        arm_pagador: arm.pagador, arm_quinzenas_previstas: arm.quinzenas, arm_investidor_pct: arm.investidorPct, perf_excedente_pct: perf,
-      });
-      onCreated();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (warehouses.length === 0) {
-    return (
-      <Banner tone="warning" title="Nenhum armazém credenciado ainda">
-        Todo talhão precisa de um armazém garantidor. Assim que a administração credenciar um armazém na sua região, você poderá cadastrar talhões. Fale com a administração em Conversas.
-      </Banner>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} className="form-grid">
-      <Field label="Nome do talhão" value={form.nome} onChange={(v) => update("nome", v)} required />
-      <Field label="Área (hectares)" type="number" value={form.area_ha} onChange={(v) => update("area_ha", v)} required />
-      <CultivoFields value={cultivo} onChange={setCultivo} area={form.area_ha} references={references} fasePricing={fasePricing} />
-      <Field label="Safra / ciclo (ex: 2026/27)" value={form.safra} onChange={(v) => update("safra", v)} required />
-      <MoneyField label="Custo de produção por hectare" value={form.custo_ha} onChange={(v) => update("custo_ha", v)} required
-        hint="Custo operacional efetivo (insumos, operações, mão de obra). Ex.: soja ~R$ 6.100/ha; milho safrinha ~R$ 5.500/ha." />
-      <MoneyField label="Base regional por unidade" allowNegative value={form.base_regional ?? ""} onChange={(v) => update("base_regional", v)}
-        hint={`Diferença média da sua praça para ${regrasApp?.indices?.[cultivo.grao] || "o índice de referência"}. Negativa se a sua região vende abaixo do índice. O fundo confere.`} />
-      <Field label="Seguradora" value={form.seguro_seguradora ?? ""} onChange={(v) => update("seguro_seguradora", v)} hint="Seguro agrícola é exigido: protege você e os investidores em caso de quebra." />
-      <Field label="Nº da apólice ou proposta" value={form.seguro_apolice ?? ""} onChange={(v) => update("seguro_apolice", v)} />
-      <div className="span-all">
-        <p className="field-label">Anexar a apólice (PDF ou foto, até 1,5 MB)</p>
-        <label className="btn btn--secondary" style={{ marginTop: 4, cursor: "pointer", display: "inline-flex" }}>
-          {form.seguro_arquivo_nome ? "Trocar arquivo" : "Escolher arquivo"}
-        <input id="apolice-arquivo" type="file" accept="application/pdf,image/*" style={{ display: "none" }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            if (file.size > 1_500_000) { setError("Apólice muito grande: envie um arquivo de até 1,5 MB."); e.target.value = ""; return; }
-            const reader = new FileReader();
-            reader.onload = () => setForm((f) => ({ ...f, seguro_arquivo: reader.result, seguro_arquivo_nome: file.name }));
-            reader.readAsDataURL(file);
-          }} />
-        </label>
-        <p className="field-hint">{form.seguro_arquivo_nome ? `Anexado: ${form.seguro_arquivo_nome}` : "Obrigatório quando você informa o seguro: o fundo confere a apólice antes de publicar o talhão."}</p>
-      </div>
-      <Field label="Cobertura do seguro (% da produtividade)" type="number" value={form.seguro_cobertura_pct ?? ""} onChange={(v) => update("seguro_cobertura_pct", v)} hint="Mínimo de 65%." />
-      <Field label={`Produtividade esperada (${cultivo.unidade === "arroba" ? "arrobas" : "sacas"} por ha)`} type="number" value={form.produtividade_ha} onChange={(v) => update("produtividade_ha", v)} required
-        hint={Number(form.custo_ha) > 0 && Number(form.produtividade_ha) > 0
-          ? `Custo por unidade: R$ ${(Number(form.custo_ha) / Number(form.produtividade_ha)).toFixed(2).replace(".", ",")} — é o preço que o investidor paga na abertura.${Number(form.area_ha) > 0 ? ` Você pode oferecer até ${Math.floor(Number(form.area_ha) * Number(form.produtividade_ha) * 0.8).toLocaleString("pt-BR")} unidades (80% da produção esperada).` : ""}`
-          : "Média das últimas safras da área."} />
-      <div className="span-all">
-        <WarehousePicker warehouses={warehouses} value={warehouseId} onChange={setWarehouseId} />
-      </div>
-      <ArmazenagemFields warehouse={warehouse} value={arm} onChange={setArm} pagadorFixo
-        precoVenda={Number(cultivo.preco) * (1 + (Number(form.previsao_retorno) || 0) / 100)} unidade={cultivo.unidade || "saca"} quantidade={Number(cultivo.cotas) || 0} />
-      <div className="span-all card" style={{ padding: 14 }}>
-        <p className="card-title" style={{ marginBottom: 8 }}>Resumo das regras deste talhão</p>
-        <RegrasCusto custoHa={form.custo_ha} produtividade={form.produtividade_ha} precoEsperado={cultivo.preco} colheitaPrevista={cultivo.colheita_prevista}
-          unidade={cultivo.unidade || "saca"} area={Number(form.area_ha) || 0} paraFazenda indice={regrasApp?.indices?.[cultivo.grao]} base={form.base_regional}
-          seguro={{ seguradora: form.seguro_seguradora, cobertura: form.seguro_cobertura_pct }} />
-      </div>
-      <p className="span-all text-sm text-2">
-        Depois de enviar, o talhão passa pela aprovação da administração e pelo aceite do armazém. Ele só aparece para os investidores quando os dois confirmarem.
-      </p>
-      <div className="span-all">
-        <Button type="submit" loading={saving}>Enviar para aprovação</Button>
-      </div>
-    </form>
-  );
-}
 
 const STATUS_LABEL = {
   captacao: "captação",

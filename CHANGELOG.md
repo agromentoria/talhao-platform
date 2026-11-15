@@ -1,5 +1,15 @@
 # Registro de mudanças
 
+## 4.0.2 — cadastro de talhão em 4 passos, sem erros escondidos
+
+- **Assistente "Cadastrar talhão"** substitui o formulário único: 1) Talhão (nome, área, cultura, variedade, safra, datas), 2) Produção e custo, 3) Armazém e seguro, 4) Revisão. Cada passo valida antes de avançar, com o campo destacado e a explicação.
+- **Valores sugeridos:** safra em lista (soja sugere a safra de verão; milho e feijão, a safrinha), datas de plantio e colheita pelo ciclo da cultura, produtividade e preço das referências de mercado, custo por hectare de referência (Imea/Conab), base regional pelo estado da fazenda, armazém do mesmo estado pré-selecionado.
+- **Sacas à venda calculadas:** controle de 10% a 80% da produção (área × produtividade); custo por saca, captação e margem ao vivo; aviso de teto de R$ 2,5 mi e de margem baixa antes de enviar.
+- **Seguro:** "Já tenho seguro" (com apólice anexada) ou "Vou contratar e enviar depois" (o fundo pede antes de publicar).
+- **Erros do servidor aparecem dentro da janela**, levando ao passo certo (antes ficavam atrás da janela).
+- **Rascunho automático** no aparelho: fechou a janela, continua de onde parou.
+- Botão "Novo talhão" sempre ativo: se a fazenda ainda não foi aprovada ou não há armazém credenciado, a janela explica o motivo (antes o botão ficava desativado sem explicação no celular).
+
 ## 4.0.1 — inicialização à prova de perfis antigos
 
 - As regras de perfil (`users_role_check` e `notifications_sender_role_check`) passam a ser criadas com `NOT VALID`: continuam valendo para toda conta nova ou alterada, mas não reexaminam as linhas antigas a cada inicialização. Um perfil inesperado no banco não derruba mais o servidor.

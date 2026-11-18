@@ -1,6 +1,6 @@
 {
   "name": "talhao-server",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "description": "API do Talhão - plataforma de investimento em commodities agrícolas",
   "main": "src/index.js",
   "type": "commonjs",
@@ -12,7 +12,9 @@
     "seed:boa-vista": "node scripts/seed-boa-vista.js",
     "carga:safrinha": "node scripts/carga-safrinha-2027.js",
     "carga:ano": "node scripts/carga-ano-completo.js",
-    "carga:marketplace": "node scripts/carga-marketplace.js"
+    "carga:marketplace": "node scripts/carga-marketplace.js",
+    "limpar": "node scripts/limpar-base.js",
+    "demo": "node scripts/carga-demo.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

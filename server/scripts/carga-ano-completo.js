@@ -63,6 +63,7 @@ const CULT = {
   soja:    { grao: "Soja", variedade: "Intacta RR2 PRO", unidade: "saca", prod: [57, 64], custoHa: 6122 },
   milho:   { grao: "Milho", variedade: "Grão amarelo (comum)", unidade: "saca", prod: [108, 122], custoHa: 5508 },
   feijao:  { grao: "Feijão", variedade: "Carioca", unidade: "saca", prod: [43, 50], custoHa: 11500 },
+  sorgo:   { grao: "Sorgo", variedade: "Granífero", unidade: "saca", prod: [68, 78], custoHa: 2900 },
   algodao: { grao: "Algodão", variedade: "Transgênico", unidade: "arroba", prod: [105, 120], custoHa: 12500 },
   trigo:   { grao: "Trigo", variedade: "Pão", unidade: "saca", prod: [50, 62], custoHa: 3600 },
 };
@@ -70,15 +71,13 @@ const CULT = {
 const SAFRAS = [
   { id: "s25", safra: "2025/26", nome: "Soja Verão", pub: ["2025-08-18", "2025-09-12"], plantio: ["2025-10-10", "2025-11-08"], colheita: ["2026-02-08", "2026-03-12"],
     preco: { soja: 121 }, venda: [0.93, 1.12], paga: true, fill: [0.92, 1] },
-  { id: "m26", safra: "2026 safrinha", nome: "Safrinha", pub: ["2026-01-05", "2026-01-25"], plantio: ["2026-02-12", "2026-03-08"], colheita: ["2026-06-15", "2026-07-25"],
-    preco: { milho: 56, feijao: 300 }, venda: [0.88, 1.18], paga: true, fill: [0.9, 1] },
   { id: "s26", safra: "2026/27", nome: "Soja Verão", pub: ["2026-08-18", "2026-09-15"], plantio: ["2026-10-08", "2026-11-12"], colheita: ["2027-02-10", "2027-03-15"],
     preco: { soja: 120 }, paga: false, fill: [0.82, 1], fase: [1, 2] },
   { id: "m27", safra: "2027 safrinha", nome: "Safrinha", pub: ["2026-09-28", "2026-10-14"], plantio: ["2027-02-15", "2027-03-08"], colheita: ["2027-06-20", "2027-07-20"],
-    preco: { milho: 57, feijao: 305 }, paga: false, fill: [0.05, 0.3], fase: [0, 0] },
+    preco: { milho: 57, sorgo: 46 }, paga: false, fill: [0.35, 0.75], fase: [0, 0] },
 ];
 // base regional (R$/saca): diferença média da praça para o índice de referência
-const BASE = { soja: { MT: -9, GO: -5, MS: -6, PR: -2, MG: -4 }, milho: { MT: -12, GO: -6, MS: -7, PR: -3, MG: -5 }, feijao: { MT: -10, GO: -5, MS: -8, PR: -5, MG: -3 } };
+const BASE = { soja: { MT: -9, GO: -5, MS: -6, PR: -2, MG: -4 }, milho: { MT: -12, GO: -6, MS: -7, PR: -3, MG: -5 }, sorgo: { MT: -8, GO: -4, MS: -5, PR: -3, MG: -4 }, feijao: { MT: -10, GO: -5, MS: -8, PR: -5, MG: -3 } };
 // apólice de demonstração (PDF mínimo) para o fundo poder abrir no app
 const APOLICE_DEMO = "data:application/pdf;base64," + Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 300 120]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj 4 0 obj<</Length 60>>stream\nBT /F1 12 Tf 20 60 Td (Apolice de seguro - demonstracao) Tj ET\nendstream endobj 5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF").toString("base64");
 
@@ -181,8 +180,16 @@ async function limpar(client) {
     if (antes.antigos) console.log(`Demonstrações antigas: ${antes.antigos} talhão(ões) acima de 100 ha removido(s).`);
     if (process.env.REMOVER) { await client.query("COMMIT"); console.log("Pronto (só remoção)."); return; }
 
-    const { rows: siap } = await client.query("SELECT * FROM warehouses WHERE name ILIKE '%SIAP%' AND status = 'aprovado' ORDER BY id LIMIT 1");
-    if (!siap[0]) throw new Error('Não encontrei armazém aprovado com "SIAP" no nome.');
+    let { rows: siap } = await client.query("SELECT * FROM warehouses WHERE status = 'aprovado' AND name NOT IN ('Silos Norte Mato Grosso','Armazéns Gerais Cone Sul','Armazém Vale do Paranaíba') ORDER BY (name ILIKE '%SIAP%') DESC, id LIMIT 1");
+    if (!siap[0]) {
+      // base sem armazém: cria o armazém central da demonstração (Rio Verde, GO)
+      const h = await bcrypt.hash(SENHA, 10);
+      const { rows: u } = await client.query("INSERT INTO users (name, email, password_hash, role, termos_aceitos_em, termos_versao) VALUES ('Marcos Prado', $1, $2, 'armazem', now(), '2026-10') RETURNING id", [`armazem.central@${D_ARM}`, h]);
+      ({ rows: siap } = await client.query(
+        `INSERT INTO warehouses (name, cnpj, location, capacidade_t, owner_user_id, status, tarifa_recepcao, tarifa_quinzena, carencia_quinzenas, quebra_quinzena_pct)
+         VALUES ('Armazém Central Rio Verde', '12345678000195', 'Rio Verde, GO', 150000, $1, 'aprovado', 1.40, 0.42, 1, 0.12) RETURNING *`, [u[0].id]));
+      await client.query("UPDATE users SET warehouse_id = $1 WHERE id = $2", [siap[0].id, u[0].id]).catch(() => {});
+    }
     const { rows: adm } = await client.query("SELECT id FROM users WHERE role IN ('fundo', 'admin') AND deleted_at IS NULL ORDER BY role = 'fundo' DESC, id LIMIT 1");
     const aprovador = adm[0]?.id || null;
     const hash = await bcrypt.hash(SENHA, 10);
@@ -237,15 +244,15 @@ async function limpar(client) {
     const { rows: ana } = await client.query("SELECT id FROM users WHERE email = 'ana.cedo@demo.com' AND deleted_at IS NULL");
     if (ana[0]) invs.push({ id: ana[0].id, nome: "Ana", entrada: dia("2025-08-20"), compras: 0, ana: true });
 
-    // ---- talhões das quatro safras ----
+    // ---- talhões das três safras (safra paga, safra em andamento, safrinha em captação) ----
     let seqTal = 0; const resumo = { gmv: 0, pagos: 0, invRecebido: 0, invAplicado: 0, fazAlta: 0, fazCusto: 0, compras: 0, talhoes: 0, plataforma: 0, armazem: 0 };
     const compradoresAnteriores = new Set();
     const novasRecompensas = new Set();
     for (const S of SAFRAS) {
       for (const fz of fazendas) {
-        const sem = (k) => (k === "algodao" || k === "sorgo" ? "milho" : k === "trigo" ? "feijao" : k); // só culturas com boa margem
+        const sem = (k) => (k === "algodao" ? "milho" : k === "trigo" || k === "feijao" ? "sorgo" : k); // só culturas com boa margem
         const safr = fz.safrinha.map(sem);
-        const culturas = S.id.startsWith("s") ? ["soja"] : S.id === "m27" ? [safr[0]] : safr.slice(0, rnd() < 0.5 ? 2 : 1);
+        const culturas = S.id.startsWith("s") ? ["soja"] : S.id === "m27" ? [rnd() < 0.4 ? "sorgo" : "milho"] : safr.slice(0, rnd() < 0.5 ? 2 : 1);
         for (const chave of culturas) {
           const c = CULT[chave];
           // preço esperado de venda (milho em MT tem preço menor: base ~R$ 50)

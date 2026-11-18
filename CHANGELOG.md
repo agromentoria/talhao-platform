@@ -1,5 +1,14 @@
 # Registro de mudanças
 
+## 4.2.2 — demonstração do zero
+
+- `scripts/limpar-base.js` (`npm run limpar`): apaga todos os dados e mantém só as contas de administração e as configurações (catálogo, doses de referência, preços de referência, preço por fase, catálogos de características, dados da empresa, limites e chaves). Só roda com `CONFIRMAR=APAGAR-TUDO`.
+- `scripts/carga-demo.js` (`npm run demo`): limpa a base e monta a demonstração completa — gestor do fundo, 4 armazéns (o central de Rio Verde é criado se não houver armazém), 20 fazendas, 4.000 investidores, fornecedores e tradings — com três ciclos:
+  - **safra 2025/26 (soja): colhida, vendida e paga** (resultado completo);
+  - **safra 2026/27 (soja): em andamento** no campo;
+  - **safrinha 2027 (milho e sorgo): captação aberta**.
+- Talhões da demonstração com a divisão vigente (20/75/5); sorgo volta à safrinha.
+
 ## 4.2.1 — divisão do lucro 20/75/5, definida pela plataforma
 
 - **Nova divisão do lucro: 20% investidor · 75% fazenda · 5% app.** O investidor continua com o mínimo de 95% do CDI; passa a receber mais que o mínimo quando a venda supera cerca de R$ 135,60 por saca (soja de referência).

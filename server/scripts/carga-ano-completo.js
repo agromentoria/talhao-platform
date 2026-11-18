@@ -358,7 +358,7 @@ async function limpar(client) {
               r.linhas.map((l) => ["pagamento_investidor", "aprovado", l.inv.user_id, fz.id, plot.id, l.inv.id, c2(l.investidor),
                 `Pagamento da colheita de ${nome}: ${l.minimoAtivo ? `mínimo garantido (${piso}%)` : "custo + 30% do lucro"}`, pagoEm.toISOString()]));
             const extras = [
-              r.fazendaLiquido >= 0 ? ["repasse_fazenda", fz.owner, r.fazendaLiquido, `${nome}: lucro da fazenda (65%) menos taxas e armazenagem`] : ["aporte_fazenda", fz.owner, -r.fazendaLiquido, `${nome}: aporte para garantir o piso, taxas e armazenagem`],
+              r.fazendaLiquido >= 0 ? ["repasse_fazenda", fz.owner, r.fazendaLiquido, `${nome}: lucro da fazenda (75%) menos taxas e armazenagem`] : ["aporte_fazenda", fz.owner, -r.fazendaLiquido, `${nome}: aporte para garantir o piso, taxas e armazenagem`],
               ["comissao_plataforma", null, r.plataforma, `${nome}: saída — 5% do lucro da safra`],
               ["tarifa_armazem", arm.owner_user_id, r.armazem, `${nome} em ${arm.name}: custódia + armazenagem, pagas pela fazenda`],
               ["gestao_fundo", null, r.fundo, `${nome}: gestão do fundo`],

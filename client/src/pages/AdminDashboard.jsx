@@ -860,7 +860,7 @@ function HarvestPreviewPiso({ r }) {
       </p>
       <dl className="kv" style={{ margin: 0 }}>
         <div><dt>Investidores · mínimo garantido</dt><dd>{fmtBRL(v.valorPiso)}</dd></div>
-        <div><dt>{r.modelo === "custo" ? "Investidores · acima do mínimo (30% do lucro)" : "Investidores · 30% da alta"}</dt><dd>{fmtBRL(Math.max(0, v.investidores - v.valorPiso))}</dd></div>
+        <div><dt>{r.modelo === "custo" ? `Investidores · acima do mínimo (${r.regra_lucro_investidor_pct || 20}% do lucro)` : "Investidores · 30% da alta"}</dt><dd>{fmtBRL(Math.max(0, v.investidores - v.valorPiso))}</dd></div>
         <div><dt>Investidores recebem</dt><dd><strong>{fmtBRL(v.investidores)}</strong></dd></div>
         {r.modelo === "custo"
           ? <>

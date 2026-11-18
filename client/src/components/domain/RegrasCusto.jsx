@@ -6,11 +6,11 @@ import { useRegras, rendimentoNoPrazo, REFERENCIAS_PADRAO } from "../../lib/refe
 import { prazoDias, diasDesde, precoNoDia, CUSTO_PADRAO, TAXA_INVESTIDOR_PADRAO, minimoPct as calcMin, ganhoInvestidorCusto, recebeCusto, limiarCusto, minimoPorSaca } from "../../lib/piso";
 
 // Quadro do modelo "Custo + Lucro": o investidor paga o custo de produção e
-// fica com 30% do lucro; a fazenda fica com 65% e com a boa safra.
-export default function RegrasCusto({ custoHa, produtividade, precoEsperado, piso, pisoDias, publicadoEm, colheitaPrevista, unidade = "saca", area, paraFazenda = false,
+// fica com a parte dele do lucro (regra do talhão); a fazenda fica com a maior parte e com a boa safra.
+export default function RegrasCusto({ regra, custoHa, produtividade, precoEsperado, piso, pisoDias, publicadoEm, colheitaPrevista, unidade = "saca", area, paraFazenda = false,
   indice, base, janelaDias = 15, janelaPregoes = 10, seguro, prorrogacao, taxaInvestidorPct }) {
   const regras = useRegras();
-  const R = regras?.custo || CUSTO_PADRAO;
+  const R = regra || regras?.custo || CUSTO_PADRAO;
   // taxa de entrada do investidor: a congelada de uma compra já feita, ou o degrau vigente hoje
   const TI = regras?.taxa_investidor || TAXA_INVESTIDOR_PADRAO;
   const taxa = taxaInvestidorPct != null && taxaInvestidorPct !== "" ? Number(taxaInvestidorPct) : Number(TI.pct);

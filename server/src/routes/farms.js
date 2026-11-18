@@ -278,7 +278,7 @@ router.patch("/:id/status", requireAuth, requireRole("admin"), asyncHandler(asyn
   res.json({ farm: rows[0] });
 }));
 
-router.patch("/:id/commission", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+router.patch("/:id/commission", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
   const { commission_pct } = req.body || {};
   const pct = Number(commission_pct);
 

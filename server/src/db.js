@@ -683,6 +683,16 @@ ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS mp_insumos_ativo BOOLEAN 
 ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS limite_pct_talhao DOUBLE PRECISION NOT NULL DEFAULT 10;
 ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS limite_anual_investidor DOUBLE PRECISION NOT NULL DEFAULT 20000;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS investidor_qualificado BOOLEAN NOT NULL DEFAULT false;
+-- divisão do lucro gravada em cada talhão (a regra com que ele foi vendido). Na primeira vez,
+-- os talhões que já existem ficam com a regra antiga (30% investidor · 65% fazenda · 5% app).
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'plots' AND column_name = 'regra_lucro_investidor_pct') THEN
+    ALTER TABLE plots ADD COLUMN regra_lucro_investidor_pct DOUBLE PRECISION;
+    ALTER TABLE plots ADD COLUMN regra_lucro_fazenda_pct DOUBLE PRECISION;
+    ALTER TABLE plots ADD COLUMN regra_lucro_plataforma_pct DOUBLE PRECISION;
+    UPDATE plots SET regra_lucro_investidor_pct = 30, regra_lucro_fazenda_pct = 65, regra_lucro_plataforma_pct = 5 WHERE modelo = 'custo';
+  END IF;
+END $$;
 -- 'dinheiro' = a fazenda recebe a captação (como sempre); 'insumos' = o fundo compra os itens do plano
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS financiamento TEXT NOT NULL DEFAULT 'dinheiro';
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS plano_status TEXT;

@@ -59,7 +59,7 @@ export function diasDesde(data) {
 }
 
 // ---------- Modelo "Custo + Lucro" (v3, taxa do investidor no plano v9) ----------
-export const CUSTO_PADRAO = { min_pct_cdi: 95, lucro_investidor_pct: 30, lucro_fazenda_pct: 65, lucro_plataforma_pct: 5, estruturacao_pct: 1.0, desempenho_pct: 0, custodia_armazem_pct: 0.15, gestao_fundo_pct: 0.15, talhao_min_ha: 100, estruturacao_minima_brl: 4900 };
+export const CUSTO_PADRAO = { min_pct_cdi: 95, lucro_investidor_pct: 20, lucro_fazenda_pct: 75, lucro_plataforma_pct: 5, estruturacao_pct: 1.0, desempenho_pct: 0, custodia_armazem_pct: 0.15, gestao_fundo_pct: 0.15, talhao_min_ha: 100, estruturacao_minima_brl: 4900 };
 // taxa de entrada do investidor em degraus; /api/regras devolve o degrau vigente
 export const TAXA_INVESTIDOR_PADRAO = { pct: 0.5, degrau: 1, degraus: { degrau1_pct: 0.5, degrau2_pct: 0.75, degrau3_pct: 1.0, marco1_ha: 5000, marco1_retencao_pct: 60, marco2_ha: 24000 } };
 export const ehCusto = (plot) => plot?.modelo === "custo";
@@ -100,4 +100,15 @@ export function ganhoInvestidorCusto({ custoSaca, precoPago, minPct, precoEspera
   const naVendaEsperada = recebeCusto(custoSaca, minPct, precoEsperado, R, taxaPct);
   const esperado = esperadoCusto(custoSaca, minPct, precoEsperado, dias, R, taxaPct);
   return { totalPago, minimo, esperado, naVendaEsperada, minimoPct: (minimo / totalPago - 1) * 100, esperadoPct: (esperado / totalPago - 1) * 100 };
+}
+
+// regra de divisão do lucro do talhão (a gravada nele; sem ela, a vigente da plataforma)
+export function regraTalhao(plot, base = CUSTO_PADRAO) {
+  const R = { ...CUSTO_PADRAO, ...(base || {}) };
+  if (Number(plot?.regra_lucro_investidor_pct) > 0) {
+    R.lucro_investidor_pct = Number(plot.regra_lucro_investidor_pct);
+    R.lucro_fazenda_pct = Number(plot.regra_lucro_fazenda_pct);
+    R.lucro_plataforma_pct = Number(plot.regra_lucro_plataforma_pct);
+  }
+  return R;
 }

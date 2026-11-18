@@ -361,6 +361,12 @@ router.post("/", requireAuth, requireRole("fazenda", "admin"), asyncHandler(asyn
      contrato.indice, contrato.base, contrato.seguradora, contrato.apolice, contrato.cobertura, !!arquivo]
   );
   const plot = rows[0];
+  if (modelo === "custo") {
+    const { CUSTO } = require("../piso");
+    await pool.query("UPDATE plots SET regra_lucro_investidor_pct = $1, regra_lucro_fazenda_pct = $2, regra_lucro_plataforma_pct = $3 WHERE id = $4",
+      [CUSTO.lucro_investidor_pct, CUSTO.lucro_fazenda_pct, CUSTO.lucro_plataforma_pct, plot.id]);
+    Object.assign(plot, { regra_lucro_investidor_pct: CUSTO.lucro_investidor_pct, regra_lucro_fazenda_pct: CUSTO.lucro_fazenda_pct, regra_lucro_plataforma_pct: CUSTO.lucro_plataforma_pct });
+  }
   if (financiamento === "insumos") {
     await pool.query("UPDATE plots SET financiamento = 'insumos', plano_status = 'rascunho' WHERE id = $1", [plot.id]);
     plot.financiamento = "insumos"; plot.plano_status = "rascunho";
@@ -733,7 +739,7 @@ router.patch("/:id/armazenagem", requireAuth, requireRole("fazenda", "admin"), a
 
 // fazenda muda a participação no excedente. Só antes de ter investidores,
 // e a mudança volta para validação da administração (o talhão sai do ar até lá)
-router.patch("/:id/performance", requireAuth, requireRole("fazenda", "admin"), asyncHandler(async (req, res) => {
+router.patch("/:id/performance", requireAuth, requireRole("admin"), asyncHandler(async (req, res) => {
   const { rows } = await pool.query("SELECT p.*, f.name AS farm_name FROM plots p JOIN farms f ON f.id = p.farm_id WHERE p.id = $1", [req.params.id]);
   const plot = rows[0];
   if (!plot) return res.status(404).json({ error: "Talhão não encontrado." });

@@ -12,7 +12,7 @@ import { useAuth } from "../context/AuthContext";
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, IconButton, ErrorBanner, Loading, Segmented, SelectField, Banner, useDialog, useToast, EmptyState } from "../components/ui";
 import { ShareButton, PhotoGallery, GrainThumb, GuaranteeSeal, CustodyTimeline, Stars, RegrasTalhao, RegrasPiso, RegrasCusto, PilhaDeSacas, ListaDeEspera } from "../components/domain";
-import { ehPiso, ehCusto, ganhoInvestidor, ganhoInvestidorCusto, prazoDias, limiarCusto, recebeCusto } from "../lib/piso";
+import { ehPiso, ehCusto, ganhoInvestidor, ganhoInvestidorCusto, prazoDias, limiarCusto, recebeCusto, regraTalhao } from "../lib/piso";
 
 export default function PlotDetail() {
   const { id } = useParams();
@@ -108,9 +108,10 @@ export default function PlotDetail() {
   // mesmo cálculo do pagamento real no servidor (harvestPayout.js):
   // preço de venda projetado = preço de referência × (1 + retorno estimado)
   const custo = ehCusto(plot);
+  const Rp = regraTalhao(plot, Rp);
   const piso = ehPiso(plot) || custo;
   const ganhoPiso = custo ? ganhoInvestidorCusto({ custoSaca: Number(plot.custo_saca), precoPago: plot.cota_valor, minPct: Number(plot.piso_pct) || 0,
-    precoEsperado: plot.preco_venda_estimado, dias: plot.piso_dias_restantes || 150, taxaPct }, regras?.custo) : piso ? ganhoInvestidor({ precoReferencia: plot.preco_venda_estimado, precoPago: plot.cota_valor, piso: Number(plot.piso_pct) || 0,
+    precoEsperado: plot.preco_venda_estimado, dias: plot.piso_dias_restantes || 150, taxaPct }, Rp) : piso ? ganhoInvestidor({ precoReferencia: plot.preco_venda_estimado, precoPago: plot.cota_valor, piso: Number(plot.piso_pct) || 0,
     dias: plot.piso_dias_restantes || prazoDias(plot.colheita_prevista, regras?.piso) || 150 }, regras?.piso) : null;
   const precoVendaProjetado = piso ? ganhoPiso.minimo : plot.preco_venda_estimado * (1 + plot.previsao_retorno / 100);
   const margemPorUnidade = precoVendaProjetado - plot.cota_valor;
@@ -265,8 +266,8 @@ export default function PlotDetail() {
             <h2 id="com-t" className="card-title" style={{ marginBottom: 4 }}>Regras deste talhão: ganhos e comissões</h2>
             {custo ? (
               <>
-                <p className="card-desc" style={{ marginBottom: 12 }}>Você financia o custo de produção e fica com 30% do lucro da safra, com mínimo garantido. Regras validadas pelo fundo.</p>
-                <RegrasCusto custoHa={plot.custo_ha} produtividade={plot.produtividade_ha} precoEsperado={plot.preco_venda_estimado} piso={plot.piso_pct}
+                <p className="card-desc" style={{ marginBottom: 12 }}>Você financia o custo de produção e fica com {Rp.lucro_investidor_pct}% do lucro da safra, com mínimo garantido. Regras validadas pelo fundo.</p>
+                <RegrasCusto regra={Rp} custoHa={plot.custo_ha} produtividade={plot.produtividade_ha} precoEsperado={plot.preco_venda_estimado} piso={plot.piso_pct}
                   pisoDias={plot.piso_dias} publicadoEm={plot.publicado_em} colheitaPrevista={plot.colheita_prevista} unidade={plot.unidade}
                   indice={plot.indice_referencia || regras?.indices?.[plot.grao]} base={plot.base_regional} janelaDias={plot.janela_dias} janelaPregoes={plot.janela_pregoes}
                   seguro={{ seguradora: plot.seguro_seguradora, apolice: plot.seguro_apolice, cobertura: plot.seguro_cobertura_pct }} prorrogacao={plot.prorrogacao_motivo} />
@@ -370,13 +371,13 @@ export default function PlotDetail() {
                   <div><dt>Você paga agora</dt><dd>{fmtBRL(custoTotal)}</dd></div>
                   {custo ? (() => {
                     const C = Number(plot.custo_saca), mn = Number(plot.piso_pct) || 0;
-                    const limiar = limiarCusto(C, mn, taxaPct, regras?.custo);
+                    const limiar = limiarCusto(C, mn, taxaPct, Rp);
                     const exemplo = plot.preco_venda_estimado * 1.15;
-                    const recebeEx = recebeCusto(C, mn, exemplo, regras?.custo, taxaPct);
+                    const recebeEx = recebeCusto(C, mn, exemplo, Rp, taxaPct);
                     return (
                       <>
                         <div className="total"><dt>Recebe no mínimo, na colheita ({fmtPct(ganhoPiso.minimoPct, 2)} sobre o total pago)</dt><dd className="text-success">{fmtBRL(qtd * ganhoPiso.minimo)}</dd></div>
-                        <div><dt>Recebe mais se a venda passar de {fmtBRL(limiar)} por {unidade}</dt><dd>30% do lucro</dd></div>
+                        <div><dt>Recebe mais se a venda passar de {fmtBRL(limiar)} por {unidade}</dt><dd>{Rp.lucro_investidor_pct}% do lucro</dd></div>
                         <div><dt>Exemplo: venda a {fmtBRL(exemplo)}</dt><dd>{fmtBRL(qtd * recebeEx)}</dd></div>
                       </>
                     );

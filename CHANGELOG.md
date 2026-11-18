@@ -1,5 +1,12 @@
 # Registro de mudanças
 
+## 4.2.1 — divisão do lucro 20/75/5, definida pela plataforma
+
+- **Nova divisão do lucro: 20% investidor · 75% fazenda · 5% app.** O investidor continua com o mínimo de 95% do CDI; passa a receber mais que o mínimo quando a venda supera cerca de R$ 135,60 por saca (soja de referência).
+- **Regra gravada em cada talhão** (`regra_lucro_investidor_pct`, `regra_lucro_fazenda_pct`, `regra_lucro_plataforma_pct`): na primeira inicialização, os talhões já existentes ficam com a regra com que foram vendidos (30/65/5); os novos nascem com 20/75/5. O pagamento, a página do talhão, o card da vitrine, a prévia do fundo e a finalização usam a regra do próprio talhão.
+- **A fazenda não ajusta ganhos:** removidos do painel o quadro "Comissão da fazenda" e o ajuste de "performance" por talhão; as rotas de comissão e performance passaram a ser só da administração.
+- Termos de uso atualizados (20% do lucro para o investidor, 75% para a fazenda).
+
 ## 4.2.0 — limites de compra, orçamento claro, cadastro novo e revisão de telas
 
 **Limites de compra por investidor (no servidor, não dá para contornar pelo app)**

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import NovoTalhao from "./NovoTalhao";
 import PlanoCompras from "./PlanoCompras";
-import { Warehouse, Percent, Plus, Trash2, RotateCcw, Pencil, Info, ChevronDown, ChevronUp, Star, UserCircle2, FileText, Image as ImageIcon } from "lucide-react";
+import { Warehouse, Plus, Trash2, RotateCcw, Pencil, ChevronDown, ChevronUp, Star, UserCircle2, FileText, Image as ImageIcon } from "lucide-react";
 import { COLORS, GRAIN_COLORS, ICONS } from "../config/theme";
 import { fasesDe, culturaTexto, cicloLabels, fmtData } from "../config/culturas";
 import { fmtBRL, unitPlural, fmtPct } from "../lib/format";
@@ -12,7 +12,7 @@ import { maskCNPJ, isValidCNPJ, maskCEP, buscarEnderecoPorCEP, onlyDigits } from
 import { Page, PageHeader } from "../components/layout/Page";
 import { Button, SelectField, ProgressBar, ErrorBanner, SuccessBanner, Banner, FilterChips, Loading, EmptyState, TextField, Badge, Dialog, useDialog, useToast } from "../components/ui";
 import { dividirPiso } from "../lib/piso";
-import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, PerformanceField, RegrasPiso } from "../components/domain";
+import { PhotoGallery, GrainThumb, CustodyTimeline, CustodyStatusBadge, CultivoFields, cultivoPayload, emptyCultivo, ArmazenagemFields, RegrasPiso } from "../components/domain";
 import { tarifasTexto, quinzenasTexto, armDoTalhao, pagadorTexto } from "../lib/armazenagem";
 
 const STATUS_FILTERS = [
@@ -97,7 +97,7 @@ export default function FarmDashboard() {
         </Banner>
       )}
 
-      <CommissionCard farm={farm} onSaved={(pct) => { setFarm((f) => ({ ...f, commission_pct: pct })); toast(`Comissão definida em ${pct}%`); }} onError={setError} />
+      {/* ganhos definidos pela plataforma: a fazenda não ajusta comissão nem performance */}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "28px 0 12px" }}>
         <h2 className="section-title">Seus talhões</h2>
@@ -129,51 +129,6 @@ export default function FarmDashboard() {
         </div>
       )}
     </Page>
-  );
-}
-
-// A comissão só é salva quando a pessoa solta o controle (antes cada pixel
-// arrastado disparava uma requisição e estourava o limite da API).
-function CommissionCard({ farm, onSaved, onError }) {
-  const [value, setValue] = useState(farm.commission_pct);
-  const [saving, setSaving] = useState(false);
-  const saved = useRef(farm.commission_pct);
-  useEffect(() => { setValue(farm.commission_pct); saved.current = farm.commission_pct; }, [farm.commission_pct]);
-
-  async function commit() {
-    if (value === saved.current) return;
-    setSaving(true);
-    try {
-      await api.setCommission(farm.id, value);
-      saved.current = value;
-      onSaved(value);
-    } catch (err) {
-      setValue(saved.current);
-      onError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <section className="card">
-      <label htmlFor="commission" className="card-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <Percent size={16} aria-hidden /> Sua comissão sobre o lucro de cada colheita
-      </label>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 8 }}>
-        <input
-          id="commission" type="range" min={0} max={30} step={0.5} value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
-          onPointerUp={commit} onKeyUp={commit} onBlur={commit}
-          aria-valuetext={`${value}%`} style={{ flex: 1 }}
-        />
-        <span className="stat-value text-success" style={{ marginTop: 0, minWidth: 64, textAlign: "right" }}>{value}%</span>
-      </div>
-      <p className="card-desc" style={{ display: "flex", gap: 6 }}>
-        <Info size={14} aria-hidden style={{ flexShrink: 0, marginTop: 3 }} />
-        {saving ? "Salvando…" : "Comissão menor significa repasse maior ao investidor, o que atrai mais investimento."}
-      </p>
-    </section>
   );
 }
 
@@ -622,7 +577,7 @@ function CustodySection({ plot, warehouses, onChanged, setNotice, setError }) {
       {plot.custodia_status === "recusada" && plot.custodia_motivo && <p className="text-sm text-danger" style={{ marginBottom: 10 }}>Motivo da recusa: {plot.custodia_motivo}</p>}
       {plot.custodia_status === "pendente" && <p className="text-sm text-2" style={{ marginBottom: 10 }}>O armazém ainda não respondeu. Investidores veem que a garantia está em análise.</p>}
       <StorageTerms plot={plot} warehouses={warehouses} onChanged={onChanged} setNotice={setNotice} setError={setError} />
-      {plot.modelo !== "piso" && <PerformanceTerms plot={plot} onChanged={onChanged} setNotice={setNotice} setError={setError} />}
+
       {plot.custodia_status === "aceita" && (
         <CustodyTimeline plot={plot} validacoes={validacoes} unidade={plot.unidade} declared={plot.cotas_totais} sold={vendidas} />
       )}
@@ -683,8 +638,8 @@ function FinalizePreviewPiso({ plot, preco, onChange, uid }) {
   const base = custo ? Number(plot.custo_saca) : plot.preco_venda_estimado;
   const precoPiso = base * (1 + (Number(plot.piso_pct) || 0) / 100);
   const x0 = p > 0 ? dividirPiso({ cotas: vendidas, precoReferencia: base, pisoPct: Number(plot.piso_pct) || 0, precoVenda: p }) : null;
-  // no custo + lucro a fazenda fica com 65% do lucro sobre o custo (e cobre o mínimo se faltar)
-  const x = x0 && custo ? { ...x0, excedente: Math.max(0, p - base) * vendidas, fazendaExcedente: Math.max(0, p - base) * vendidas * 0.65 - Math.max(0, base * vendidas * (Number(plot.piso_pct) || 0) / 100 - Math.max(0, p - base) * vendidas * 0.30), aporteFazenda: Math.max(0, precoPiso - p) * vendidas } : x0;
+  // no custo + lucro a fazenda fica com a parte dela do lucro (regra do talhão) e cobre o mínimo se faltar
+  const x = x0 && custo ? { ...x0, excedente: Math.max(0, p - base) * vendidas, fazendaExcedente: Math.max(0, p - base) * vendidas * ((Number(plot.regra_lucro_fazenda_pct) || 75) / 100) - Math.max(0, base * vendidas * (Number(plot.piso_pct) || 0) / 100 - Math.max(0, p - base) * vendidas * 0.30), aporteFazenda: Math.max(0, precoPiso - p) * vendidas } : x0;
   return (
     <div>
       <label htmlFor={`fpv-${uid}`} style={{ fontSize: 12.5, color: COLORS.soilLight }}>Preço médio de venda por {u} (R$)</label>
@@ -718,51 +673,6 @@ function FinalizeLiquidacaoIndice({ plot }) {
         O fundo informa o valor e confere antes de pagar. Descreva abaixo a colheita (quantidade de {u}, armazém e nota de entrada).
       </p>
     </div>
-  );
-}
-
-function PerformanceTerms({ plot, onChanged, setNotice, setError }) {
-  const dialog = useDialog();
-  const [editing, setEditing] = useState(false);
-  const [perf, setPerf] = useState(String(plot.perf_excedente_pct ?? 0));
-  const [saving, setSaving] = useState(false);
-  const temInvestidor = plot.cotas_disponiveis < plot.cotas_totais;
-  const atual = Number(plot.perf_excedente_pct) || 0;
-
-  async function save() {
-    if (plot.aprovacao_status === "aprovado") {
-      const ok = await dialog.confirm({ title: "Enviar a nova regra para aprovação?", message: "O talhão sai da vitrine até a administração validar a mudança.", confirmLabel: "Enviar" });
-      if (!ok) return;
-    }
-    setSaving(true);
-    try {
-      const r = await api.setPlotPerformance(plot.id, perf);
-      setNotice(r.revalidar ? "Regra enviada para a administração validar." : "Regra de performance atualizada.");
-      setEditing(false);
-      onChanged();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (editing) {
-    return (
-      <div className="form-grid" style={{ marginBottom: 10 }}>
-        <PerformanceField value={perf} onChange={setPerf} precoReferencia={plot.preco_venda_estimado} retornoPct={plot.previsao_retorno} unidade={plot.unidade} />
-        <div className="span-all" style={{ display: "flex", gap: 8 }}>
-          <Button variant="secondary" onClick={() => setEditing(false)}>Cancelar</Button>
-          <Button onClick={save} loading={saving}>Salvar</Button>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <p className="text-sm text-2" style={{ marginBottom: 10 }}>
-      Performance: {atual > 0 ? `${atual}% do lucro acima da meta de ${fmtPct(plot.previsao_retorno)} fica com a fazenda` : "todo o lucro acima da meta vai para os investidores"}
-      {!temInvestidor && <> · <button type="button" className="link-btn" onClick={() => setEditing(true)}>alterar</button></>}
-    </p>
   );
 }
 

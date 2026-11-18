@@ -1,5 +1,10 @@
 # Registro de mudanças
 
+## 4.2.3 — correção: página do talhão
+
+- Corrigido o erro "Cannot access 'Rp' before initialization" que derrubava a página do talhão (e o demonstrativo) desde a 4.2.1: a regra de divisão do talhão referenciava a si mesma.
+- Varredura de todas as telas dos 7 perfis em celular, tablet e desktop com a base de demonstração nova: nenhum erro no navegador e nenhuma resposta 5xx do servidor.
+
 ## 4.2.2 — demonstração do zero
 
 - `scripts/limpar-base.js` (`npm run limpar`): apaga todos os dados e mantém só as contas de administração e as configurações (catálogo, doses de referência, preços de referência, preço por fase, catálogos de características, dados da empresa, limites e chaves). Só roda com `CONFIRMAR=APAGAR-TUDO`.

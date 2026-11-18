@@ -108,7 +108,7 @@ export default function PlotDetail() {
   // mesmo cálculo do pagamento real no servidor (harvestPayout.js):
   // preço de venda projetado = preço de referência × (1 + retorno estimado)
   const custo = ehCusto(plot);
-  const Rp = regraTalhao(plot, Rp);
+  const Rp = regraTalhao(plot, regras?.custo);
   const piso = ehPiso(plot) || custo;
   const ganhoPiso = custo ? ganhoInvestidorCusto({ custoSaca: Number(plot.custo_saca), precoPago: plot.cota_valor, minPct: Number(plot.piso_pct) || 0,
     precoEsperado: plot.preco_venda_estimado, dias: plot.piso_dias_restantes || 150, taxaPct }, Rp) : piso ? ganhoInvestidor({ precoReferencia: plot.preco_venda_estimado, precoPago: plot.cota_valor, piso: Number(plot.piso_pct) || 0,
